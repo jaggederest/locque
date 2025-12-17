@@ -49,6 +49,8 @@ primEnv = Map.fromList
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
   , (T.pack "length-string-prim", BVal (VPrim primLengthString))
   , (T.pack "print-prim", BVal (VPrim primPrint))
+  , (T.pack "read-file-prim", BVal (VPrim primReadFile))
+  , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
   , (T.pack "print", BVal (VPrim primPrint))
   , (T.pack "assert-eq-nat-prim", BVal (VPrim primAssertEqNat))
   , (T.pack "assert-eq-string-prim", BVal (VPrim primAssertEqString))
@@ -105,6 +107,16 @@ primPrint [v] = do
     other     -> putStrLn (show other)
   pure VUnit
 primPrint _ = error "print-prim expects 1 arg"
+
+primReadFile :: [Value] -> IO Value
+primReadFile [VString path] = VString <$> TIO.readFile (T.unpack path)
+primReadFile _ = error "read-file-prim expects 1 string arg"
+
+primWriteFile :: [Value] -> IO Value
+primWriteFile [VString path, VString contents] = do
+  TIO.writeFile (T.unpack path) contents
+  pure VUnit
+primWriteFile _ = error "write-file-prim expects (path, contents)"
 
 primAssertEqNat :: [Value] -> IO Value
 primAssertEqNat [a,b] = do
