@@ -14,6 +14,10 @@ module Prelude contains
   define opaque not as value not-prim
   define opaque if-bool as value if-bool-prim
   define opaque match as value match-prim
+  define opaque pair as value pair-prim
+  define opaque fst as value fst-prim
+  define opaque snd as value snd-prim
+  define opaque pair-to-list as value pair-to-list-prim
 
   define transparent id as value function x of-type String produce x
   define transparent is-falsy as value function x of-type String produce not x

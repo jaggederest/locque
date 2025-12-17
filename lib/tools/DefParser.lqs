@@ -1,0 +1,21 @@
+(module Tools::DefParser
+  (import Prelude P)
+  (import String S)
+  (import List L)
+
+  (def transparent parse-def
+    (value
+      (lambda ((tokens (List String)))
+        (let ((start ((L.drop-until "define") tokens)))
+          (if-bool (P.is-falsy start)
+            P.nil
+            (let ((name (P.head (P.tail (P.tail start))))
+                 (vals (P.tail ((L.drop-until "value") start)))
+                 (valTok (P.head vals)))
+              (P.cons "("
+                (P.cons "def"
+                  (P.cons "transparent"
+                    (P.cons name
+                      (P.cons "(value"
+                        (P.cons valTok
+                          (P.cons "))" P.nil))))))))))))))

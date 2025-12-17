@@ -1,0 +1,9 @@
+(module Tools::Validator
+  (import Prelude P)
+  (import String S)
+
+  (def transparent validate-string
+    (value
+      (lambda ((s String))
+        (validate-prim s))))
+)

@@ -1,30 +1,23 @@
 (import Prelude P)
 (import IO IO)
 (import String S)
+(import List L)
+(import Tools::Tokenizer T)
+(import Tools::DefParser D)
 
 (module Tools::MexprToSexpr
-  (def transparent tokenize
-    (value
-      (lambda ((s String))
-        (P.filter (lambda ((x String)) (not (S.eq (S.trim x) "")))
-                  (S.split-on " " (S.trim s))))))
-
-  (def transparent parenthesize
-    (value
-      (lambda ((tokens (List String)))
-        (P.fold
-          (lambda ((acc (List String)))
-            (lambda ((tok String))
-              (if-bool (S.eq tok "module")
-                (P.append acc (P.cons "(" (P.cons tok (P.cons ")" P.nil))))
-                (P.append acc (P.cons tok P.nil)))))
-          P.nil
-          tokens))))
-
   (def transparent convert-string
     (value
       (lambda ((src String))
-        (S.join-with " " (parenthesize (tokenize src))))))
+        (let ((toks (T.tokenize src))
+             (rest ((L.drop-until "module") toks)))
+          (if-bool (P.is-falsy rest)
+            "(module)"
+            (let ((name (P.head (P.tail rest)))
+                 (body (D.parse-def rest)))
+              (if-bool (P.is-falsy body)
+                (S.join-with " " (P.cons "(" (P.cons "module" (P.cons name (P.cons ")" P.nil)))))
+                (S.join-with " " (P.cons "(" (P.cons "module" (P.cons name (P.append body (P.cons ")" P.nil)))))))))))))
 
   (def transparent convert-file
     (computation

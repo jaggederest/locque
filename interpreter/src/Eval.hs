@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>))
 import qualified Data.Text.IO as TIO
 import           Parser (parseModuleFile)
+import           Validator (checkParens, validateModule)
 
 -- Runtime values
 
@@ -19,6 +20,7 @@ data Value
   | VList [Value]
   | VUnit
   | VBool Bool
+  | VPair Value Value
   | VClosure Env Text Expr
   | VPrim ([Value] -> IO Value)
 
@@ -29,6 +31,7 @@ instance Show Value where
     where inner = concat . map ((++ ",") . show)
   show VUnit       = "tt"
   show (VBool b)   = if b then "true" else "false"
+  show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
 
@@ -75,6 +78,12 @@ primEnv = Map.fromList
   , (T.pack "not-prim", BVal (VPrim primNot))
   , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
   , (T.pack "match-prim", BVal (VPrim primMatch))
+  , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
+  , (T.pack "pair-prim", BVal (VPrim primPair))
+  , (T.pack "fst-prim", BVal (VPrim primFst))
+  , (T.pack "snd-prim", BVal (VPrim primSnd))
+  , (T.pack "pair-to-list-prim", BVal (VPrim primPairToList))
+  , (T.pack "validate-prim", BVal (VPrim primValidate))
   ]
 
 primAdd :: [Value] -> IO Value
@@ -147,8 +156,36 @@ primMatch [v, c1, c2] = case v of
   VList (h:t)   -> apply c2 [h, VList t]
   VBool False   -> apply c1 []
   VBool True    -> apply c2 []
+  VPair a b     -> apply c2 [a, b]
   _             -> error "match-prim unsupported value"
 primMatch _ = error "match-prim expects (value, case1, case2)"
+
+primPair :: [Value] -> IO Value
+primPair [a,b] = pure $ VPair a b
+primPair _ = error "pair-prim expects 2 args"
+
+primFst :: [Value] -> IO Value
+primFst [VPair a _] = pure a
+primFst _ = error "fst-prim expects pair"
+
+primSnd :: [Value] -> IO Value
+primSnd [VPair _ b] = pure b
+primSnd _ = error "snd-prim expects pair"
+
+primPairToList :: [Value] -> IO Value
+primPairToList [VPair a b] = pure $ VList [a,b]
+primPairToList _ = error "pair-to-list-prim expects pair"
+
+primValidate :: [Value] -> IO Value
+primValidate [VString s] =
+  case checkParens "<inline>" s of
+    Left _ -> pure (VBool False)
+    Right _ -> case parseModuleFile "<inline>" s of
+      Left _ -> pure (VBool False)
+      Right m -> case validateModule m of
+        Left _ -> pure (VBool False)
+        Right _ -> pure (VBool True)
+primValidate _ = error "validate-prim expects 1 string"
 
 primLengthString :: [Value] -> IO Value
 primLengthString [a] = do
@@ -241,6 +278,13 @@ expectStringList :: Value -> IO [Text]
 expectStringList (VList xs) = mapM expectString xs
 expectStringList v          = error $ "expected List of Strings, got " ++ show v
 
+primDropUntil :: [Value] -> IO Value
+primDropUntil [target, VList xs] = do
+  tgt <- expectString target
+  pure $ VList (dropWhile (\v -> case v of
+                            VString s -> s /= tgt
+                            _ -> True) xs)
+primDropUntil _ = error "drop-until-prim expects (string, list)"
 isTruthy :: Value -> Bool
 isTruthy VUnit = True
 isTruthy (VBool b) = b

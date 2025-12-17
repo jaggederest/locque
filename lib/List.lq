@@ -1,0 +1,3 @@
+module List contains
+  define opaque drop-until as value drop-until-prim
+end

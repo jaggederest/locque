@@ -1,0 +1,10 @@
+(import Prelude P)
+(import String S)
+
+(module Tools::Tokenizer
+  (def transparent tokenize
+    (value
+      (lambda ((s String))
+        (P.filter (lambda ((x String)) (not (S.eq (S.trim x) "")))
+                  (S.split-on " " (S.trim s))))))
+)

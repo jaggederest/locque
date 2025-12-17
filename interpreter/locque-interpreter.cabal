@@ -12,7 +12,7 @@ synopsis:            Toy interpreter for locque
 executable locque-interpreter
   main-is:             Main.hs
   hs-source-dirs:      src
-  other-modules:       AST, Eval, Parser
+  other-modules:       AST, Eval, Parser, Validator
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns
   build-depends:
