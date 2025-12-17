@@ -8,3 +8,5 @@ interpreter/.stack-work/
 
 # Editor/OS junk
 .DS_Store
+# Temp files
+/tmp/
