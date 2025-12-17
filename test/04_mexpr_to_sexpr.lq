@@ -1,0 +1,17 @@
+import Tools::MexprToSexpr as Conv
+import Assert as A
+import Prelude as P
+
+module MexprToSexprTests contains
+
+  define transparent sample as value "module Hello contains define transparent message as value \"hi\" end"
+
+  define transparent check-convert as computation
+    bind out <- Conv.convert-string sample then
+    bind _ <- perform io (A.assert-eq-string out "( module ) Hello contains define transparent message as value \"hi\" end") then
+    return P.tt
+
+  define transparent main as computation
+    bind _ <- check-convert then
+    return P.tt
+end

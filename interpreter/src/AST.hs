@@ -7,6 +7,7 @@ import Data.Text (Text)
 data Literal
   = LNat Integer
   | LString Text
+  | LBool Bool
   deriving (Show, Eq)
 
 -- Expressions (value world)
@@ -15,6 +16,7 @@ data Expr
   = EVar Text
   | ELit Literal
   | EApp Expr [Expr]
+  | ELam Text Expr
   deriving (Show, Eq)
 
 -- Computations (effectful world)

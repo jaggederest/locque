@@ -1,0 +1,38 @@
+import Prelude as P
+import IO as IO
+import String as S
+
+module Tools::MexprToSexpr contains
+
+  define transparent tokenize as value
+    function s of-type String produce
+      P.filter (function x of-type String produce not (S.eq (S.trim x) "")) (S.split-on " " (S.trim s))
+
+  define transparent parenthesize as value
+    function tokens of-type (List String) produce
+      let open = "(" in
+      let close = ")" in
+      P.reverse (P.fold (function acc of-type (List String) produce
+                          function tok of-type String produce
+                            if-bool (List String) (S.eq tok "module")
+                              then P.append (P.cons open (P.cons tok acc)) (P.cons close P.nil)
+                              else P.cons tok acc)
+                        P.nil
+                        tokens)
+
+  define transparent convert-string as value
+    function src of-type String produce
+      let toks = tokenize src in
+      let sexpr = parenthesize toks in
+      S.join-with " " sexpr
+
+  define transparent convert-file as computation
+    bind src <- IO.read-file "../examples/00_hello_world.lq" then
+    bind out <- convert-string src then
+    bind _ <- IO.write-file "../tmp/mexpr_to_sexpr.lqs" out then
+    IO.print out
+
+  define transparent main as computation
+    bind _ <- convert-file then
+    return P.tt
+end

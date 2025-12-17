@@ -1,0 +1,19 @@
+(import Tools::MexprToSexpr Conv)
+(import Assert A)
+(import Prelude P)
+
+(module MexprToSexprTests
+  (def transparent sample (value "module Hello contains define transparent message as value \"hi\" end"))
+
+  (def transparent check-convert
+    (computation
+      (do
+        (bind out (Conv.convert-string sample))
+        (bind _ (perform io (A.assert-eq-string out "( module ) Hello contains define transparent message as value \"hi\" end")))
+        (return P.tt))))
+
+  (def transparent main
+    (computation
+      (do
+        (bind _ check-convert)
+        (return P.tt)))))

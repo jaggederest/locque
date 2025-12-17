@@ -3,7 +3,7 @@ module Eval
   ) where
 
 import           AST
-import           Control.Monad (foldM)
+import           Control.Monad (foldM, filterM)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -18,6 +18,8 @@ data Value
   | VString Text
   | VList [Value]
   | VUnit
+  | VBool Bool
+  | VClosure Env Text Expr
   | VPrim ([Value] -> IO Value)
 
 instance Show Value where
@@ -26,6 +28,8 @@ instance Show Value where
   show (VList xs)  = "[" ++ inner xs ++ "]"
     where inner = concat . map ((++ ",") . show)
   show VUnit       = "tt"
+  show (VBool b)   = if b then "true" else "false"
+  show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
 
 data Binding
@@ -48,6 +52,11 @@ primEnv = Map.fromList
   , (T.pack "eq-string-prim", BVal (VPrim primEqString))
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
   , (T.pack "length-string-prim", BVal (VPrim primLengthString))
+  , (T.pack "split-on-prim", BVal (VPrim primSplitOn))
+  , (T.pack "join-with-prim", BVal (VPrim primJoinWith))
+  , (T.pack "trim-prim", BVal (VPrim primTrim))
+  , (T.pack "filter-prim", BVal (VPrim primFilter))
+  , (T.pack "fold-prim", BVal (VPrim primFold))
   , (T.pack "print-prim", BVal (VPrim primPrint))
   , (T.pack "read-file-prim", BVal (VPrim primReadFile))
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
@@ -61,6 +70,10 @@ primEnv = Map.fromList
   , (T.pack "head-prim", BVal (VPrim primHead))
   , (T.pack "tail-prim", BVal (VPrim primTail))
   , (T.pack "length-list-prim", BVal (VPrim primLengthList))
+  , (T.pack "append-prim", BVal (VPrim primAppend))
+  , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
+  , (T.pack "not-prim", BVal (VPrim primNot))
+  , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
   ]
 
 primAdd :: [Value] -> IO Value
@@ -79,20 +92,53 @@ primEqNat :: [Value] -> IO Value
 primEqNat [a,b] = do
   a' <- expectNat a
   b' <- expectNat b
-  pure $ if a' == b' then VUnit else error "eq-nat-prim failed"
+  pure $ VBool (a' == b')
 primEqNat _ = error "eq-nat-prim expects 2 args"
 
 primEqString :: [Value] -> IO Value
 primEqString [a,b] = do
   a' <- expectString a
   b' <- expectString b
-  pure $ if a' == b' then VUnit else error "eq-string-prim failed"
+  pure $ VBool (a' == b')
 primEqString _ = error "eq-string-prim expects 2 args"
 
 primConcatString :: [Value] -> IO Value
 primConcatString vals = do
   ss <- mapM expectString vals
   pure $ VString (mconcat ss)
+
+primSplitOn :: [Value] -> IO Value
+primSplitOn [VString delim, VString s] =
+  pure $ VList (map VString (T.splitOn delim s))
+primSplitOn _ = error "split-on-prim expects (delimiter, string)"
+
+primJoinWith :: [Value] -> IO Value
+primJoinWith [VString sep, VList strs] = do
+  parts <- mapM expectString strs
+  pure $ VString (T.intercalate sep parts)
+primJoinWith _ = error "join-with-prim expects (separator, list-of-strings)"
+
+primTrim :: [Value] -> IO Value
+primTrim [VString s] = pure $ VString (T.strip s)
+primTrim _ = error "trim-prim expects 1 string"
+
+primFilter :: [Value] -> IO Value
+primFilter [VPrim f, VList xs] = do
+  kept <- filterM (\v -> isTruthy <$> f [v]) xs
+  pure $ VList kept
+primFilter [VClosure env param body, VList xs] = do
+  kept <- filterM (\v -> do
+                      let env' = Map.insert param (BVal v) env
+                      res <- evalExpr env' body
+                      pure (isTruthy res)) xs
+  pure $ VList kept
+primFilter _ = error "filter-prim expects (predicate, list)"
+
+primFold :: [Value] -> IO Value
+primFold [fn, z, VList xs] = foldM step z xs
+  where
+    step acc v = apply fn [acc, v]
+primFold _ = error "fold-prim expects (fn, init, list)"
 
 primLengthString :: [Value] -> IO Value
 primLengthString [a] = do
@@ -152,6 +198,23 @@ primLengthList :: [Value] -> IO Value
 primLengthList [VList xs] = pure $ VNat (fromIntegral (length xs))
 primLengthList _ = error "length-list-prim expects 1 list arg"
 
+primAppend :: [Value] -> IO Value
+primAppend [VList xs, VList ys] = pure $ VList (xs ++ ys)
+primAppend _ = error "append-prim expects (list, list)"
+
+primMap :: [Value] -> IO Value
+primMap [fn, VList xs] = VList <$> mapM (\v -> apply fn [v]) xs
+primMap _ = error "map-prim expects (fn, list)"
+
+primNot :: [Value] -> IO Value
+primNot [VBool b] = pure $ VBool (not b)
+primNot [v] = pure $ VBool (not (isTruthy v))
+primNot _ = error "not-prim expects 1 arg"
+
+primIfBool :: [Value] -> IO Value
+primIfBool [cond, t, f] = pure $ if isTruthy cond then t else f
+primIfBool _ = error "if-bool-prim expects (cond, then, else)"
+
 expectNat :: Value -> IO Integer
 expectNat (VNat n) = pure n
 expectNat v        = error $ "expected Nat, got " ++ show v
@@ -163,6 +226,18 @@ expectString v           = error $ "expected String, got " ++ show v
 expectList :: Value -> IO [Value]
 expectList (VList xs) = pure xs
 expectList v          = error $ "expected List, got " ++ show v
+
+expectStringList :: Value -> IO [Text]
+expectStringList (VList xs) = mapM expectString xs
+expectStringList v          = error $ "expected List of Strings, got " ++ show v
+
+isTruthy :: Value -> Bool
+isTruthy VUnit = True
+isTruthy (VBool b) = b
+isTruthy (VString s) = not (T.null s)
+isTruthy (VNat n) = n /= 0
+isTruthy (VList xs) = not (null xs)
+isTruthy _ = False
 
 -- Build environment from module definitions atop an existing env (imports/prims)
 bindModule :: Module -> Env -> Env
@@ -192,6 +267,8 @@ evalExpr env expr = case expr of
   ELit lit -> pure $ case lit of
     LNat n    -> VNat n
     LString s -> VString s
+    LBool b   -> VBool b
+  ELam v body -> pure $ VClosure env v body
   EApp f args -> do
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
@@ -204,7 +281,12 @@ resolveBinding env b = case b of
   BCompExpr c   -> runComp env c
 
 apply :: Value -> [Value] -> IO Value
+apply v [] = pure v
 apply (VPrim f) args = f args
+apply (VClosure cenv param body) (arg:rest) = do
+  let env' = Map.insert param (BVal arg) cenv
+  val <- evalExpr env' body
+  if null rest then pure val else apply val rest
 apply v _            = error $ "Cannot apply non-function value: " ++ show v
 
 runComp :: Env -> Comp -> IO Value
@@ -247,7 +329,7 @@ insertDef alias modName env (Definition _ name kind body) =
         (ValueDef, Left e)        -> Just (BValueExpr e)
         (ComputationDef, Right c) -> Just (BCompExpr c)
         _                         -> Nothing
-      names = [aliasPref alias name, aliasPref modName name]
+      names = [aliasPref alias name, aliasPref modName name, name]
    in case base of
         Nothing -> env
         Just b  -> foldl (\acc n -> Map.insert n b acc) env names

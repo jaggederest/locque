@@ -1,3 +1,13 @@
 (module String
   (def opaque concat (value concat-string-prim))
-  (def opaque length (value length-string-prim)))
+  (def opaque length (value length-string-prim))
+  (def opaque eq (value eq-string-prim))
+  (def opaque split-on (value split-on-prim))
+  (def opaque join-with (value join-with-prim))
+  (def opaque trim (value trim-prim))
+  (def transparent split-spaces
+    (value
+      (lambda ((s String))
+        (filter
+          (lambda ((x String)) (trim x))
+          (split-on " " (trim s)))))))

@@ -2,6 +2,7 @@
 (import Assert A)
 (import IO IO)
 (import String S)
+(import Prelude P)
 
 (module Basics
   (def transparent check-add
@@ -28,11 +29,27 @@
         (bind _ (perform io (A.assert-eq-nat (S.length "abcd") 4)))
         (return P.tt))))
 
+  (def transparent check-string-split-join
+    (computation
+      (do
+        (bind parts (perform io (S.split-on "-" "a-b-c")))
+        (bind _ (perform io (A.assert-eq-string (S.join-with "-" parts) "a-b-c")))
+        (return P.tt))))
+
+  (def transparent check-split-spaces
+    (computation
+      (do
+        (bind parts (perform io (S.split-spaces " a  b c ")))
+        (bind _ (perform io (A.assert-eq-string (S.join-with "-" parts) "a-b-c")))
+        (return P.tt))))
+
   (def transparent main
     (computation
       (do
         (bind _ check-add)
         (bind _ check-string)
         (bind _ check-string-length)
+        (bind _ check-string-split-join)
+        (bind _ check-split-spaces)
         (bind _ check-output)
         (return P.tt)))))

@@ -1,0 +1,41 @@
+(import Prelude P)
+(import IO IO)
+(import String S)
+
+(module Tools::MexprToSexpr
+  (def transparent tokenize
+    (value
+      (lambda ((s String))
+        (P.filter (lambda ((x String)) (not (S.eq (S.trim x) "")))
+                  (S.split-on " " (S.trim s))))))
+
+  (def transparent parenthesize
+    (value
+      (lambda ((tokens (List String)))
+        (P.fold
+          (lambda ((acc (List String)))
+            (lambda ((tok String))
+              (if-bool (S.eq tok "module")
+                (P.append acc (P.cons "(" (P.cons tok (P.cons ")" P.nil))))
+                (P.append acc (P.cons tok P.nil)))))
+          P.nil
+          tokens))))
+
+  (def transparent convert-string
+    (value
+      (lambda ((src String))
+        (S.join-with " " (parenthesize (tokenize src))))))
+
+  (def transparent convert-file
+    (computation
+      (do
+        (bind src (IO.read-file "../examples/00_hello_world.lq"))
+        (bind out (convert-string src))
+        (bind _ (IO.write-file "../tmp/mexpr_to_sexpr.lqs" out))
+        (IO.print out))))
+
+  (def transparent main
+    (computation
+      (do
+        (bind _ convert-file)
+        (return P.tt)))))

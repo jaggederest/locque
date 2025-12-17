@@ -103,10 +103,19 @@ fromDef _ = Nothing
 
 fromExpr :: SExpr -> Maybe Expr
 fromExpr se = case se of
+  SAtom "true"  -> Just (ELit (LBool True))
+  SAtom "false" -> Just (ELit (LBool False))
   SAtom t -> Just (EVar t)
   SNum n  -> Just (ELit (LNat n))
   SStr s  -> Just (ELit (LString s))
   SList [] -> Nothing
+  SList (SAtom "lambda" : SList params : body : []) -> do
+    (paramName, bodyExpr) <- case params of
+      (SList (SAtom v : _):_) -> Just (v, body)
+      (SAtom v:_)             -> Just (v, body)
+      _                       -> Nothing
+    b' <- fromExpr bodyExpr
+    pure $ ELam paramName b'
   SList (f:args) -> do
     f' <- fromExpr f
     args' <- mapM fromExpr args

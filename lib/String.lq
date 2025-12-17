@@ -1,4 +1,13 @@
 module String contains
   define opaque concat as value concat-string-prim
   define opaque length as value length-string-prim
+  define opaque eq as value eq-string-prim
+  define opaque split-on as value split-on-prim
+  define opaque join-with as value join-with-prim
+  define opaque trim as value trim-prim
+
+  define transparent split-spaces as value
+    function s of-type String produce
+      let trimmed = trim s in
+      filter (function x of-type String produce trim x) (split-on " " trimmed)
 end

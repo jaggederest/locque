@@ -1,0 +1,28 @@
+(import Prelude P)
+(import Assert A)
+
+(module FoldTests
+  (def transparent list123
+    (value (P.cons "1" (P.cons "2" (P.cons "3" P.nil)))))
+
+  (def transparent sum-list
+    (computation
+      (do
+        (bind total (P.fold concat-string-prim "" list123))
+        (bind _ (perform io (A.assert-eq-string total "123")))
+        (return P.tt))))
+
+  (def transparent map-upper
+    (computation
+      (do
+        (bind mapped (P.map (lambda ((x String)) (concat-string-prim x "!")) list123))
+        (bind total (P.fold concat-string-prim "" mapped))
+        (bind _ (perform io (A.assert-eq-string total "1!2!3!")))
+        (return P.tt))))
+
+  (def transparent main
+    (computation
+      (do
+        (bind _ sum-list)
+        (bind _ map-upper)
+        (return P.tt)))))
