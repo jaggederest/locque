@@ -74,6 +74,7 @@ primEnv = Map.fromList
   , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
   , (T.pack "not-prim", BVal (VPrim primNot))
   , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
+  , (T.pack "match-prim", BVal (VPrim primMatch))
   ]
 
 primAdd :: [Value] -> IO Value
@@ -139,6 +140,15 @@ primFold [fn, z, VList xs] = foldM step z xs
   where
     step acc v = apply fn [acc, v]
 primFold _ = error "fold-prim expects (fn, init, list)"
+
+primMatch :: [Value] -> IO Value
+primMatch [v, c1, c2] = case v of
+  VList []      -> apply c1 []
+  VList (h:t)   -> apply c2 [h, VList t]
+  VBool False   -> apply c1 []
+  VBool True    -> apply c2 []
+  _             -> error "match-prim unsupported value"
+primMatch _ = error "match-prim expects (value, case1, case2)"
 
 primLengthString :: [Value] -> IO Value
 primLengthString [a] = do

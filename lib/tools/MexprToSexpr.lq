@@ -8,23 +8,25 @@ module Tools::MexprToSexpr contains
     function s of-type String produce
       P.filter (function x of-type String produce not (S.eq (S.trim x) "")) (S.split-on " " (S.trim s))
 
-  define transparent parenthesize as value
+  define transparent parse-def as value
     function tokens of-type (List String) produce
-      let open = "(" in
-      let close = ")" in
-      P.reverse (P.fold (function acc of-type (List String) produce
-                          function tok of-type String produce
-                            if-bool (List String) (S.eq tok "module")
-                              then P.append (P.cons open (P.cons tok acc)) (P.cons close P.nil)
-                              else P.cons tok acc)
-                        P.nil
-                        tokens)
+      P.match tokens
+        (lambda () P.nil)
+        (lambda head tail ->
+          if-bool (S.eq head "define")
+            (let n1 = P.head (P.tail tail) in
+             let n2 = P.head (P.tail (P.tail (P.tail tail))) in
+             P.cons "(" (P.cons "def" (P.cons n1 (P.cons n2 (P.cons "(value" (P.cons (P.head (P.tail (P.tail (P.tail (P.tail tail))))) (P.cons "))" P.nil))))))
+            P.nil)
 
   define transparent convert-string as value
     function src of-type String produce
       let toks = tokenize src in
-      let sexpr = parenthesize toks in
-      S.join-with " " sexpr
+      if-bool (S.eq (P.head toks) "module")
+        (let name = P.head (P.tail toks) in
+         let body = parse-def (P.tail (P.tail (P.tail toks))) in
+         S.join-with " " (P.cons "(" (P.cons "module" (P.cons name (P.append body (P.cons ")" P.nil))))))
+        "(module)"
 
   define transparent convert-file as computation
     bind src <- IO.read-file "../examples/00_hello_world.lq" then

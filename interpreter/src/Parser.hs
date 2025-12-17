@@ -5,6 +5,7 @@ module Parser
 
 import           AST
 import           Data.List (partition)
+import           Data.Maybe (listToMaybe)
 import           Data.Char (isAlphaNum, isLetter)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -62,7 +63,7 @@ extractModule :: [SExpr] -> Maybe Module
 extractModule sexprs = do
   let (imps, mods) = partitionImports sexprs
   msexpr <- case mods of
-    []    -> Nothing
+    []    -> listToMaybe sexprs  -- fallback: try first sexpr
     (m:_) -> Just m
   imports <- mapM fromImport imps
   m <- fromSExprModule msexpr
@@ -110,16 +111,22 @@ fromExpr se = case se of
   SStr s  -> Just (ELit (LString s))
   SList [] -> Nothing
   SList (SAtom "lambda" : SList params : body : []) -> do
-    (paramName, bodyExpr) <- case params of
-      (SList (SAtom v : _):_) -> Just (v, body)
-      (SAtom v:_)             -> Just (v, body)
-      _                       -> Nothing
-    b' <- fromExpr bodyExpr
-    pure $ ELam paramName b'
+    (names, finalBody) <- peel params body
+    pure $ foldr ELam finalBody names
   SList (f:args) -> do
     f' <- fromExpr f
     args' <- mapM fromExpr args
     pure $ EApp f' args'
+
+peel :: [SExpr] -> SExpr -> Maybe ([Text], Expr)
+peel ps b = do
+  names <- mapM grab ps
+  b' <- fromExpr b
+  pure (names, b')
+  where
+    grab (SAtom v)        = Just v
+    grab (SList (SAtom v:_)) = Just v
+    grab _                = Nothing
 
 fromComp :: SExpr -> Maybe Comp
 fromComp se = case se of

@@ -1,0 +1,20 @@
+import Prelude as P
+import Assert as A
+
+module MatchTests contains
+
+  define transparent bool-match as computation
+    bind _ <- perform io (A.assert-eq-string (if-bool "true-branch" "false-branch" (P.not false)) "true-branch") then
+    return P.tt
+
+  define transparent list-match as computation
+    bind lst <- P.cons "x" P.nil then
+    bind res <- P.match lst (lambda () "empty") (lambda h -> (lambda t -> h)) then
+    bind _ <- perform io (A.assert-eq-string res "x") then
+    return P.tt
+
+  define transparent main as computation
+    bind _ <- bool-match then
+    bind _ <- list-match then
+    return P.tt
+end

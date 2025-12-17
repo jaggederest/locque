@@ -13,6 +13,7 @@
   (def opaque map (value map-prim))
   (def opaque not (value not-prim))
   (def opaque if-bool (value if-bool-prim))
+  (def opaque match (value match-prim))
   (def transparent id (value (lambda ((x String)) x)))
   (def transparent is-falsy (value (lambda ((x String)) (not x))))
   (def transparent reverse
