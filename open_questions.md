@@ -9,6 +9,7 @@ Early design decisions to resolve
 - What is the notion of definitional equality (β, η, δ, ι)? Any extensionality principles? How aggressive should unfolding be for type checking vs. user-facing reduction?
 - Notes: β/δ/ι as default; make unfolding of defs opt-in opaque/transparent per name to control blow-ups. Treat η/extensionality as optional knobs (per type or per symbol) to keep conversion predictable; consider extensionality lemmas rather than baking into definitional equality by default.
 - Current leaning: per-definition opacity marker (explicitly mark opaque vs transparent), default conversion uses βδι with WHNF. Extensionality provided propositionally (lemmas), with any definitional η as an opt-in for pure types only if performance permits.
+- Conversion defaults (provisional): run conversion only on values (no forcing computations in types); include β/δ/ι, no η. Unfold transparent defs lazily/on-demand with recursion guard; opaque defs never unfold. Strategy: WHNF, compare heads/args; for lambdas/Pis/Sigmas compare components under binder extension. Universes cumulative with explicit levels; Π/Σ levels use max. Subject to revision as understanding deepens.
 
 3) Universes
 - Do we use explicit `Type0`, `Type1`, … with cumulativity? How do we prevent universe inconsistencies while keeping authoring straightforward?
@@ -24,6 +25,9 @@ Early design decisions to resolve
 5) Totality vs. partiality and effects
 - Is the core total? If partiality/effects are allowed, how are they isolated (keywords, monads/effect rows, capabilities)? How do we keep normalization and type checking decidable?
 - Notes: prefer a total core—values are pure and normalizing. Computations may carry effects/divergence and are typed distinctly (`define … as computation …`). Effects are explicit (`perform io`, `bind … then …`, `return …`), and do not appear in types unless explicitly thunked/forced. Structural recursion is the default check; well-founded recursion can be an opt-in later. Conversion operates in the value world; computations do not reduce during type checking except where explicitly forced.
+- Termination: enforce structural recursion on an inductive argument (or on decreasing indices for indexed types). Reject general recursion in values; allow well-founded recursion later with explicit measures. Computations may diverge but must be marked `computation`.
+- Coverage: pattern matches must be exhaustive; reject missing cases. Prefer non-overlapping/orthogonal patterns; if overlap is allowed, it is ordered (first match wins) and deterministic.
+- CBPV small-step (informal): values do not step; computations step via β for application, ι for matches, force/thunk, bind/return. Evaluation is left-to-right in computation contexts. `perform io` steps via host/runtime. Opacity is a compile-time conversion concern, not a runtime stepping change.
 
 6) Namespaces and scoping
 - If we start with a flat namespace, how do we avoid collisions and enable modularity? Do we add lightweight modules or qualified names without introducing implicit scope rules?
@@ -37,3 +41,8 @@ Early design decisions to resolve
 8) Ergonomics for LLMs
 - What canonical templates/snippets do we commit to? Do we forbid implicit coercions/coalescing? How explicit are casts and effect boundaries?
 - Notes: ban implicit coercions; require explicit casts and effect boundaries. Favor higher-order functions over templating. Provide a small set of canonical forms/patterns (definitions, for-all/function forms, inspect/case, bind/return) as guidance rather than heavy templating.
+
+9) Entrypoints and execution
+- How is an executable bootstrapped? Options: (a) convention `module Main` with `define transparent main as computation …`; (b) CLI-targeted entry `locque run <Module.name>` to select a computation of type `Computation Unit`. Effects run only inside computations. Decide default search path and whether multiple entrypoints can be declared.
+- Current leaning: CLI `locquec run <Module.entry>` with a default of `Main.main` if unspecified. Entry must be a `computation` returning `Unit`/`tt`. One module per file; search path is project root plus declared deps.
+- Tooling names: compiler `locquec`; build/package tool `smith` (handles deps/build/run). `smith` is generic—potential PATH collisions should be noted.

@@ -179,6 +179,59 @@ Operators as ordinary identifiers (no infix)
   - S: `(def transparent add4 (value (add-nat 2 2 2 4)))`
   - Meaning: left-associated application; no precedence rules beyond application.
 
+Termination and coverage illustrations
+
+- Accepted structural recursion:
+  - M: 
+    ```
+    define transparent sum-list as value
+      function xs of-type List Nat produce
+        inspect xs with
+          case nil -> zero
+          case cons h t -> add-nat h (sum-list t)
+        end
+    ```
+  - Structural decrease on `t` (tail) is clear.
+
+- Rejected non-structural recursion (would loop):
+  - M:
+    ```
+    define transparent bad as value
+      function n of-type Nat produce bad n
+    ```
+  - Fails termination check; no decreasing argument.
+
+- Coverage: exhaustive match required:
+  - Missing case example (reject):
+    ```
+    inspect b with
+      case true -> zero
+    end
+    ```
+  - Must include `case false -> …` for `Bool`.
+
+CBPV small-step semantics (informal rules)
+
+- Values vs computations:
+  - Values: variables, lambdas, constructors, thunks, etc. Do not step on their own.
+  - Computations: `return v`, `bind x <- c then d`, `perform io e`, `force v`, `thunk compute c`, matches/eliminators applied to scrutinee, applications where head reduces.
+
+- Core rules (→ is one small step):
+  - Application β (value world): `(lambda (x. b)) v → b[x := v]`
+  - Thunk/force: `force (thunk c) → c`
+  - Return/bind: `bind x <- (return v) then d → d[x := v]`
+  - Bind step: if `c → c'` then `bind x <- c then d → bind x <- c' then d`
+  - Force step: if `e → e'` then `force e → force e'`
+  - Match/recursor ι rules: `inspect ctor args with …` steps to the selected branch with pattern vars bound.
+  - Perform io: primitive step `perform io e` → `io-step(e)` (abstract; handled by runtime/host).
+
+- Evaluation contexts (computations):
+  - Left-to-right inside computation forms: e.g., in `bind x <- C then d`, evaluate `C`; in application `(f a)` evaluate `f` to WHNF, then `a`, etc.
+  - Values are not reduced under lambdas (consistent with WHNF strategy).
+
+- Opacity at runtime:
+  - Opacity affects conversion, not runtime stepping: a transparent computation definition may be inlined at compile time, but runtime semantics is uniform once definitions are expanded by the compiler.
+
 Namespaces and modules: options and examples
 
 - Files-as-modules (one module per file, no nested modules):
@@ -212,3 +265,11 @@ Namespaces and modules: options and examples
 
 - Flat, single-file scope:
   - Within a file/module, no nested scopes; names are unique per module. Local bindings inside expressions (`bind x <- … then …`) are term-level and do not affect module namespace.
+
+Entrypoints and tooling (proposed)
+
+- Compiler: `locquec`.
+- Build/package tool: `smith` (deps, build, run). Name is generic; watch for collisions if a user already has a `smith` in PATH.
+- Default entry: `Main.main` if present; otherwise require explicit target.
+- Explicit run: `smith run Hello.main` (module-qualified), entry must be a `computation` returning `unit/tt`.
+- Module/file: one module per file; M-exp examples in `examples/*.lq`, S-exp in `examples/*.lqs`.

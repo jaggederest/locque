@@ -1,0 +1,7 @@
+(module Hello
+  (def transparent message (value "Hello, locque!"))
+  (def transparent main
+    (computation
+      (do
+        (bind ignored (perform io (print message)))
+        (return tt)))))
