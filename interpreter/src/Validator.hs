@@ -21,10 +21,13 @@ checkDef (Definition _ n kind body) = do
 
 -- Simple parenthesis balance checker with position reporting
 checkParens :: FilePath -> T.Text -> Either String ()
-checkParens path txt = go 1 1 0 (T.unpack txt)
+checkParens path txt = go (1 :: Int) (1 :: Int) (0 :: Int) (T.unpack txt)
   where
     go _ _ 0 [] = Right ()
-    go line col depth [] = Left (path ++ ":" ++ show line ++ ":" ++ show col ++ ": missing ')'")
+    go line col depth [] =
+      if depth > 0
+        then Left (path ++ ":" ++ show line ++ ":" ++ show col ++ ": missing ')'")
+        else Right ()
     go line col depth (c:cs)
       | c == '('  = go line (col+1) (depth+1) cs
       | c == ')'  =
