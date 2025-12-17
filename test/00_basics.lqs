@@ -1,0 +1,30 @@
+(import Prelude P)
+(import Assert A)
+(import IO IO)
+
+(module Basics
+  (def transparent check-add
+    (computation
+      (do
+        (bind _ (perform io (A.assert-eq-nat (P.add-nat 2 3) 5)))
+        (return P.tt))))
+
+  (def transparent check-string
+    (computation
+      (do
+        (bind _ (perform io (A.assert-eq-string "hi" "hi")))
+        (return P.tt))))
+
+  (def transparent check-output
+    (computation
+      (do
+        (bind _ (perform io (IO.print "Hello, test!")))
+        (return P.tt))))
+
+  (def transparent main
+    (computation
+      (do
+        (bind _ check-add)
+        (bind _ check-string)
+        (bind _ check-output)
+        (return P.tt)))))

@@ -1,0 +1,3 @@
+module IO contains
+  define opaque print as value print-prim
+end

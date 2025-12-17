@@ -8,11 +8,12 @@ Lexical notes
 
 File/module
 ```
-File ::= ModuleDecl? {ImportDecl | OpenDecl | Definition}
+File ::= {ImportDecl | OpenDecl} ModuleDecl?
 ModuleDecl ::= "module" ModuleName "contains" {Definition} "end"
 ImportDecl ::= "import" ModuleName ("as" Ident)?
 OpenDecl ::= "open" ModuleName "exposing" "(" Ident {"," Ident} ")"
 ```
+# Imports/opens precede the module declaration (one module per file). Definitions live inside the module block.
 
 Definitions
 ```

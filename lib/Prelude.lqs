@@ -1,0 +1,3 @@
+(module Prelude
+  (def opaque add-nat (value add-nat-prim))
+  (def opaque tt (value tt-prim)))

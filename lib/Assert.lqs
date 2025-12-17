@@ -1,0 +1,3 @@
+(module Assert
+  (def opaque assert-eq-nat (value assert-eq-nat-prim))
+  (def opaque assert-eq-string (value assert-eq-string-prim)))

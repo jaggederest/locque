@@ -1,0 +1,10 @@
+# Haskell cabal/stack artifacts
+interpreter/dist-newstyle/
+interpreter/.ghc.environment.*
+interpreter/.stack-work/
+
+# Cabal config
+/Users/justin/.config/cabal/config
+
+# Editor/OS junk
+.DS_Store

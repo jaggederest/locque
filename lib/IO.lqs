@@ -1,0 +1,2 @@
+(module IO
+  (def opaque print (value print-prim)))

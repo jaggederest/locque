@@ -1,0 +1,4 @@
+module Assert contains
+  define opaque assert-eq-nat as value assert-eq-nat-prim
+  define opaque assert-eq-string as value assert-eq-string-prim
+end
