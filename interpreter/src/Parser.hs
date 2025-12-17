@@ -4,7 +4,7 @@ module Parser
   ) where
 
 import           AST
-import           Control.Monad (foldM)
+import           Data.List (partition)
 import           Data.Char (isAlphaNum, isLetter)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -49,8 +49,8 @@ pSExpr = lexeme (pList <|> pString <|> pNumber <|> pAtom)
       n <- L.signed spaceConsumer L.decimal
       pure $ SNum n
     pAtom = do
-      first <- M.satisfy (\c -> isLetter c || elem c ("_-+=*/<>" :: String))
-      rest <- many (M.satisfy (\c -> isAlphaNum c || elem c ("._-+=*/<>" :: String)))
+      first <- M.satisfy (\c -> isLetter c || elem c ("_-+=*/<>:" :: String))
+      rest <- many (M.satisfy (\c -> isAlphaNum c || elem c ("._-+=*/<>:" :: String)))
       pure $ SAtom (T.pack (first:rest))
 
 parseModuleFile :: FilePath -> Text -> Either String Module
@@ -59,18 +59,31 @@ parseModuleFile path txt = case M.parse (spaceConsumer *> many pSExpr <* M.eof) 
   Right sexprs -> maybe (Left "No module found in file") Right (extractModule sexprs)
 
 extractModule :: [SExpr] -> Maybe Module
-extractModule sexprs = case filter isModule sexprs of
-  [] -> Nothing
-  (m:_) -> fromSExprModule m
+extractModule sexprs = do
+  let (imps, mods) = partitionImports sexprs
+  msexpr <- case mods of
+    []    -> Nothing
+    (m:_) -> Just m
+  imports <- mapM fromImport imps
+  m <- fromSExprModule msexpr
+  pure m { modImports = imports }
+
+partitionImports :: [SExpr] -> ([SExpr], [SExpr])
+partitionImports = partition isImport
   where
-    isModule (SList (SAtom "module":_)) = True
-    isModule _ = False
+    isImport (SList (SAtom "import":_)) = True
+    isImport _ = False
 
 fromSExprModule :: SExpr -> Maybe Module
 fromSExprModule (SList (SAtom "module" : SAtom name : defs)) = do
   defs' <- mapM fromDef defs
-  pure $ Module name defs'
+  pure $ Module name [] defs'
 fromSExprModule _ = Nothing
+
+fromImport :: SExpr -> Maybe Import
+fromImport (SList [SAtom "import", SAtom modName]) = Just (Import modName modName)
+fromImport (SList [SAtom "import", SAtom modName, SAtom alias]) = Just (Import modName alias)
+fromImport _ = Nothing
 
 fromDef :: SExpr -> Maybe Definition
 fromDef (SList [SAtom "def", SAtom tr, SAtom name, body]) = do

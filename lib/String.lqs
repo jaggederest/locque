@@ -1,0 +1,3 @@
+(module String
+  (def opaque concat (value concat-string-prim))
+  (def opaque length (value length-string-prim)))

@@ -1,4 +1,10 @@
 module Prelude contains
   define opaque add-nat as value add-nat-prim
+  define opaque sub-nat as value sub-nat-prim
   define opaque tt as value tt-prim
+  define opaque nil as value nil-prim
+  define opaque cons as value cons-prim
+  define opaque head as value head-prim
+  define opaque tail as value tail-prim
+  define opaque length-list as value length-list-prim
 end

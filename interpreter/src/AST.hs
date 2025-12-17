@@ -33,6 +33,11 @@ data DefKind = ValueDef | ComputationDef deriving (Show, Eq)
 
 data Transparency = Transparent | Opaque deriving (Show, Eq)
 
+data Import = Import
+  { impModule :: Text
+  , impAlias  :: Text
+  } deriving (Show, Eq)
+
 -- Module definition
 
 data Definition = Definition
@@ -45,7 +50,8 @@ data Definition = Definition
 
 
 data Module = Module
-  { modName  :: Text
-  , modDefs  :: [Definition]
+  { modName    :: Text
+  , modImports :: [Import]
+  , modDefs    :: [Definition]
   }
   deriving (Show, Eq)

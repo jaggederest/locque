@@ -1,3 +1,9 @@
 (module Prelude
   (def opaque add-nat (value add-nat-prim))
-  (def opaque tt (value tt-prim)))
+  (def opaque sub-nat (value sub-nat-prim))
+  (def opaque tt (value tt-prim))
+  (def opaque nil (value nil-prim))
+  (def opaque cons (value cons-prim))
+  (def opaque head (value head-prim))
+  (def opaque tail (value tail-prim))
+  (def opaque length-list (value length-list-prim)))

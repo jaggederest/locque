@@ -1,0 +1,4 @@
+module String contains
+  define opaque concat as value concat-string-prim
+  define opaque length as value length-string-prim
+end

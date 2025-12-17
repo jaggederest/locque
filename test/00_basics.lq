@@ -1,6 +1,7 @@
 import Prelude as P
 import Assert as A
 import IO as IO
+import String as S
 
 module Basics contains
 
@@ -16,9 +17,14 @@ module Basics contains
     bind _ <- perform io (IO.print "Hello, test!") then
     return P.tt
 
+  define transparent check-string-length as computation
+    bind _ <- perform io (A.assert-eq-nat (S.length "abcd") 4) then
+    return P.tt
+
   define transparent main as computation
     bind _ <- check-add then
     bind _ <- check-string then
+    bind _ <- check-string-length then
     bind _ <- check-output then
     return P.tt
 end

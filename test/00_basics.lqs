@@ -1,6 +1,7 @@
 (import Prelude P)
 (import Assert A)
 (import IO IO)
+(import String S)
 
 (module Basics
   (def transparent check-add
@@ -21,10 +22,17 @@
         (bind _ (perform io (IO.print "Hello, test!")))
         (return P.tt))))
 
+  (def transparent check-string-length
+    (computation
+      (do
+        (bind _ (perform io (A.assert-eq-nat (S.length "abcd") 4)))
+        (return P.tt))))
+
   (def transparent main
     (computation
       (do
         (bind _ check-add)
         (bind _ check-string)
+        (bind _ check-string-length)
         (bind _ check-output)
         (return P.tt)))))
