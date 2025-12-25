@@ -23,13 +23,11 @@ module Basics contains
     return P.tt
 
   define transparent check-string-split-join as computation
-    bind parts <- perform io (S.split-on "-" "a-b-c") then
-    bind _ <- perform io (A.assert-eq-string (S.join-with "-" parts) "a-b-c") then
+    bind _ <- perform io (A.assert-eq-string (S.join-with "-" (S.split-on "-" "a-b-c")) "a-b-c") then
     return P.tt
 
   define transparent check-split-spaces as computation
-    bind parts <- perform io (S.split-spaces " a  b c ") then
-    bind _ <- perform io (A.assert-eq-string (S.join-with "-" parts) "a-b-c") then
+    bind _ <- perform io (A.assert-eq-string (S.join-with "-" (S.split-spaces " a  b c ")) "a-b-c") then
     return P.tt
 
   define transparent main as computation

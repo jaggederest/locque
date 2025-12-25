@@ -45,6 +45,11 @@ module String contains
     function xs of-type (List String) produce
       join-with "\n" xs
 
+  define transparent split-spaces as value
+    function s of-type String produce
+      let trimmed = trim s in
+      P.filter (function x of-type String produce P.not (is-empty x)) (split-on " " trimmed)
+
   define transparent words as value
     function s of-type String produce
       split-spaces s
@@ -58,9 +63,4 @@ module String contains
       function len of-type Nat produce
         function s of-type String produce
           substring start len s
-
-  define transparent split-spaces as value
-    function s of-type String produce
-      let trimmed = trim s in
-      P.filter (function x of-type String produce trim x) (split-on " " trimmed)
 end

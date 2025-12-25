@@ -32,39 +32,36 @@ module List contains
     function xs of-type (List a) produce
       list-init xs
 
+  define transparent contains-string-fn as value
+    function item of-type String produce
+      function acc of-type Bool produce
+        function x of-type String produce
+          P.if-bool acc true (S.eq item x)
+
   define transparent contains-string as value
     function item of-type String produce
       function xs of-type (List String) produce
-        P.fold
-          (function acc of-type Bool produce
-            function x of-type String produce
-              P.if-bool acc true (S.eq item x))
-          false
-          xs
+        P.fold (contains-string-fn item) false xs
+
+  define transparent any-fn as value
+    function predicate of-type (-> a Bool) produce
+      function acc of-type Bool produce
+        function x of-type a produce
+          P.if-bool acc true (predicate x)
 
   define transparent any as value
-    function predicate of-type Value produce
+    function predicate of-type (-> a Bool) produce
       function xs of-type (List a) produce
-        P.fold
-          (function acc of-type Bool produce
-            function x of-type a produce
-              P.if-bool acc true (predicate x))
-          false
-          xs
+        P.fold (any-fn predicate) false xs
+
+  define transparent all-fn as value
+    function predicate of-type (-> a Bool) produce
+      function acc of-type Bool produce
+        function x of-type a produce
+          P.if-bool acc (predicate x) false
 
   define transparent all as value
-    function predicate of-type Value produce
+    function predicate of-type (-> a Bool) produce
       function xs of-type (List a) produce
-        P.fold
-          (function acc of-type Bool produce
-            function x of-type a produce
-              P.if-bool acc (predicate x) false)
-          true
-          xs
-
-  define transparent slice as value
-    function start of-type Nat produce
-      function len of-type Nat produce
-        function xs of-type (List a) produce
-          take len (drop start xs)
+        P.fold (all-fn predicate) true xs
 end

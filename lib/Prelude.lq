@@ -20,7 +20,7 @@ module Prelude contains
   define opaque pair-to-list as value pair-to-list-prim
 
   define transparent id as value function x of-type String produce x
-  define transparent is-falsy as value function x of-type String produce not x
+  define transparent is-falsy as value function x of-type Bool produce not x
   define transparent reverse as value
     function xs of-type (List String) produce
       fold

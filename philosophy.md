@@ -9,3 +9,10 @@ LLM-first dependently typed language (working name TBD) guiding notes
 - Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform io …`, `promise …`) to keep type checking and normalization clear.
 - Opacity and extensionality: allow explicit per-definition opacity markers to control unfolding during conversion; keep definitional equality lean (βδι) and provide extensionality as propositional lemmas, with opt-in definitional η only where safe for performance/purity.
 - Value semantics: defaults are immutable; variables are single-assignment; strings and collections are persistent/immutable. Any mutation lives in explicit computation constructs (e.g., a future `ref`/`set` effect), preserving predictability for LLMs and type checking.
+- Reference implementation: Core language features (parser, type checker, evaluator) implemented in Haskell for correctness, performance, and bootstrapping. These define canonical behavior.
+- Native implementation: Selected tools/libraries reimplemented in Locque itself as dogfooding exercises to test language expressiveness. Examples: future M-expr parser, future S-expr emitter, advanced string utilities.
+- Implementation philosophy: Start with robust Haskell reference; migrate to native Locque only when language is mature enough and native version offers clear value (dogfooding, verification, metaprogramming).
+- Compilation errors only: Locque has no concept of "warnings" - all issues are either errors (stop compilation) or not issues at all.
+- Rationale for no-warnings policy: LLMs frequently ignore warnings during code generation. By making every problem an error, we force LLMs to address issues immediately rather than accumulating technical debt.
+- Exception: Deprecation notices for future breaking changes may be warnings, but these should be rare and temporary.
+- Implementation note: The Haskell interpreter may emit warnings (unused variables, incomplete patterns), but these are implementation details - Locque itself has no warning system.

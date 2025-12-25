@@ -200,10 +200,12 @@ primPairToList [VPair a b] = pure $ VList [a,b]
 primPairToList _ = error "pair-to-list-prim expects pair"
 
 primValidate :: [Value] -> IO Value
-primValidate [VString s] =
-  case checkParens "<inline>" s of
+primValidate [VString s] = do
+  -- Add trailing newline if missing (parser requires it)
+  let s' = if T.isSuffixOf (T.pack "\n") s then s else s <> T.pack "\n"
+  case checkParens "<inline>" s' of
     Left _ -> pure (VBool False)
-    Right _ -> case parseModuleFile "<inline>" s of
+    Right _ -> case parseModuleFile "<inline>" s' of
       Left _ -> pure (VBool False)
       Right m -> case validateModule m of
         Left _ -> pure (VBool False)
@@ -453,7 +455,7 @@ isTruthy _ = False
 bindModule :: Module -> Env -> Env
 bindModule (Module _ _ defs) base = foldl addDef base defs
   where
-    addDef env (Definition _ name kind body) =
+    addDef env (Definition _ name kind _mType body) =
       case (kind, body) of
         (ValueDef, Left e)        -> Map.insert name (BValueExpr e) env
         (ComputationDef, Right c) -> Map.insert name (BCompExpr c) env
@@ -478,7 +480,8 @@ evalExpr env expr = case expr of
     LNat n    -> VNat n
     LString s -> VString s
     LBool b   -> VBool b
-  ELam v body -> pure $ VClosure env v body
+  ELam v _mType body -> pure $ VClosure env v body  -- Type annotation ignored in evaluation
+  EAnnot expr _ty -> evalExpr env expr  -- Type annotation ignored in evaluation
   EApp f args -> do
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
@@ -551,7 +554,7 @@ loadImport projectRoot (Import modName alias) = do
       pure (p, c)
 
 insertDef :: Text -> Text -> Env -> Definition -> Env
-insertDef alias modName env (Definition _ name kind body) =
+insertDef alias modName env (Definition _ name kind _mType body) =
   let base = case (kind, body) of
         (ValueDef, Left e)        -> Just (BValueExpr e)
         (ComputationDef, Right c) -> Just (BCompExpr c)

@@ -1,6 +1,7 @@
 module AST where
 
 import Data.Text (Text)
+import qualified Type as T
 
 -- Literals in the language
 
@@ -16,7 +17,8 @@ data Expr
   = EVar Text
   | ELit Literal
   | EApp Expr [Expr]
-  | ELam Text Expr
+  | ELam Text (Maybe T.Type) Expr  -- Optional type annotation for parameter
+  | EAnnot Expr T.Type             -- Explicit type annotation (expr : Type)
   deriving (Show, Eq)
 
 -- Computations (effectful world)
@@ -46,7 +48,8 @@ data Definition = Definition
   { defTransparency :: Transparency
   , defName         :: Text
   , defKind         :: DefKind
-  , defBody         :: Either Expr Comp  -- Left for value, Right for computation
+  , defType         :: Maybe T.TypeScheme  -- Optional type annotation
+  , defBody         :: Either Expr Comp    -- Left for value, Right for computation
   }
   deriving (Show, Eq)
 

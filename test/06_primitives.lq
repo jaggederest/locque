@@ -17,7 +17,7 @@ module PrimitiveTests contains
 
   define transparent test-arithmetic as computation
     bind _ <- perform io (A.assert-eq-nat (Ar.mul-nat 3 4) 12) then
-    bind _ <- perform io (A.assert-eq-nat (Ar.mul-nat 2 5 3) 30) then
+    bind _ <- perform io (A.assert-eq-nat (Ar.mul-nat (Ar.mul-nat 2 5) 3) 30) then
     bind _ <- perform io (A.assert-eq-nat (Ar.div-nat 10 3) 3) then
     bind _ <- perform io (A.assert-eq-nat (Ar.mod-nat 10 3) 1) then
     bind _ <- perform io (A.assert-eq-nat (Ar.add-nat 5 10) 15) then

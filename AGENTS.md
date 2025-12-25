@@ -6,9 +6,10 @@ Project overview for agents
 Interpreter (Haskell, `interpreter/`)
 - AST: literals (Nat, String, Bool), vars, apps, lambdas, defs (transparency/kind), values vs computations.
 - Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Bool); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
-- Import resolution: loads `lib/<Module>.lqs`, qualifies names with module/alias, also inserts unqualified names.
-- CLI: `--run-lqs <file>`, `--validate <file>` (parens check + parse + structural validate); `--run-lq/--emit-lqs` unimplemented.
-- Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Bool for a string.
+- Import resolution: loads `lib/<Module>.lq` or `.lqs`, qualifies names with module/alias, also inserts unqualified names.
+- CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag to bypass type checking, `--typecheck <file>` (type check only), `--validate <file>` (parens + parse + structural validation), `--emit-lqs <file> <out>` (M-expr → S-expr), `--emit-lq <file> <out>` (S-expr → M-expr).
+- Type checker: Bidirectional type checking with Hindley-Milner polymorphism, enforces CBPV split at type level, integrated into interpreter by default (use `--skip-typecheck` to disable for legacy code).
+- Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Bool for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
 - Prelude: add/sub; nil/cons/head/tail/length/append/map/filter/fold/reverse (string-list flavor); not/if-bool/match; pair/fst/snd/pair-to-list; id/is-falsy; tt.
@@ -18,8 +19,6 @@ Libraries (`lib/`)
 - List: drop-until.
 - Tools:
   - Tokenizer (tokenize by spaces).
-  - DefParser (parse a simple `define … as value …`), current S-expr needs validation.
-  - MexprToSexpr (naive converter, currently failing logical tests).
   - Validator (validate-string via validate-prim).
 - Notes:
   - We’re aiming for minimal syntax surfaced in locque, but some primitives are currently defined in Haskell as scaffolding; these should be replaced with locque implementations over time.
@@ -30,8 +29,9 @@ Libraries (`lib/`)
 
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
-- Tests: basics, file IO, lambda, fold/map, match, validator (`test/40_small_bad_code.lqs`), converter (`test/50_mexpr_to_sexpr.{lq,lqs}`).
-- Match test passes; converter test re-enabled (expected real S-expr) but converter is naive; validator test module currently malformed (missing paren issues).
+- Tests: basics, file IO, lambda, fold/map, match, validator (`test/40_small_bad_code.lqs`), roundtrip (`test/51_roundtrip.{lq,lqs}`), type checker (`test/99_typecheck_*.lq`).
+- Organization: `00-39` feature tests, `40-49` validator/negative tests, `50-59` conversion tests, `99-XX` type checker tests.
+- Most legacy tests require `--skip-typecheck` flag; new tests should include type annotations.
 
 ## Match Primitive Semantics
 
@@ -103,9 +103,28 @@ P.match my-pair
   (lambda ((h a)) (lambda ((t (List a))) false)))  ; Two params nested
 ```
 
+## M-expr ↔ S-expr Conversion
+
+**Haskell Reference Implementation:**
+- Canonical converter in `interpreter/src/Parser.hs`
+- Bidirectional: `.lq` (M-expr) ↔ `.lqs` (S-expr)
+- CLI: `--emit-lqs <in.lq> <out.lqs>` and `--emit-lq <in.lqs> <out.lq>`
+- Both formats parse to identical AST
+- Roundtrip conversions preserve semantics
+
+**Philosophy:**
+- NEVER hand-write `.lqs` S-expressions (except for debugging)
+- Author canonical `.lq` M-expr sources with type annotations
+- Use `--emit-lqs` to generate `.lqs` for debugging/fixtures
+- Haskell implementation is the reference; native Locque converter is future dogfooding
+
+**Type System Integration:**
+- Type checker runs by default on `--run-lq` and `--run-lqs`
+- Use `--skip-typecheck` flag for legacy code without type annotations
+- All new code should include `function x of-type T produce ...` annotations
+- Type errors caught before execution (fail fast)
+
 Outstanding issues / next steps
-- Fix S-expr structure of `lib/tools/DefParser.lqs` and `MexprToSexpr.lqs` (ensure single balanced `(module …)`); then rerun tests.
-- Implement proper `match/inspect` syntax in parser/evaluator (currently only `match-prim`).
-- Improve converter logic to emit `(module Name (def transparent … (value …)))` for simple inputs.
-- Add M-exp parser in Haskell for `.lq` files.
-- Clean up Haskell warnings (unused imports/binds, cabal license path) when convenient.
+- Add type annotations to all legacy tests (currently require `--skip-typecheck`)
+- Clean up Haskell warnings (unused imports/binds) when convenient
+- Consider native Locque converter as dogfooding exercise (future)

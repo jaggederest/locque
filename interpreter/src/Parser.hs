@@ -7,10 +7,11 @@ module Parser
   ) where
 
 import           AST
-import           Data.Char (isAlphaNum, isLetter, isSpace)
+import qualified Type as T
+import           Data.Char (isAlphaNum, isLetter, isSpace, isLower)
 import           Data.List (intercalate)
 import           Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as DT
 import           Data.Void (Void)
 import           Text.Megaparsec (Parsec, between, many, manyTill, optional, some, (<|>), notFollowedBy)
 import qualified Text.Megaparsec as M
@@ -47,14 +48,14 @@ pSExpr = lexeme (pList <|> pString <|> pNumber <|> pAtom)
     pString = do
       _ <- C.char '"'
       content <- manyTill L.charLiteral (C.char '"')
-      pure $ SStr (T.pack content)
+      pure $ SStr (DT.pack content)
     pNumber = do
       n <- L.signed spaceConsumer L.decimal
       pure $ SNum n
     pAtom = do
       first <- M.satisfy (\c -> isLetter c || elem c ("_-+=*/<>:" :: String))
       rest <- many (M.satisfy (\c -> isAlphaNum c || elem c ("._-+=*/<>:" :: String)))
-      pure $ SAtom (T.pack (first:rest))
+      pure $ SAtom (DT.pack (first:rest))
 
 parseModuleFile :: FilePath -> Text -> Either String Module
 parseModuleFile path rawTxt = do
@@ -107,15 +108,15 @@ fromDef path (SList [SAtom "def", SAtom tr, SAtom name, body]) = do
   transparency <- case tr of
     "transparent" -> Right Transparent
     "opaque"      -> Right Opaque
-    _             -> Left (path ++ ": definition " ++ T.unpack name ++ " must declare transparency (transparent|opaque)")
+    _             -> Left (path ++ ": definition " ++ DT.unpack name ++ " must declare transparency (transparent|opaque)")
   case body of
     SList [SAtom "value", e] -> do
       e' <- fromExpr path e
-      pure $ Definition transparency name ValueDef (Left e')
+      pure $ Definition transparency name ValueDef Nothing (Left e')
     SList [SAtom "computation", c] -> do
       c' <- fromComp path c
-      pure $ Definition transparency name ComputationDef (Right c')
-    _ -> Left (path ++ ": definition " ++ T.unpack name ++ " must specify (value ...) or (computation ...)")
+      pure $ Definition transparency name ComputationDef Nothing (Right c')
+    _ -> Left (path ++ ": definition " ++ DT.unpack name ++ " must specify (value ...) or (computation ...)")
 fromDef path other = Left (path ++ ": invalid definition form " ++ renderHead other)
 
 fromExpr :: FilePath -> SExpr -> Either String Expr
@@ -127,7 +128,9 @@ fromExpr _ (SStr s)        = Right (ELit (LString s))
 fromExpr path (SList [])   = Left (path ++ ": empty expression list")
 fromExpr path (SList (SAtom "lambda" : SList params : body : [])) = do
   (names, finalBody) <- peel path params body
-  pure $ foldr ELam finalBody names
+  case names of
+    [] -> pure (ELam (DT.pack "_unit") (Just T.TUnit) finalBody)  -- Zero-param lambda
+    _  -> pure $ foldr (\n b -> ELam n Nothing b) finalBody names
 fromExpr path (SList (SAtom "let" : SList binds : body : [])) = do
   binds' <- mapM (fromLetBind path) binds
   body' <- fromExpr path body
@@ -143,7 +146,7 @@ mkApp f more                 = EApp f more
 
 fromLetBind :: FilePath -> SExpr -> Either String (Text, Expr)
 fromLetBind path (SList (SAtom v : parts)) = case parts of
-  []      -> Left (path ++ ": let binding for " ++ T.unpack v ++ " must have a value")
+  []      -> Left (path ++ ": let binding for " ++ DT.unpack v ++ " must have a value")
   [expr]  -> do e <- fromExpr path expr; pure (v, e)
   exprs   -> do e <- fromExpr path (SList exprs); pure (v, e)
 fromLetBind path other = Left (path ++ ": invalid let binding form " ++ renderHead other)
@@ -151,7 +154,7 @@ fromLetBind path other = Left (path ++ ": invalid let binding form " ++ renderHe
 desugarLet :: [(Text, Expr)] -> Expr -> Expr
 desugarLet binds body = foldr wrap body binds
   where
-    wrap (v, val) acc = EApp (ELam v acc) [val]
+    wrap (v, val) acc = EApp (ELam v Nothing acc) [val]
 
 peel :: FilePath -> [SExpr] -> SExpr -> Either String ([Text], Expr)
 peel path ps b = do
@@ -196,13 +199,13 @@ doBlock path (stmt:rest) = case stmt of
 
 renderHead :: SExpr -> String
 renderHead sexpr = case sexpr of
-  SAtom t     -> T.unpack t
+  SAtom t     -> DT.unpack t
   SNum n      -> show n
   SStr s      -> show s
   SList []    -> "()"
   SList (h:_) -> "(" ++ headText h ++ " ...)"
   where
-    headText (SAtom t) = T.unpack t
+    headText (SAtom t) = DT.unpack t
     headText (SNum n)  = show n
     headText (SStr s)  = show s
     headText (SList xs) = "(" ++ intercalate " " (map headText xs) ++ ")"
@@ -210,7 +213,7 @@ renderHead sexpr = case sexpr of
 --------------------------------------------------------------------------------
 -- M-expression parser (surface syntax)
 
-parseMExprFile :: FilePath -> T.Text -> Either String Module
+parseMExprFile :: FilePath -> DT.Text -> Either String Module
 parseMExprFile path rawTxt = do
   txt <- preprocessInput path rawTxt
   case M.parse (spaceConsumer *> pMModule <* spaceConsumer <* M.eof) path txt of
@@ -246,7 +249,7 @@ pDefinition = lexeme $ do
   body <- case kind of
     ValueDef        -> Left <$> pExpr
     ComputationDef  -> Right <$> pComp
-  pure (Definition tr name kind body)
+  pure (Definition tr name kind Nothing body)
 
 -- Computations
 
@@ -304,14 +307,14 @@ pLet = M.try $ do
   case schemeBinds of
     Just binds -> do
       body <- pExpr
-      pure (foldr (\(v,val) acc -> EApp (ELam v acc) [val]) body binds)
+      pure (foldr (\(v,val) acc -> EApp (ELam v Nothing acc) [val]) body binds)
     Nothing -> do
       v <- pIdentifier
       _ <- symbol "="
       val <- pExpr
       keyword "in"
       body <- pExpr
-      pure (EApp (ELam v body) [val])
+      pure (EApp (ELam v Nothing body) [val])
   where
     schemeBindings = between (symbol "(") (symbol ")") (some oneBind)
     oneBind = between (symbol "(") (symbol ")") $ do
@@ -327,22 +330,27 @@ pLambda = do
     parenForm = do
       params <- M.try (between (symbol "(") (symbol ")") (many pIdentifier))
       body <- pExpr
-      pure (foldr ELam body params)
+      case params of
+        [] -> pure (ELam (DT.pack "_unit") (Just T.TUnit) body)  -- Zero-param lambda: () -> body
+        _  -> pure (foldr (\n b -> ELam n Nothing b) body params)
     arrowForm = do
       params <- many pIdentifier
       keyword "->"
       body <- pExpr
-      pure (foldr ELam body params)
+      pure (foldr (\n b -> ELam n Nothing b) body params)
 
 pFunction :: Parser Expr
 pFunction = M.try $ do
   keyword "function"
   params <- some pIdentifier
   keyword "of-type"
-  _ty <- pExpr  -- parsed and discarded; type not represented in the current AST
+  ty <- pType  -- parse the type annotation
   keyword "produce"
   body <- pExpr
-  pure (foldr ELam body params)
+  -- Attach type to the outermost lambda parameter
+  case params of
+    [] -> fail "function must have at least one parameter"
+    (p:ps) -> pure (ELam p (Just ty) (foldr (\n b -> ELam n Nothing b) body ps))
 
 pInspect :: Parser Expr
 pInspect = do
@@ -359,7 +367,7 @@ pCase = do
   args <- many pIdentifier
   keyword "->"
   body <- pExpr
-  pure (foldr ELam body args)
+  pure (foldr (\n b -> ELam n Nothing b) body args)
 
 pApp :: Parser Expr
 pApp = do
@@ -387,7 +395,68 @@ pStringLit :: Parser Expr
 pStringLit = lexeme $ do
   _ <- C.char '"'
   content <- manyTill L.charLiteral (C.char '"')
-  pure (ELit (LString (T.pack content)))
+  pure (ELit (LString (DT.pack content)))
+
+-- Type parsing
+
+pType :: Parser T.Type
+pType = pTypeAtom <|> pTypeCompound
+
+pTypeAtom :: Parser T.Type
+pTypeAtom =
+      (T.TNat <$ keyword "Nat")
+  <|> (T.TString <$ keyword "String")
+  <|> (T.TBool <$ keyword "Bool")
+  <|> (T.TUnit <$ keyword "Unit")
+  <|> pTypeVar
+
+pTypeVar :: Parser T.Type
+pTypeVar = lexeme . M.try $ do
+  first <- M.satisfy isLower
+  rest <- many (M.satisfy (\c -> isAlphaNum c || c == '_'))
+  let var = DT.pack (first:rest)
+  if var `elem` ["nat", "string", "bool", "unit"]
+     then fail ("lowercase type keyword " ++ DT.unpack var ++ " should be capitalized")
+     else pure (T.TVar var)
+
+pTypeCompound :: Parser T.Type
+pTypeCompound = do
+  _ <- symbol "("
+  result <- pTypeForm
+  _ <- symbol ")"
+  pure result
+
+pTypeForm :: Parser T.Type
+pTypeForm =
+      pListType
+  <|> pPairType
+  <|> pFunType
+  <|> pCompType
+  <|> pType  -- nested type
+
+pListType :: Parser T.Type
+pListType = do
+  keyword "List"
+  T.TList <$> pType
+
+pPairType :: Parser T.Type
+pPairType = do
+  keyword "Pair"
+  t1 <- pType
+  t2 <- pType
+  pure (T.TPair t1 t2)
+
+pFunType :: Parser T.Type
+pFunType = do
+  symbol "->"
+  t1 <- pType
+  t2 <- pType
+  pure (T.TFun t1 t2)
+
+pCompType :: Parser T.Type
+pCompType = do
+  keyword "Comp"
+  T.TComp <$> pType
 
 -- Identifiers and symbols
 
@@ -395,9 +464,9 @@ pIdentifier :: Parser Text
 pIdentifier = lexeme . M.try $ do
   first <- M.satisfy (\c -> isLetter c || c == '_')
   rest <- many (M.satisfy (\c -> isAlphaNum c || elem c ("._-:" :: String)))
-  let ident = T.pack (first:rest)
+  let ident = DT.pack (first:rest)
   if ident `elem` reservedWords
-     then fail ("keyword " ++ T.unpack ident ++ " cannot be used as an identifier")
+     then fail ("keyword " ++ DT.unpack ident ++ " cannot be used as an identifier")
      else pure ident
 
 reservedWords :: [Text]
@@ -412,7 +481,7 @@ pModuleName :: Parser Text
 pModuleName = lexeme $ do
   first <- M.satisfy isLetter
   rest <- many (M.satisfy (\c -> isAlphaNum c || c `elem` ("_:." :: String)))
-  pure (T.pack (first:rest))
+  pure (DT.pack (first:rest))
 
 keyword :: Text -> Parser ()
 keyword t = lexeme (C.string t *> notFollowedBy (M.satisfy isIdentChar))
@@ -426,27 +495,27 @@ parens = between (symbol "(") (symbol ")")
 --------------------------------------------------------------------------------
 -- Input preprocessing (whitespace normalization/validation)
 
-preprocessInput :: FilePath -> T.Text -> Either String T.Text
+preprocessInput :: FilePath -> DT.Text -> Either String DT.Text
 preprocessInput path rawTxt = do
   let normalized = normalizeLineEndings rawTxt
   ensureTrailingNewline path normalized >>= pure . collapseDuplicateBlankLines
 
-normalizeLineEndings :: T.Text -> T.Text
-normalizeLineEndings = T.replace "\r\n" "\n" . T.replace "\r" "\n"
+normalizeLineEndings :: DT.Text -> DT.Text
+normalizeLineEndings = DT.replace "\r\n" "\n" . DT.replace "\r" "\n"
 
-ensureTrailingNewline :: FilePath -> T.Text -> Either String T.Text
+ensureTrailingNewline :: FilePath -> DT.Text -> Either String DT.Text
 ensureTrailingNewline path txt
-  | T.null txt = Right txt
-  | T.isSuffixOf "\n" txt = Right txt
+  | DT.null txt = Right txt
+  | DT.isSuffixOf "\n" txt = Right txt
   | otherwise = Left (path ++ ": missing trailing newline; locque source requires a newline at EOF to avoid ambiguous whitespace during parsing.")
 
-collapseDuplicateBlankLines :: T.Text -> T.Text
+collapseDuplicateBlankLines :: DT.Text -> DT.Text
 collapseDuplicateBlankLines =
-  T.unlines . foldr compress [] . T.splitOn "\n"
+  DT.unlines . foldr compress [] . DT.splitOn "\n"
   where
     compress line acc =
-      case (T.all isSpace line, acc) of
-        (True, next:rest) | T.all isSpace next -> "" : rest
+      case (DT.all isSpace line, acc) of
+        (True, next:rest) | DT.all isSpace next -> "" : rest
         _ -> line : acc
 
 whitespaceHelp :: String
@@ -455,43 +524,44 @@ whitespaceHelp = "Note: whitespace preprocessing (newline required, no duplicate
 --------------------------------------------------------------------------------
 -- S-expression pretty-printer (AST -> S-text)
 
-moduleToSExprText :: Module -> T.Text
+moduleToSExprText :: Module -> DT.Text
 moduleToSExprText (Module name imports defs) =
   let importLines = map renderImport imports
       moduleLine = renderModule name defs
-  in T.unlines (importLines ++ [moduleLine])
+  in DT.unlines (importLines ++ [moduleLine])
 
-renderImport :: Import -> T.Text
+renderImport :: Import -> DT.Text
 renderImport (Import modName alias)
   | modName == alias = "(import " <> modName <> ")"
   | otherwise        = "(import " <> modName <> " " <> alias <> ")"
 
-renderModule :: Text -> [Definition] -> T.Text
+renderModule :: Text -> [Definition] -> DT.Text
 renderModule name defs =
   case defs of
     [] -> "(module " <> name <> ")"
-    _  -> "(module " <> name <> " " <> T.unwords (map renderDef defs) <> ")"
+    _  -> "(module " <> name <> " " <> DT.unwords (map renderDef defs) <> ")"
 
-renderDef :: Definition -> T.Text
-renderDef (Definition tr name kind body) =
+renderDef :: Definition -> DT.Text
+renderDef (Definition tr name kind _mType body) =
   "(def " <> renderTransparency tr <> " " <> name <> " " <> renderBody kind body <> ")"
   where
     renderTransparency Transparent = "transparent"
     renderTransparency Opaque      = "opaque"
 
-renderBody :: DefKind -> Either Expr Comp -> T.Text
+renderBody :: DefKind -> Either Expr Comp -> DT.Text
 renderBody ValueDef (Left e)        = "(value " <> renderExpr e <> ")"
 renderBody ComputationDef (Right c) = "(computation " <> renderComp c <> ")"
 renderBody _ _ = "(value <invalid>)"
 
-renderExpr :: Expr -> T.Text
+renderExpr :: Expr -> DT.Text
 renderExpr expr = case expr of
-  EVar t      -> t
-  ELit lit    -> renderLit lit
-  ELam v b    -> "(lambda (" <> v <> ") " <> renderExpr b <> ")"
-  EApp f args -> "(" <> T.unwords (renderExpr f : map renderExpr args) <> ")"
+  EVar t          -> t
+  ELit lit        -> renderLit lit
+  ELam v _mType b -> "(lambda (" <> v <> ") " <> renderExpr b <> ")"
+  EAnnot e _ty    -> renderExpr e  -- Ignore type annotations in rendering
+  EApp f args     -> "(" <> DT.unwords (renderExpr f : map renderExpr args) <> ")"
 
-renderComp :: Comp -> T.Text
+renderComp :: Comp -> DT.Text
 renderComp comp = case comp of
   CReturn e      -> "(return " <> renderExpr e <> ")"
   CBind v c1 c2  -> "(bind " <> v <> " " <> renderComp c1 <> " " <> renderComp c2 <> ")"
@@ -499,46 +569,46 @@ renderComp comp = case comp of
   CVar t         -> t
   CSeq c1 c2     -> "(do " <> renderComp c1 <> " " <> renderComp c2 <> ")"
 
-renderLit :: Literal -> T.Text
+renderLit :: Literal -> DT.Text
 renderLit lit = case lit of
-  LNat n    -> T.pack (show n)
-  LString s -> T.pack (show (T.unpack s))
+  LNat n    -> DT.pack (show n)
+  LString s -> DT.pack (show (DT.unpack s))
   LBool b   -> if b then "true" else "false"
 
 --------------------------------------------------------------------------------
 -- AST -> M-expression pretty-printer
 
-moduleToMExprText :: Module -> T.Text
+moduleToMExprText :: Module -> DT.Text
 moduleToMExprText (Module name imports defs) =
-  T.unlines $
+  DT.unlines $
     map renderMImport imports
     ++ ["" | not (null imports)]
     ++ ["module " <> name <> " contains"]
     ++ concatMap renderMDef defs
     ++ ["end"]
 
-renderMImport :: Import -> T.Text
+renderMImport :: Import -> DT.Text
 renderMImport (Import modName alias)
   | modName == alias = "import " <> modName
   | otherwise        = "import " <> modName <> " as " <> alias
 
-renderMDef :: Definition -> [T.Text]
-renderMDef (Definition tr name kind body) =
+renderMDef :: Definition -> [DT.Text]
+renderMDef (Definition tr name kind _mType body) =
   let header = "  define " <> renderMTransparency tr <> " " <> name <> " as " <> renderMKind kind
   in case (kind, body) of
       (ValueDef, Left e)        -> [header <> " " <> renderMExpr e]
       (ComputationDef, Right c) -> header : renderMComp 4 c
       _                         -> [header <> " <invalid>"]
 
-renderMTransparency :: Transparency -> T.Text
+renderMTransparency :: Transparency -> DT.Text
 renderMTransparency Transparent = "transparent"
 renderMTransparency Opaque      = "opaque"
 
-renderMKind :: DefKind -> T.Text
+renderMKind :: DefKind -> DT.Text
 renderMKind ValueDef       = "value"
 renderMKind ComputationDef = "computation"
 
-renderMComp :: Int -> Comp -> [T.Text]
+renderMComp :: Int -> Comp -> [DT.Text]
 renderMComp indentLevel comp = case comp of
   CReturn e -> [indent indentLevel ("return " <> renderMExpr e)]
   CPerform e -> [indent indentLevel ("perform io " <> renderMExpr e)]
@@ -548,10 +618,10 @@ renderMComp indentLevel comp = case comp of
   CBind v c1 c2 ->
     [indent indentLevel ("bind " <> v <> " <- " <> renderMCompInline c1 <> " then")] ++ renderMComp (indentLevel+2) c2
 
-renderMCompInline :: Comp -> T.Text
-renderMCompInline c = T.intercalate " " (renderMComp 0 c)
+renderMCompInline :: Comp -> DT.Text
+renderMCompInline c = DT.intercalate " " (renderMComp 0 c)
 
-renderMExpr :: Expr -> T.Text
+renderMExpr :: Expr -> DT.Text
 renderMExpr expr = render expr False
   where
     render e inAtom = case e of
@@ -563,34 +633,34 @@ renderMExpr expr = render expr False
           Just (scrut, cases) -> wrapIf inAtom (renderInspect scrut cases)
           Nothing ->
             let parts = renderAtom f : map renderAtom args
-            in "(" <> T.unwords parts <> ")"
+            in "(" <> DT.unwords parts <> ")"
     renderAtom e = render e True
     wrapIf True t  = "(" <> t <> ")"
     wrapIf False t = t
 
-renderLambdaChain :: Expr -> T.Text
+renderLambdaChain :: Expr -> DT.Text
 renderLambdaChain e =
   let (params, body) = collectLams e
-  in "lambda " <> T.unwords params <> " -> " <> renderMExpr body
+  in "lambda " <> DT.unwords params <> " -> " <> renderMExpr body
 
 collectLams :: Expr -> ([Text], Expr)
 collectLams = go []
   where
-    go acc (ELam v b) = go (acc ++ [v]) b
-    go acc other      = (acc, other)
+    go acc (ELam v _mType b) = go (acc ++ [v]) b
+    go acc other            = (acc, other)
 
 matchAsInspect :: Expr -> [Expr] -> Maybe (Expr, [Expr])
 matchAsInspect (EVar "match") (scrut:cases) = Just (scrut, cases)
 matchAsInspect _ _ = Nothing
 
-renderInspect :: Expr -> [Expr] -> T.Text
+renderInspect :: Expr -> [Expr] -> DT.Text
 renderInspect scrut cases =
-  "inspect " <> renderMExpr scrut <> " with " <> T.unwords (map renderCase cases) <> " end"
+  "inspect " <> renderMExpr scrut <> " with " <> DT.unwords (map renderCase cases) <> " end"
   where
     renderCase c =
       let (params, body) = collectLams c
-          paramsTxt = if null params then "" else " " <> T.unwords params
+          paramsTxt = if null params then "" else " " <> DT.unwords params
       in "case" <> paramsTxt <> " -> " <> renderMExpr body
 
-indent :: Int -> T.Text -> T.Text
-indent n t = T.replicate n " " <> t
+indent :: Int -> DT.Text -> DT.Text
+indent n t = DT.replicate n " " <> t
