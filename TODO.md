@@ -2,14 +2,14 @@
 
 ## Immediate Priorities
 
-### 1. Test Runner (`smyth test`) - **NEXT UP**
-- [ ] Basic test discovery (pattern: `test/**/*.lq`)
-- [ ] Parallel execution with process isolation
-- [ ] Clear pass/fail reporting with diffs
-- [ ] Filter by pattern: `smyth test match`
-- [ ] Exit codes for CI/CD integration
-- [ ] Golden file testing (snapshot comparison)
-- [ ] Watch mode for development
+### 1. Test Runner (`smyth test`) - ✓ **COMPLETED**
+- [x] Modular test organization (test/features/, test/typecheck/)
+- [x] test/main.lq entry point for running all tests
+- [x] Type checking always runs before execution
+- [x] Clear pass/fail reporting
+- [x] Exit codes for CI/CD integration (0 = pass, 1 = fail)
+- [x] Project root discovery via Smythfile.lq
+- [ ] Golden file testing (snapshot comparison) - future enhancement
 
 ### 2. Type Classes
 **Goal**: Unify match-list/bool/pair into polymorphic `match` via type classes
@@ -39,9 +39,11 @@
 
 ### Build Tool CLI
 - [x] `locque-interpreter --run-lq` (bootstrap)
+- [x] `smyth test` - Run all tests (test/main.lq)
+- [x] `smyth test <file>` - Run specific test file
+- [x] `smyth run <file>` - Type check + execute
+- [x] Standalone binary generation (`cabal install smyth` → `~/.local/bin/smyth`)
 - [ ] `smyth check <file>` - Type check only
-- [ ] `smyth run <file>` - Type check + execute
-- [ ] `smyth test [pattern]` - Run tests (priority #1)
 - [ ] `smyth repl` - Interactive REPL
 - [ ] `smyth validate <file>` - Syntax + structural validation
 - [ ] `smyth convert <file>` - M-expr ↔ S-expr bidirectional
@@ -183,22 +185,47 @@
 - [x] Three new type checker tests (fold_inline, match, opaque_import)
 - [x] Updated AGENTS.md with match migration guide
 - [x] List.slice function
+- [x] Comment syntax (M-expr: `#` and `/* */`, S-expr: `;` and `#| |#`)
+- [x] Smythfile.lq project configuration
+- [x] smyth test runner (modular test organization, type checking, pass/fail reporting)
+- [x] Migrated all 19 tests to test/features/ and test/typecheck/
+- [x] test/main.lq unified test suite
+- [x] `smyth run <file>` command (type check + execute)
+- [x] Assertion counting (115 assertions across full test suite)
+- [x] Standalone binary (`~/.local/bin/smyth`)
 
 ---
 
 ## Next Session Goals
 
-1. **Start `smyth test` implementation**
-   - Design test file format/conventions
-   - Implement test discovery
-   - Basic test execution and reporting
+Based on completed test runner, three main paths forward:
 
-2. **Begin type class design**
-   - Research Haskell type classes, Rust traits, Swift protocols
-   - Draft Locque syntax for type classes
-   - Plan implementation strategy
+### Option A: Type Classes (Major Feature)
+**Goal**: Unify match-list/bool/pair into polymorphic `match` via type classes
 
-3. **Improve error messages**
-   - Add "Did you mean?" for common mistakes
-   - Show code context with errors
-   - Keep suggestions concise (token-efficient)
+**Why now**:
+- Would immediately improve ergonomics (single `match` instead of three)
+- Stress-tests type system with real-world use case
+- Foundation for future polymorphism needs
+
+**Effort**: High (touches parser, type checker, evaluator)
+
+### Option B: Error Message Improvements (Developer Experience)
+**Goal**: Self-prompting for LLMs, concise for humans, token-efficient
+
+**Why now**:
+- Immediate payoff for development velocity
+- LLM-friendly error messages are core philosophy
+- Lower effort than type classes
+
+**Effort**: Medium (mostly type checker and parser error reporting)
+
+### Option C: More `smyth` Commands (Tooling Expansion)
+**Goal**: Add `smyth check`, `smyth run`, `smyth repl`
+
+**Why now**:
+- Natural extension of test runner work
+- Immediate utility for daily workflow
+- `smyth check` particularly useful for fast feedback
+
+**Effort**: Low-Medium (infrastructure already exists)

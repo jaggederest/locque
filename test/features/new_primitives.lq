@@ -1,0 +1,44 @@
+# Migrated from ../10_new_primitives.lq
+
+import Prelude as P
+import Assert as A
+import String as S
+import List as L
+
+module NewPrimitivesTest contains
+
+  define transparent test-ends-with as computation
+    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.string-ends-with "" "hello") "yes" "no") "yes") then
+    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.string-ends-with "lo" "hello") "yes" "no") "yes") then
+    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.string-ends-with "hello" "hello") "yes" "no") "yes") then
+    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.string-ends-with "hi" "hello") "yes" "no") "no") then
+    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.string-ends-with "ello" "hello") "yes" "no") "yes") then
+    return P.tt
+
+  define transparent test-index-of as computation
+    bind _ <- perform io (A.assert-eq-nat (S.string-index-of "ell" "hello") 1) then
+    bind _ <- perform io (A.assert-eq-nat (S.string-index-of "h" "hello") 0) then
+    bind _ <- perform io (A.assert-eq-nat (S.string-index-of "o" "hello") 4) then
+    bind _ <- perform io (A.assert-eq-nat (S.string-index-of "xyz" "hello") 5) then
+    bind _ <- perform io (A.assert-eq-nat (S.string-index-of "lo" "hello") 3) then
+    return P.tt
+
+  define transparent test-list-last-init as computation
+    bind lst <- P.cons "a" (P.cons "b" (P.cons "c" P.nil)) then
+    bind _ <- perform io (A.assert-eq-string (L.list-last lst) "c") then
+    bind init-list <- L.list-init lst then
+    bind _ <- perform io (A.assert-eq-nat (P.length-list init-list) 2) then
+    bind _ <- perform io (A.assert-eq-string (L.nth 0 init-list) "a") then
+    bind _ <- perform io (A.assert-eq-string (L.nth 1 init-list) "b") then
+    bind single <- P.cons "x" P.nil then
+    bind _ <- perform io (A.assert-eq-string (L.list-last single) "x") then
+    bind empty-init <- L.list-init single then
+    bind _ <- perform io (A.assert-eq-nat (P.length-list empty-init) 0) then
+    return P.tt
+
+  define transparent main as computation
+    bind _ <- test-ends-with then
+    bind _ <- test-index-of then
+    bind _ <- test-list-last-init then
+    return P.tt
+end

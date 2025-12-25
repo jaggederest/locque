@@ -1,0 +1,20 @@
+# Smythfile.lq
+# Project configuration for Locque
+
+module SmythConfig contains
+  # Project metadata
+  define transparent project-name as value "locque"
+
+  # Directory structure (relative to Smythfile location)
+  define transparent test-root as value "test"
+  define transparent lib-root as value "lib"
+  define transparent source-root as value "interpreter/src"
+
+  # Logging: ERROR, WARN, INFO, DEBUG, TRACE
+  # Can be overridden by LOCQUE_LOG environment variable
+  define transparent default-log-level as value "ERROR"
+
+  # Color output: auto, always, never
+  # auto = detect TTY, always = force colors, never = plain text
+  define transparent color-mode as value "auto"
+end

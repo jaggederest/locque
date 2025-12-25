@@ -29,17 +29,31 @@ data SExpr
 
 type Parser = Parsec Void Text
 
+-- S-expr space consumer (Lisp-style comments)
 spaceConsumer :: Parser ()
 spaceConsumer = L.space C.space1 lineCmnt blockCmnt
   where
     lineCmnt = L.skipLineComment ";"
     blockCmnt = L.skipBlockComment "#|" "|#"
 
+-- M-expr space consumer (Algol-style comments)
+mExprSpaceConsumer :: Parser ()
+mExprSpaceConsumer = L.space C.space1 lineCmnt blockCmnt
+  where
+    lineCmnt = L.skipLineComment "#"
+    blockCmnt = L.skipBlockComment "/*" "*/"
+
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
 
+mLexeme :: Parser a -> Parser a
+mLexeme = L.lexeme mExprSpaceConsumer
+
 symbol :: Text -> Parser Text
 symbol = L.symbol spaceConsumer
+
+mSymbol :: Text -> Parser Text
+mSymbol = L.symbol mExprSpaceConsumer
 
 pSExpr :: Parser SExpr
 pSExpr = lexeme (pList <|> pString <|> pNumber <|> pAtom)
@@ -216,7 +230,7 @@ renderHead sexpr = case sexpr of
 parseMExprFile :: FilePath -> DT.Text -> Either String Module
 parseMExprFile path rawTxt = do
   txt <- preprocessInput path rawTxt
-  case M.parse (spaceConsumer *> pMModule <* spaceConsumer <* M.eof) path txt of
+  case M.parse (mExprSpaceConsumer *> pMModule <* mExprSpaceConsumer <* M.eof) path txt of
     Left err -> Left (whitespaceHelp <> M.errorBundlePretty err)
     Right m  -> Right m
 
@@ -227,7 +241,7 @@ pMModule = do
   name <- pModuleName
   keyword "contains"
   defs <- many pDefinition
-  spaceConsumer
+  mExprSpaceConsumer
   keyword "end"
   pure (Module name imports defs)
 
@@ -240,7 +254,7 @@ pMImport = do
   pure (Import modName chosen)
 
 pDefinition :: Parser Definition
-pDefinition = lexeme $ do
+pDefinition = mLexeme $ do
   keyword "define"
   tr <- (Transparent <$ keyword "transparent") <|> (Opaque <$ keyword "opaque")
   name <- pIdentifier
@@ -260,7 +274,7 @@ pBind :: Parser Comp
 pBind = M.try $ do
   keyword "bind"
   v <- pIdentifier
-  _ <- symbol "<-"
+  _ <- mSymbol "<-"
   first <- pCompNonBind
   keyword "then"
   rest <- pComp
@@ -310,14 +324,14 @@ pLet = M.try $ do
       pure (foldr (\(v,val) acc -> EApp (ELam v Nothing acc) [val]) body binds)
     Nothing -> do
       v <- pIdentifier
-      _ <- symbol "="
+      _ <- mSymbol "="
       val <- pExpr
       keyword "in"
       body <- pExpr
       pure (EApp (ELam v Nothing body) [val])
   where
-    schemeBindings = between (symbol "(") (symbol ")") (some oneBind)
-    oneBind = between (symbol "(") (symbol ")") $ do
+    schemeBindings = between (mSymbol "(") (mSymbol ")") (some oneBind)
+    oneBind = between (mSymbol "(") (mSymbol ")") $ do
       v <- pIdentifier
       val <- pExpr
       pure (v, val)
@@ -328,7 +342,7 @@ pLambda = do
   parenForm <|> arrowForm
   where
     parenForm = do
-      params <- M.try (between (symbol "(") (symbol ")") (many pIdentifier))
+      params <- M.try (between (mSymbol "(") (mSymbol ")") (many pIdentifier))
       body <- pExpr
       case params of
         [] -> pure (ELam (DT.pack "_unit") (Just T.TUnit) body)  -- Zero-param lambda: () -> body
@@ -421,9 +435,9 @@ pTypeVar = lexeme . M.try $ do
 
 pTypeCompound :: Parser T.Type
 pTypeCompound = do
-  _ <- symbol "("
+  _ <- mSymbol "("
   result <- pTypeForm
-  _ <- symbol ")"
+  _ <- mSymbol ")"
   pure result
 
 pTypeForm :: Parser T.Type
@@ -448,7 +462,7 @@ pPairType = do
 
 pFunType :: Parser T.Type
 pFunType = do
-  symbol "->"
+  mSymbol "->"
   t1 <- pType
   t2 <- pType
   pure (T.TFun t1 t2)
@@ -461,7 +475,7 @@ pCompType = do
 -- Identifiers and symbols
 
 pIdentifier :: Parser Text
-pIdentifier = lexeme . M.try $ do
+pIdentifier = mLexeme . M.try $ do
   first <- M.satisfy (\c -> isLetter c || c == '_')
   rest <- many (M.satisfy (\c -> isAlphaNum c || elem c ("._-:" :: String)))
   let ident = DT.pack (first:rest)
@@ -478,19 +492,20 @@ reservedWords =
   ]
 
 pModuleName :: Parser Text
-pModuleName = lexeme $ do
+pModuleName = mLexeme $ do
   first <- M.satisfy isLetter
   rest <- many (M.satisfy (\c -> isAlphaNum c || c `elem` ("_:." :: String)))
   pure (DT.pack (first:rest))
 
+-- M-expr keyword (uses M-expr space consumer)
 keyword :: Text -> Parser ()
-keyword t = lexeme (C.string t *> notFollowedBy (M.satisfy isIdentChar))
+keyword t = mLexeme (C.string t *> notFollowedBy (M.satisfy isIdentChar))
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isAlphaNum c || c `elem` ("._-:" :: String)
 
 parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
+parens = between (mSymbol "(") (mSymbol ")")
 
 --------------------------------------------------------------------------------
 -- Input preprocessing (whitespace normalization/validation)

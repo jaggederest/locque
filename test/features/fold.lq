@@ -1,0 +1,26 @@
+# Migrated from ../03_fold.lq
+
+import Prelude as P
+import Assert as A
+
+module FoldTests contains
+
+  define transparent list123 as value
+    P.cons "1" (P.cons "2" (P.cons "3" P.nil))
+
+  define transparent sum-list as computation
+    bind total <- P.fold concat-string-prim "" list123 then
+    bind _ <- perform io (A.assert-eq-string total "123") then
+    return P.tt
+
+  define transparent map-upper as computation
+    bind mapped <- P.map (function x of-type String produce concat-string-prim x "!") list123 then
+    bind total <- P.fold concat-string-prim "" mapped then
+    bind _ <- perform io (A.assert-eq-string total "1!2!3!") then
+    return P.tt
+
+  define transparent main as computation
+    bind _ <- sum-list then
+    bind _ <- map-upper then
+    return P.tt
+end

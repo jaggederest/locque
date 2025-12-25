@@ -1,0 +1,14 @@
+# Migrated from ../99_typecheck_primitives.lq
+
+module TypeCheckPrimitives contains
+  define transparent five as value 5
+
+  define transparent hello as value "hello world"
+
+  define transparent my-bool as value true
+
+  define transparent my-list as value cons-prim 1 (cons-prim 2 nil-prim)
+
+  define transparent main as computation
+    return five
+end

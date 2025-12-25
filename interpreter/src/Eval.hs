@@ -5,13 +5,21 @@ module Eval
 import           AST
 import           Control.Exception (catch, IOException)
 import           Control.Monad (foldM, filterM)
+import           Data.IORef
+import           Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>), takeExtension)
 import qualified Data.Text.IO as TIO
+import           System.IO.Unsafe (unsafePerformIO)
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
+
+-- Global assertion counter (reset at the start of each test run)
+{-# NOINLINE assertionCounter #-}
+assertionCounter :: IORef Int
+assertionCounter = unsafePerformIO (newIORef 0)
 
 -- Runtime values
 
@@ -261,7 +269,9 @@ primAssertEqNat [a,b] = do
   a' <- expectNat a
   b' <- expectNat b
   if a' == b'
-    then pure VUnit
+    then do
+      modifyIORef' assertionCounter (+1)
+      pure VUnit
     else error $ "assert-eq-nat failed: " ++ show a' ++ " /= " ++ show b'
 primAssertEqNat _ = error "assert-eq-nat expects 2 args"
 
@@ -270,7 +280,9 @@ primAssertEqString [a,b] = do
   a' <- expectString a
   b' <- expectString b
   if a' == b'
-    then pure VUnit
+    then do
+      modifyIORef' assertionCounter (+1)
+      pure VUnit
     else error $ "assert-eq-string failed: " ++ show a' ++ " /= " ++ show b'
 primAssertEqString _ = error "assert-eq-string expects 2 args"
 
@@ -481,14 +493,17 @@ bindModule (Module _ _ defs) base = foldl addDef base defs
         (ComputationDef, Right c) -> Map.insert name (BCompExpr c) env
         _                         -> env
 
-runModuleMain :: FilePath -> Module -> IO ()
+runModuleMain :: FilePath -> Module -> IO Int
 runModuleMain projectRoot m@(Module _ _ _) = do
+  -- Reset assertion counter
+  writeIORef assertionCounter 0
+
   envImports <- loadImports projectRoot m
   let env = bindModule m envImports
   case Map.lookup (T.pack "main") env of
-    Just (BCompExpr c)    -> do _ <- runComp env c; pure ()
-    Just (BVal (VPrim f)) -> do _ <- f []; pure ()
-    Just (BValueExpr e)   -> do _ <- evalExpr env e; pure ()
+    Just (BCompExpr c)    -> do _ <- runComp env c; readIORef assertionCounter
+    Just (BVal (VPrim f)) -> do _ <- f []; readIORef assertionCounter
+    Just (BValueExpr e)   -> do _ <- evalExpr env e; readIORef assertionCounter
     _                     -> error "No main computation found"
 
 evalExpr :: Env -> Expr -> IO Value
@@ -547,7 +562,12 @@ loadImports projectRoot (Module _ imports _) = do
 
 loadImport :: FilePath -> Import -> IO Env
 loadImport projectRoot (Import modName alias) = do
-  let basePath = projectRoot </> "lib" </> modNameToPath modName
+  let modPath = modNameToPath modName
+      -- If module path starts with "test/", use projectRoot directly
+      -- Otherwise, use projectRoot </> "lib"
+      basePath = if "test/" `isPrefixOf` modPath
+                 then projectRoot </> modPath
+                 else projectRoot </> "lib" </> modPath
       lqPath = basePath <.> "lq"
       lqsPath = basePath <.> "lqs"
 
@@ -588,10 +608,4 @@ aliasPref :: Text -> Text -> Text
 aliasPref prefix n = prefix <> T.pack "." <> n
 
 modNameToPath :: Text -> FilePath
-modNameToPath t =
-  let segs = T.splitOn (T.pack "::") t
-      loweredInit = map T.toLower (init segs)
-      lastSeg = case reverse segs of
-        []    -> ""
-        (x:_) -> T.unpack x
-   in T.unpack (T.intercalate (T.pack "/") (loweredInit ++ [T.pack lastSeg]))
+modNameToPath = T.unpack . T.replace (T.pack ".") (T.pack "/")

@@ -45,8 +45,8 @@ runLqs doTypeCheck file = do
           typeResult <- TC.typeCheckModuleWithImports projectRoot m
           case typeResult of
             Left tcErr -> die ("Type error: " ++ show tcErr)
-            Right _env -> runModuleMain projectRoot m
-        else runModuleMain projectRoot m
+            Right _env -> do _ <- runModuleMain projectRoot m; pure ()
+        else do _ <- runModuleMain projectRoot m; pure ()
 
 runLq :: Bool -> FilePath -> IO ()
 runLq doTypeCheck file = do
@@ -62,8 +62,8 @@ runLq doTypeCheck file = do
           typeResult <- TC.typeCheckModuleWithImports projectRoot m
           case typeResult of
             Left tcErr -> die ("Type error: " ++ show tcErr)
-            Right _env -> runModuleMain projectRoot m
-        else runModuleMain projectRoot m
+            Right _env -> do _ <- runModuleMain projectRoot m; pure ()
+        else do _ <- runModuleMain projectRoot m; pure ()
 
 usage :: String
 usage = unlines

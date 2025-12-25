@@ -2,12 +2,14 @@ Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
 - Core constructs (surface intent): `define (transparent|opaque) name as (value|computation) …`, `function x of-type A produce …`, `for-all`, `there-exists`, `inspect … with … end` (matching to be added), application is prefix/left-assoc, modules/imports are explicit.
+- Comments: M-expr uses `#` for line comments and `/* */` for block comments; S-expr uses `;` for line comments and `#| |#` for block comments.
 
 Interpreter (Haskell, `interpreter/`)
 - AST: literals (Nat, String, Bool), vars, apps, lambdas, defs (transparency/kind), values vs computations.
 - Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Bool); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
 - Import resolution: loads `lib/<Module>.lq` or `.lqs`, qualifies names with module/alias, also inserts unqualified names.
 - CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag to bypass type checking, `--typecheck <file>` (type check only), `--validate <file>` (parens + parse + structural validation), `--emit-lqs <file> <out>` (M-expr → S-expr), `--emit-lq <file> <out>` (S-expr → M-expr).
+- Smyth tool (standalone binary): `smyth run <file>` (type check + execute), `smyth test` (run all tests), `smyth test <file>` (run specific test). Installed at `~/.local/bin/smyth`.
 - Type checker: Bidirectional type checking with Hindley-Milner polymorphism, enforces CBPV split at type level, integrated into interpreter by default (use `--skip-typecheck` to disable for legacy code).
 - Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Bool for a string (adds trailing newline automatically).
 
@@ -29,9 +31,11 @@ Libraries (`lib/`)
 
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
-- Tests: basics, file IO, lambda, fold/map, match, validator (`test/40_small_bad_code.lqs`), roundtrip (`test/51_roundtrip.{lq,lqs}`), type checker (`test/99_typecheck_*.lq`).
-- Organization: `00-39` feature tests, `40-49` validator/negative tests, `50-59` conversion tests, `99-XX` type checker tests.
-- Most legacy tests require `--skip-typecheck` flag; new tests should include type annotations.
+- Tests: organized in `test/features/` (13 feature tests) and `test/typecheck/` (6 type checker tests).
+- Run all tests: `smyth test` (from interpreter/ directory) - executes `test/main.lq` which imports all test modules.
+- Run specific test: `smyth test <file>` - runs single test file.
+- Legacy numbered tests (`00-39` feature, `40-49` validator, `50-59` conversion, `99-XX` typecheck) migrated to modular structure.
+- All tests include type annotations and run with type checking enabled by default.
 
 ## Match Primitive Semantics
 

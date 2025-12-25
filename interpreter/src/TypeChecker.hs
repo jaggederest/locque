@@ -8,6 +8,7 @@ module TypeChecker
 
 import Control.Monad (foldM)
 import Control.Monad.State
+import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -360,7 +361,12 @@ loadTypeImports projectRoot (Module _ imports _) = do
 -- | Load a single import's type environment
 loadTypeImport :: FilePath -> Import -> IO TypeEnv
 loadTypeImport projectRoot (Import modName alias) = do
-  let basePath = projectRoot </> "lib" </> modNameToPath modName
+  let modPath = modNameToPath modName
+      -- If module path starts with "test/", use projectRoot directly
+      -- Otherwise, use projectRoot </> "lib"
+      basePath = if "test/" `isPrefixOf` modPath
+                 then projectRoot </> modPath
+                 else projectRoot </> "lib" </> modPath
       lqPath = basePath <.> "lq"
       lqsPath = basePath <.> "lqs"
 
