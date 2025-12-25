@@ -8,6 +8,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((</>))
+import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException)
 
 import Parser (parseMExprFile)
@@ -29,9 +30,12 @@ data TestError = TestError
 
 -- | Run tests based on arguments
 runTests :: SmythConfig -> [String] -> IO ()
-runTests config args = case args of
-  []       -> runTestMain config  -- Run test/main.lq
-  files    -> runTestFiles config files
+runTests config args = do
+  -- Change to project root so all paths are relative to it
+  setCurrentDirectory (projectRoot config)
+  case args of
+    []       -> runTestMain config  -- Run test/main.lq
+    files    -> runTestFiles config files
 
 -- | Run test/main.lq
 runTestMain :: SmythConfig -> IO ()

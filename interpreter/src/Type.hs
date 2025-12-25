@@ -18,7 +18,15 @@ data Type
   | TVar Text               -- ^ Type variables (a, b, c)
   | TForAll Text Type       -- ^ Universal quantification: ∀a. T
   | TComp Type              -- ^ Computation types (wraps value type)
+  | TFamilyApp Text [Type]  -- ^ Type family application (name + args)
+  | TConstrained [Constraint] Type  -- ^ Constrained type (Show a => a -> String)
   deriving (Show, Eq)
+
+-- | A type class constraint (e.g., Show a, Eq a)
+data Constraint = Constraint
+  { constraintClass :: Text    -- ^ Class name (e.g., "Show")
+  , constraintType  :: Type    -- ^ Constrained type (e.g., TVar "a")
+  } deriving (Show, Eq)
 
 -- | Type schemes for polymorphic bindings (∀a b. Type)
 data TypeScheme = TypeScheme [Text] Type
@@ -39,6 +47,8 @@ freeVars (TFun a b) = freeVars a `Set.union` freeVars b
 freeVars (TVar v) = Set.singleton v
 freeVars (TForAll v t) = Set.delete v (freeVars t)
 freeVars (TComp t) = freeVars t
+freeVars (TFamilyApp _ args) = Set.unions (map freeVars args)
+freeVars (TConstrained cs ty) = Set.unions (map (freeVars . constraintType) cs) `Set.union` freeVars ty
 
 -- | Get free type variables in a type scheme
 freeVarsScheme :: TypeScheme -> Set.Set Text
@@ -57,6 +67,13 @@ prettyType (TFun a b) = prettyTypeAtom a <> " -> " <> prettyType b
 prettyType (TVar v) = v
 prettyType (TForAll v t) = "∀" <> v <> ". " <> prettyType t
 prettyType (TComp t) = "Comp " <> prettyTypeAtom t
+prettyType (TFamilyApp name args) = name <> " " <> T.intercalate " " (map prettyTypeAtom args)
+prettyType (TConstrained [] ty) = prettyType ty
+prettyType (TConstrained cs ty) = T.intercalate ", " (map prettyConstraint cs) <> " => " <> prettyType ty
+
+-- | Pretty-print a single constraint
+prettyConstraint :: Constraint -> Text
+prettyConstraint (Constraint cls ty) = cls <> " " <> prettyTypeAtom ty
 
 -- | Pretty-print a type in atomic position (add parens if needed)
 prettyTypeAtom :: Type -> Text
@@ -85,6 +102,14 @@ typeToSExpr (TFun a b) = "(-> " <> typeToSExpr a <> " " <> typeToSExpr b <> ")"
 typeToSExpr (TVar v) = v
 typeToSExpr (TForAll v t) = "(for-all (" <> v <> ") " <> typeToSExpr t <> ")"
 typeToSExpr (TComp t) = "(Comp " <> typeToSExpr t <> ")"
+typeToSExpr (TFamilyApp name args) = "(" <> name <> " " <> T.intercalate " " (map typeToSExpr args) <> ")"
+typeToSExpr (TConstrained [] ty) = typeToSExpr ty
+typeToSExpr (TConstrained cs ty) =
+  "(=> (" <> T.intercalate " " (map constraintToSExpr cs) <> ") " <> typeToSExpr ty <> ")"
+
+-- | Render a constraint as S-expression
+constraintToSExpr :: Constraint -> Text
+constraintToSExpr (Constraint cls ty) = "(" <> cls <> " " <> typeToSExpr ty <> ")"
 
 -- | Render a type scheme as S-expression
 typeSchemeToSExpr :: TypeScheme -> Text

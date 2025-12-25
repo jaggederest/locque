@@ -33,6 +33,12 @@ data TypeError
   | OccursCheck SrcLoc Text Type         -- Added location
   | PolymorphicInstantiationError SrcLoc Text  -- Added location
   | UnexpectedAnnotation SrcLoc          -- Added location
+  -- Typeclass errors
+  | DuplicateMethod SrcLoc Text Text     -- class name, method name
+  | UnknownTypeClass SrcLoc Text         -- class name
+  | MissingMethod SrcLoc Text Text Text  -- class name, instance type, method name
+  | ExtraMethod SrcLoc Text Text Text    -- class name, instance type, method name
+  | MethodTypeMismatch SrcLoc Text Text Type Type  -- class, method, expected, actual
 
 -- | Pretty-print type errors
 instance Show TypeError where
@@ -81,6 +87,31 @@ instance Show TypeError where
                 [Hint "Lambda requires type annotation for parameter"] Nothing
     in T.unpack (formatError msg)
 
+  show (DuplicateMethod loc className methodName) =
+    let msg = ErrorMsg loc ("Duplicate method '" <> methodName <> "' in typeclass '" <> className <> "'") Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (UnknownTypeClass loc className) =
+    let msg = ErrorMsg loc ("Unknown type class: " <> className) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (MissingMethod loc className instType methodName) =
+    let msg = ErrorMsg loc ("Missing method '" <> methodName <> "' in instance " <> className <> " " <> instType)
+              Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (ExtraMethod loc className instType methodName) =
+    let msg = ErrorMsg loc ("Extra method '" <> methodName <> "' in instance " <> className <> " " <> instType <>
+              " (not declared in typeclass)") Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (MethodTypeMismatch loc className methodName expected actual) =
+    let note = Just $ "Expected: " <> prettyType expected <>
+                      "\n  Actual:   " <> prettyType actual
+        msg = ErrorMsg loc ("Method '" <> methodName <> "' in instance " <> className <>
+              " has wrong type") Nothing [] note
+    in T.unpack (formatError msg)
+
 -- Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where
   VarNotInScope _ a _ == VarNotInScope _ b _ = a == b
@@ -91,6 +122,12 @@ instance Eq TypeError where
   OccursCheck _ a1 a2 == OccursCheck _ b1 b2 = a1 == b1 && a2 == b2
   PolymorphicInstantiationError _ a == PolymorphicInstantiationError _ b = a == b
   UnexpectedAnnotation _ == UnexpectedAnnotation _ = True
+  DuplicateMethod _ a1 a2 == DuplicateMethod _ b1 b2 = a1 == b1 && a2 == b2
+  UnknownTypeClass _ a == UnknownTypeClass _ b = a == b
+  MissingMethod _ a1 a2 a3 == MissingMethod _ b1 b2 b3 = a1 == b1 && a2 == b2 && a3 == b3
+  ExtraMethod _ a1 a2 a3 == ExtraMethod _ b1 b2 b3 = a1 == b1 && a2 == b2 && a3 == b3
+  MethodTypeMismatch _ a1 a2 a3 a4 == MethodTypeMismatch _ b1 b2 b3 b4 =
+    a1 == b1 && a2 == b2 && a3 == b3 && a4 == b4
   _ == _ = False
 
 -- | Fresh variable counter for generating unique type variables
@@ -111,11 +148,13 @@ data TCState = TCState
   , tcFamilyEnv    :: TypeFamilyEnv
   , tcClassEnv     :: TypeClassEnv
   , tcInstEnv      :: InstanceEnv
+  , tcConstraints  :: [Constraint]  -- Collected constraints to solve
+  , tcCurrentSubst :: Subst         -- Current substitution from unification
   }
 
 -- | Initial type checker state
 initialTCState :: TCState
-initialTCState = TCState 0 Map.empty Map.empty Map.empty
+initialTCState = TCState 0 Map.empty Map.empty Map.empty [] Map.empty
 
 -- | Type checking monad with full state
 type TypeCheckM a = StateT TCState (Either TypeError) a
@@ -138,6 +177,26 @@ freshVar base = do
 -- | Generate N fresh variables from a list of base names
 freshVars :: [Text] -> TypeCheckM [Text]
 freshVars = mapM freshVar
+
+-- | Add a constraint to the collection
+addConstraint :: Constraint -> TypeCheckM ()
+addConstraint c = modify (\s -> s { tcConstraints = c : tcConstraints s })
+
+-- | Get all collected constraints
+getConstraints :: TypeCheckM [Constraint]
+getConstraints = gets tcConstraints
+
+-- | Clear collected constraints
+clearConstraints :: TypeCheckM ()
+clearConstraints = modify (\s -> s { tcConstraints = [] })
+
+-- | Update the current substitution
+updateSubst :: Subst -> TypeCheckM ()
+updateSubst newSubst = modify (\s -> s { tcCurrentSubst = composeSubst newSubst (tcCurrentSubst s) })
+
+-- | Get the current substitution
+getCurrentSubst :: TypeCheckM Subst
+getCurrentSubst = gets tcCurrentSubst
 
 -- | Main entry point: type check entire module (without imports)
 -- For testing/simple cases. Use typeCheckModuleWithImports for full checking.
@@ -205,16 +264,57 @@ registerTypeFamily :: Text -> TypeFamilyBody -> TypeCheckM ()
 registerTypeFamily name body = do
   modify (\s -> s { tcFamilyEnv = Map.insert name body (tcFamilyEnv s) })
 
--- | Register a type class in the environment
+-- | Register a type class in the environment with validation
 registerTypeClass :: Text -> TypeClassBody -> TypeCheckM ()
 registerTypeClass name body = do
-  modify (\s -> s { tcClassEnv = Map.insert name body (tcClassEnv s) })
+  let methodNames = map fst (tcbMethods body)
+  case findDuplicates methodNames of
+    Just dupName -> liftTC (Left (DuplicateMethod noLoc name dupName))
+    Nothing -> modify (\s -> s { tcClassEnv = Map.insert name body (tcClassEnv s) })
 
--- | Register an instance in the environment
+-- | Find first duplicate in a list, if any
+findDuplicates :: [Text] -> Maybe Text
+findDuplicates [] = Nothing
+findDuplicates (x:xs)
+  | x `elem` xs = Just x
+  | otherwise   = findDuplicates xs
+
+-- | Register an instance in the environment with validation
 registerInstance :: Text -> InstanceBody -> TypeCheckM ()
-registerInstance _name body = do
+registerInstance _defName body = do
   let className = instClassName body
-  modify (\s -> s { tcInstEnv = Map.insertWith (++) className [body] (tcInstEnv s) })
+  classEnv <- gets tcClassEnv
+  case Map.lookup className classEnv of
+    Nothing -> liftTC (Left (UnknownTypeClass noLoc className))
+    Just (TypeClassBody typeParam methods) -> do
+      -- Validate method coverage
+      let implNames = map fst (instImpls body)
+          methodNames = map fst methods
+          missing = filter (`notElem` implNames) methodNames
+          extra = filter (`notElem` methodNames) implNames
+      case (missing, extra) of
+        (m:_, _) -> liftTC (Left (MissingMethod noLoc className (prettyType (instType body)) m))
+        ([], e:_) -> liftTC (Left (ExtraMethod noLoc className (prettyType (instType body)) e))
+        ([], []) -> do
+          -- Type check method implementations
+          typeCheckInstanceMethods className (instType body) typeParam methods (instImpls body)
+          modify (\s -> s { tcInstEnv = Map.insertWith (++) className [body] (tcInstEnv s) })
+
+-- | Type check all method implementations against class signatures
+typeCheckInstanceMethods :: Text -> Type -> Text -> [(Text, Type)] -> [(Text, Expr)] -> TypeCheckM ()
+typeCheckInstanceMethods _className instanceType typeParam methods impls = do
+  let checkEnv = buildPrimitiveEnv
+  mapM_ (checkMethod checkEnv) impls
+  where
+    checkMethod :: TypeEnv -> (Text, Expr) -> TypeCheckM ()
+    checkMethod env (methodName, implExpr) = do
+      case lookup methodName methods of
+        Nothing -> pure ()  -- Already checked for extra methods above
+        Just methodSig -> do
+          -- Substitute class type variable with instance type
+          let instantiatedSig = subst typeParam instanceType methodSig
+          -- Type check the implementation
+          checkExpr env implExpr instantiatedSig
 
 -- | Check definition against declared type
 checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> DefBody -> TypeCheckM ()
@@ -430,6 +530,14 @@ subst v replacement ty = case ty of
   TVar x -> if x == v then replacement else TVar x
   TForAll x t -> if x == v then TForAll x t else TForAll x (subst v replacement t)
   TComp t -> TComp (subst v replacement t)
+  TFamilyApp name args -> TFamilyApp name (map (subst v replacement) args)
+  TConstrained cs inner ->
+    TConstrained (map (substConstraint v replacement) cs) (subst v replacement inner)
+
+-- | Substitute in a constraint
+substConstraint :: Text -> Type -> Constraint -> Constraint
+substConstraint v replacement (Constraint cls ty) =
+  Constraint cls (subst v replacement ty)
 
 -- | Type substitution map
 type Subst = Map.Map Text Type
@@ -449,14 +557,114 @@ applySubst s ty = case ty of
     Nothing -> TVar x
   TForAll x t -> TForAll x (applySubst (Map.delete x s) t)
   TComp t -> TComp (applySubst s t)
+  TFamilyApp name args -> TFamilyApp name (map (applySubst s) args)
+  TConstrained cs inner ->
+    TConstrained (map (applySubstConstraint s) cs) (applySubst s inner)
+
+-- | Apply substitution to a constraint
+applySubstConstraint :: Subst -> Constraint -> Constraint
+applySubstConstraint s (Constraint cls ty) = Constraint cls (applySubst s ty)
 
 -- | Compose substitutions (apply s2 then s1)
 composeSubst :: Subst -> Subst -> Subst
 composeSubst s1 s2 = Map.union (Map.map (applySubst s1) s2) s1
 
--- | Unification algorithm
+-- ============================================================================
+-- Type Family Reduction
+-- ============================================================================
+
+-- | Match a type pattern against a concrete type (one-way matching)
+-- Returns Just substitution if match succeeds, Nothing otherwise
+matchTypePattern :: Type -> Type -> Maybe Subst
+matchTypePattern pattern target = case (pattern, target) of
+  -- Variables in pattern match anything
+  (TVar v, t) -> Just (Map.singleton v t)
+
+  -- Same constructors must match structurally
+  (TNat, TNat) -> Just Map.empty
+  (TString, TString) -> Just Map.empty
+  (TBool, TBool) -> Just Map.empty
+  (TUnit, TUnit) -> Just Map.empty
+
+  (TList pInner, TList tInner) -> matchTypePattern pInner tInner
+
+  (TPair p1 p2, TPair t1 t2) -> do
+    s1 <- matchTypePattern p1 t1
+    s2 <- matchTypePattern (applySubst s1 p2) (applySubst s1 t2)
+    Just (composeSubst s2 s1)
+
+  (TFun p1 p2, TFun t1 t2) -> do
+    s1 <- matchTypePattern p1 t1
+    s2 <- matchTypePattern (applySubst s1 p2) (applySubst s1 t2)
+    Just (composeSubst s2 s1)
+
+  (TComp p, TComp t) -> matchTypePattern p t
+
+  -- Mismatch
+  _ -> Nothing
+
+-- | Match multiple patterns against multiple arguments
+matchTypePatterns :: [Type] -> [Type] -> Maybe Subst
+matchTypePatterns [] [] = Just Map.empty
+matchTypePatterns (p:ps) (t:ts) = do
+  s1 <- matchTypePattern p t
+  s2 <- matchTypePatterns (map (applySubst s1) ps) (map (applySubst s1) ts)
+  Just (composeSubst s2 s1)
+matchTypePatterns _ _ = Nothing  -- Arity mismatch
+
+-- | Reduce a type family application to its result type
+reduceTypeFamily :: Text -> [Type] -> TypeCheckM Type
+reduceTypeFamily familyName args = do
+  familyEnv <- gets tcFamilyEnv
+  case Map.lookup familyName familyEnv of
+    Nothing -> liftTC (Left (PolymorphicInstantiationError noLoc
+                              ("Unknown type family: " <> familyName)))
+    Just (TypeFamilyBody _kind cases) -> tryMatchCases cases
+  where
+    tryMatchCases [] = liftTC (Left (PolymorphicInstantiationError noLoc
+                                      ("No matching case for type family " <> familyName)))
+    tryMatchCases (TypeFamilyCase patterns result : rest) =
+      case matchTypePatterns patterns args of
+        Just subst -> pure (applySubst subst result)
+        Nothing -> tryMatchCases rest
+
+-- | Normalize a type by reducing all type family applications
+normalizeType :: Type -> TypeCheckM Type
+normalizeType ty = case ty of
+  TFamilyApp name args -> do
+    normalizedArgs <- mapM normalizeType args
+    result <- reduceTypeFamily name normalizedArgs
+    normalizeType result  -- Result might contain more families
+  TList t -> TList <$> normalizeType t
+  TPair a b -> TPair <$> normalizeType a <*> normalizeType b
+  TFun a b -> TFun <$> normalizeType a <*> normalizeType b
+  TComp t -> TComp <$> normalizeType t
+  TForAll v t -> TForAll v <$> normalizeType t
+  TConstrained cs inner -> do
+    normalizedInner <- normalizeType inner
+    normalizedCs <- mapM normalizeConstraint cs
+    pure (TConstrained normalizedCs normalizedInner)
+  t -> pure t
+  where
+    normalizeConstraint (Constraint cls ty') = do
+      normalizedTy <- normalizeType ty'
+      pure (Constraint cls normalizedTy)
+
+-- ============================================================================
+-- Unification
+-- ============================================================================
+
+-- | Unification algorithm (normalizes type families before unifying)
 unify :: Type -> Type -> TypeCheckM Subst
-unify t1 t2 = case (t1, t2) of
+unify t1 t2 = do
+  -- Normalize type family applications before unifying
+  n1 <- normalizeType t1
+  n2 <- normalizeType t2
+  unifyNormalized n1 n2
+
+-- | Unification on normalized types (no TFamilyApp)
+unifyNormalized :: Type -> Type -> TypeCheckM Subst
+unifyNormalized t1 t2 = case (t1, t2) of
   (TNat, TNat) -> pure Map.empty
   (TString, TString) -> pure Map.empty
   (TBool, TBool) -> pure Map.empty
@@ -478,7 +686,28 @@ unify t1 t2 = case (t1, t2) of
   (TVar x, t) -> bindVar x t
   (t, TVar x) -> bindVar x t
 
+  -- TFamilyApp should be normalized away, but handle for completeness
+  (TFamilyApp name1 _, TFamilyApp name2 _) | name1 == name2 ->
+    liftTC (Left (PolymorphicInstantiationError noLoc
+                   ("Cannot unify unreduced type family: " <> name1)))
+
+  -- TConstrained unification: constraints must match, inner types unify
+  (TConstrained cs1 inner1, TConstrained cs2 inner2) ->
+    if constraintsEqual cs1 cs2
+      then unify inner1 inner2
+      else liftTC (Left (TypeMismatch noLoc t1 t2))
+
+  -- A constrained type can unify with unconstrained (simplified for Phase 2)
+  -- This strips constraints - Phase 3 will add proper constraint propagation
+  (TConstrained _ inner, t) -> unify inner t
+  (t, TConstrained _ inner) -> unify t inner
+
   _ -> liftTC (Left (TypeMismatch noLoc t1 t2))
+
+-- | Check if two constraint lists are equal (order-independent)
+constraintsEqual :: [Constraint] -> [Constraint] -> Bool
+constraintsEqual cs1 cs2 =
+  length cs1 == length cs2 && all (`elem` cs2) cs1
 
 -- | Bind a type variable to a type (with occurs check)
 bindVar :: Text -> Type -> TypeCheckM Subst

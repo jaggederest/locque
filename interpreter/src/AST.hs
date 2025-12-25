@@ -68,7 +68,8 @@ data TypeFamilyBody = TypeFamilyBody
 
 -- Type class body
 data TypeClassBody = TypeClassBody
-  { tcbMethods :: [(Text, T.Type)]  -- Method name -> type signature
+  { tcbParam   :: Text              -- Type parameter name (e.g., "a")
+  , tcbMethods :: [(Text, T.Type)]  -- Method name -> type signature
   } deriving (Show, Eq)
 
 -- Instance body

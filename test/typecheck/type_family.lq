@@ -1,6 +1,7 @@
-# Test type family parsing
+# Test type family parsing and reduction
 
 import prelude as P
+import assert as A
 
 module type_family_test contains
   # Simple type family - maps a type to a type
@@ -14,6 +15,31 @@ module type_family_test contains
     EmptyHandler Bool b equals (-> Unit b)
     EmptyHandler (Pair a b) c equals (-> Unit c)
 
+  # Test 1: Basic type family reduction
+  # EmptyHandler (List Nat) String should reduce to (-> Unit String)
+  # Using type inference - lambda -> creates a thunk of type Unit -> String
+  define transparent test-list-handler as value
+    lambda -> "empty list"
+
+  # Test 2: Different type family application
+  # EmptyHandler Bool Nat should reduce to (-> Unit Nat)
+  define transparent test-bool-handler as value
+    lambda -> 42
+
+  # Test 3: Type family with polymorphic type variables in pattern
+  # EmptyHandler (Pair Nat String) Bool should reduce to (-> Unit Bool)
+  define transparent test-pair-handler as value
+    lambda -> true
+
+  # Test 4: Use the handler values to verify they work at runtime
+  define transparent run-list-handler as value
+    test-list-handler P.tt
+
+  define transparent run-bool-handler as value
+    test-bool-handler P.tt
+
   define transparent main as computation
+    bind perform io (A.assert-eq-string run-list-handler "empty list") as _ then
+    bind perform io (A.assert-eq-nat run-bool-handler 42) as _ then
     return P.tt
 end

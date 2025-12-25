@@ -1,10 +1,10 @@
-# Test typeclass and instance parsing
+# Test typeclass and instance parsing and validation
 
 import prelude as P
 
 module typeclass_parse_test contains
-  # Type class definition
-  define transparent Show as typeclass where
+  # Type class definition with type parameter
+  define transparent Show as typeclass a where
     show of-type (-> a String)
 
   # Instance for Nat

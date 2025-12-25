@@ -341,14 +341,16 @@ pTypeFamilyCase familyName = M.try $ do
   pure (TypeFamilyCase patterns result)
 
 -- | Parse type class body:
--- typeclass where
+-- typeclass a where
 --   method1 of-type Type1
 --   method2 of-type Type2
 pTypeClassBody :: Parser TypeClassBody
 pTypeClassBody = do
+  -- Parse the type parameter (lowercase identifier after "typeclass")
+  param <- pIdentifier  -- e.g., "a" in "typeclass a where"
   keyword "where"
   methods <- many pMethodSig
-  pure (TypeClassBody methods)
+  pure (TypeClassBody param methods)
 
 -- | Parse method signature: name of-type Type
 pMethodSig :: Parser (Text, T.Type)
@@ -569,6 +571,7 @@ pTypeForm =
   <|> pPairType
   <|> pFunType
   <|> pCompType
+  <|> pTypeFamilyApp  -- type family application: (FamilyName arg1 arg2 ...)
   <|> pType  -- nested type
 
 pListType :: Parser T.Type
@@ -594,6 +597,25 @@ pCompType :: Parser T.Type
 pCompType = do
   keyword "Comp"
   T.TComp <$> pType
+
+-- | Parse a type family application: (FamilyName arg1 arg2 ...)
+-- Uppercase identifier followed by one or more type arguments
+pTypeFamilyApp :: Parser T.Type
+pTypeFamilyApp = M.try $ do
+  name <- pUppercaseIdent
+  args <- some pType  -- at least one argument
+  pure (T.TFamilyApp name args)
+
+-- | Parse an uppercase identifier (for type family names)
+pUppercaseIdent :: Parser Text
+pUppercaseIdent = mLexeme . M.try $ do
+  first <- M.satisfy (\c -> isLetter c && isAscii c && not (isLower c))
+  rest <- many (M.satisfy (\c -> (isAlphaNum c && isAscii c) || c == '_' || c == '-'))
+  let ident = DT.pack (first:rest)
+  -- Don't match reserved type constructors
+  if ident `elem` ["Nat", "String", "Bool", "Unit", "List", "Pair", "Comp"]
+     then fail ("builtin type " ++ DT.unpack ident ++ " is not a type family")
+     else pure ident
 
 -- Identifiers and symbols
 
