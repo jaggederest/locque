@@ -7,6 +7,7 @@ module TypeChecker
   ) where
 
 import Control.Monad (foldM)
+import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -61,32 +62,57 @@ instance Eq TypeError where
   UnexpectedAnnotation == UnexpectedAnnotation = True
   _ == _ = False
 
+-- | Fresh variable counter for generating unique type variables
+type FreshCounter = Integer
+
+-- | Type checking monad with fresh variable state
+type TypeCheckM a = StateT FreshCounter (Either TypeError) a
+
+-- | Run type checking computation with initial counter
+runTypeCheck :: TypeCheckM a -> Either TypeError a
+runTypeCheck tc = evalStateT tc 0
+
+-- | Lift Either TypeError into TypeCheckM
+liftTC :: Either TypeError a -> TypeCheckM a
+liftTC = lift
+
+-- | Generate a fresh type variable name
+freshVar :: Text -> TypeCheckM Text
+freshVar base = do
+  counter <- get
+  modify (+ 1)
+  pure (base <> "$" <> T.pack (show counter))
+
+-- | Generate N fresh variables from a list of base names
+freshVars :: [Text] -> TypeCheckM [Text]
+freshVars = mapM freshVar
+
 -- | Main entry point: type check entire module (without imports)
 -- For testing/simple cases. Use typeCheckModuleWithImports for full checking.
 typeCheckModule :: Module -> Either TypeError TypeEnv
-typeCheckModule = typeCheckModuleWithEnv buildPrimitiveEnv
+typeCheckModule m = runTypeCheck (typeCheckModuleWithEnv buildPrimitiveEnv m)
 
 -- | Type check module with imports loaded from filesystem
 typeCheckModuleWithImports :: FilePath -> Module -> IO (Either TypeError TypeEnv)
 typeCheckModuleWithImports projectRoot m = do
   importedEnv <- loadTypeImports projectRoot m
-  pure $ typeCheckModuleWithEnv importedEnv m
+  pure $ runTypeCheck (typeCheckModuleWithEnv importedEnv m)
 
 -- | Type check a module given an initial type environment (includes primitives and imports)
-typeCheckModuleWithEnv :: TypeEnv -> Module -> Either TypeError TypeEnv
+typeCheckModuleWithEnv :: TypeEnv -> Module -> TypeCheckM TypeEnv
 typeCheckModuleWithEnv initialEnv (Module _name _imports defs) = do
   -- Type check all definitions with the initial environment
   typeCheckDefs initialEnv defs
 
 -- | Type check all definitions, threading environment
-typeCheckDefs :: TypeEnv -> [Definition] -> Either TypeError TypeEnv
-typeCheckDefs env [] = Right env
+typeCheckDefs :: TypeEnv -> [Definition] -> TypeCheckM TypeEnv
+typeCheckDefs env [] = pure env
 typeCheckDefs env (def:defs) = do
   env' <- typeCheckDef env def
   typeCheckDefs env' defs
 
 -- | Type check a single definition and add to environment
-typeCheckDef :: TypeEnv -> Definition -> Either TypeError TypeEnv
+typeCheckDef :: TypeEnv -> Definition -> TypeCheckM TypeEnv
 typeCheckDef env (Definition _ name kind mType body) = do
   scheme <- case mType of
     Just s  -> do
@@ -100,17 +126,17 @@ typeCheckDef env (Definition _ name kind mType body) = do
   pure (Map.insert name scheme env)
 
 -- | Infer type scheme for definition (no annotation)
-inferDefinition :: TypeEnv -> DefKind -> Either Expr Comp -> Either TypeError TypeScheme
+inferDefinition :: TypeEnv -> DefKind -> Either Expr Comp -> TypeCheckM TypeScheme
 inferDefinition env ValueDef (Left expr) = do
   ty <- inferExpr env expr
   pure (generalize env ty)
 inferDefinition env ComputationDef (Right comp) = do
   ty <- inferComp env comp
   pure (generalize env ty)
-inferDefinition _ _ _ = Left (KindMismatch ValueDef)
+inferDefinition _ _ _ = liftTC (Left (KindMismatch ValueDef))
 
 -- | Check definition against declared type
-checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> Either Expr Comp -> Either TypeError ()
+checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> Either Expr Comp -> TypeCheckM ()
 checkDefinition env ValueDef (TypeScheme vars ty) (Left expr) = do
   ty' <- instantiate vars ty
   checkExpr env expr ty'
@@ -118,14 +144,14 @@ checkDefinition env ComputationDef (TypeScheme vars ty) (Right comp) = do
   ty' <- instantiate vars ty
   case ty' of
     TComp innerTy -> checkComp env comp innerTy
-    _ -> Left (TypeMismatch (TComp (TVar "a")) ty')
-checkDefinition _ kind _ _ = Left (KindMismatch kind)
+    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty'))
+checkDefinition _ kind _ _ = liftTC (Left (KindMismatch kind))
 
 -- | BIDIRECTIONAL CHECKING: Synthesis mode (infer type)
-inferExpr :: TypeEnv -> Expr -> Either TypeError Type
+inferExpr :: TypeEnv -> Expr -> TypeCheckM Type
 inferExpr env (EVar v) =
   case Map.lookup v env of
-    Nothing -> Left (VarNotInScope v)
+    Nothing -> liftTC (Left (VarNotInScope v))
     Just (TypeScheme vars ty) -> instantiate vars ty
 
 inferExpr _ (ELit lit) = pure $ case lit of
@@ -141,7 +167,7 @@ inferExpr env (ELam param (Just paramType) body) = do
 inferExpr _ (ELam param Nothing _) =
   -- Phase 1: require annotation; Phase 2+: generate fresh variable
   -- This should only be hit if lambda is used in synthesis mode
-  Left (PolymorphicInstantiationError ("Unannotated lambda parameter: " <> param))
+  liftTC (Left (PolymorphicInstantiationError ("Unannotated lambda parameter: " <> param)))
 
 inferExpr env (EApp f args) = do
   -- Special case: if function is unannotated lambda, infer arg type first
@@ -162,18 +188,27 @@ inferExpr env (EApp f args) = do
         TFun paramType retType -> do
           checkExpr env arg paramType
           pure retType
-        _ -> Left (NotAFunction fnType)
+        _ -> liftTC (Left (NotAFunction fnType))
 
 inferExpr env (EAnnot expr ty) = do
   checkExpr env expr ty
   pure ty
 
 -- | BIDIRECTIONAL CHECKING: Checking mode (verify against expected type)
-checkExpr :: TypeEnv -> Expr -> Type -> Either TypeError ()
+checkExpr :: TypeEnv -> Expr -> Type -> TypeCheckM ()
 -- Special case: check lambda without annotation against function type
 checkExpr env (ELam param Nothing body) (TFun paramType retType) = do
   let env' = Map.insert param (TypeScheme [] paramType) env
   checkExpr env' body retType
+
+-- NEW CASE: check lambda WITH annotation against function type
+checkExpr env (ELam param (Just paramType) body) (TFun expectedParamType expectedReturnType) = do
+  -- Verify annotated parameter type matches expected type
+  _subst <- unify paramType expectedParamType
+  -- Extend environment with parameter at annotated type
+  let env' = Map.insert param (TypeScheme [] paramType) env
+  -- Check body against expected return type
+  checkExpr env' body expectedReturnType
 
 -- General case: infer and unify
 checkExpr env expr expected = do
@@ -183,7 +218,7 @@ checkExpr env expr expected = do
   pure ()
 
 -- | Type checking for computations (infer mode)
-inferComp :: TypeEnv -> Comp -> Either TypeError Type
+inferComp :: TypeEnv -> Comp -> TypeCheckM Type
 inferComp env (CReturn expr) = do
   ty <- inferExpr env expr
   pure (TComp ty)
@@ -194,18 +229,18 @@ inferComp env (CBind var comp1 comp2) = do
     TComp innerTy -> do
       let env' = Map.insert var (TypeScheme [] innerTy) env
       inferComp env' comp2
-    _ -> Left (TypeMismatch (TComp (TVar "a")) ty1)
+    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty1))
 
 inferComp env (CPerform expr) = do
   ty <- inferExpr env expr
   -- The expression should evaluate to a computation type
   case ty of
     TComp _ -> pure ty
-    _ -> Left (TypeMismatch (TComp (TVar "a")) ty)
+    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty))
 
 inferComp env (CVar v) =
   case Map.lookup v env of
-    Nothing -> Left (VarNotInScope v)
+    Nothing -> liftTC (Left (VarNotInScope v))
     Just (TypeScheme vars ty) -> do
       ty' <- instantiate vars ty
       -- If it's a computation type, return as-is; otherwise lift to computation
@@ -218,7 +253,7 @@ inferComp env (CSeq comp1 comp2) = do
   inferComp env comp2
 
 -- | Type checking for computations (checking mode)
-checkComp :: TypeEnv -> Comp -> Type -> Either TypeError ()
+checkComp :: TypeEnv -> Comp -> Type -> TypeCheckM ()
 checkComp env comp expected = do
   actual <- inferComp env comp
   -- Use unification to allow type variables to be solved
@@ -232,17 +267,12 @@ generalize env ty =
       tyVars = freeVars ty Set.\\ envVars
   in TypeScheme (Set.toList tyVars) ty
 
--- | Instantiation: replace quantified variables
--- Phase 1: simple version (no fresh variables yet)
--- For now, just return the type as-is for monomorphic checking
--- | Simple fresh variable counter (using Data.IORef would be better, but this works)
--- For now, we use a simple text-based substitution
-instantiate :: [Text] -> Type -> Either TypeError Type
+-- | Instantiation: replace quantified variables with fresh ones
+instantiate :: [Text] -> Type -> TypeCheckM Type
 instantiate [] ty = pure ty
-instantiate vars ty = pure (substMany (zip vars freshVars) ty)
-  where
-    -- Generate fresh variables like a', b', c', etc.
-    freshVars = map (\v -> v <> "'") vars
+instantiate vars ty = do
+  fresh <- freshVars vars
+  pure (substMany (zip vars fresh) ty)
 
 -- | Substitute multiple type variables at once
 substMany :: [(Text, Text)] -> Type -> Type
@@ -286,7 +316,7 @@ composeSubst :: Subst -> Subst -> Subst
 composeSubst s1 s2 = Map.union (Map.map (applySubst s1) s2) s1
 
 -- | Unification algorithm
-unify :: Type -> Type -> Either TypeError Subst
+unify :: Type -> Type -> TypeCheckM Subst
 unify t1 t2 = case (t1, t2) of
   (TNat, TNat) -> pure Map.empty
   (TString, TString) -> pure Map.empty
@@ -309,13 +339,13 @@ unify t1 t2 = case (t1, t2) of
   (TVar x, t) -> bindVar x t
   (t, TVar x) -> bindVar x t
 
-  _ -> Left (TypeMismatch t1 t2)
+  _ -> liftTC (Left (TypeMismatch t1 t2))
 
 -- | Bind a type variable to a type (with occurs check)
-bindVar :: Text -> Type -> Either TypeError Subst
+bindVar :: Text -> Type -> TypeCheckM Subst
 bindVar x t
   | TVar x == t = pure Map.empty
-  | x `Set.member` freeVars t = Left (OccursCheck x t)
+  | x `Set.member` freeVars t = liftTC (Left (OccursCheck x t))
   | otherwise = pure (Map.singleton x t)
 
 --------------------------------------------------------------------------------
@@ -353,7 +383,7 @@ loadTypeImport projectRoot (Import modName alias) = do
   -- Recursively load imports and type check
   let Module name _ defs = parsed
   envImports <- loadTypeImports projectRoot parsed
-  case typeCheckModuleWithEnv envImports parsed of
+  case runTypeCheck (typeCheckModuleWithEnv envImports parsed) of
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
     Right envSelf -> do
       -- Insert all type-checked definitions with qualified names
@@ -456,7 +486,29 @@ buildPrimitiveEnv = Map.fromList
   , ("pair-to-list-prim", poly ["a"]
       (TFun (TPair (TVar "a") (TVar "a")) (TList (TVar "a"))))
 
-  -- Pattern matching (complex polymorphic type)
+  -- Pattern matching: Type-specific match primitives
+  -- List matching: ∀a b. List a -> (() -> b) -> (a -> List a -> b) -> b
+  , ("match-list-prim", poly ["a", "b"]
+      (TFun (TList (TVar "a"))
+            (TFun (TFun TUnit (TVar "b"))
+                  (TFun (TFun (TVar "a") (TFun (TList (TVar "a")) (TVar "b")))
+                        (TVar "b")))))
+
+  -- Bool matching: ∀b. Bool -> (() -> b) -> (() -> b) -> b
+  , ("match-bool-prim", poly ["b"]
+      (TFun TBool
+            (TFun (TFun TUnit (TVar "b"))
+                  (TFun (TFun TUnit (TVar "b"))
+                        (TVar "b")))))
+
+  -- Pair matching: ∀a b c. Pair a b -> (() -> c) -> (a -> b -> c) -> c
+  , ("match-pair-prim", poly ["a", "b", "c"]
+      (TFun (TPair (TVar "a") (TVar "b"))
+            (TFun (TFun TUnit (TVar "c"))
+                  (TFun (TFun (TVar "a") (TFun (TVar "b") (TVar "c")))
+                        (TVar "c")))))
+
+  -- Old unified match (kept for backward compatibility)
   , ("match-prim", poly ["a", "b"]
       (TFun (TVar "a")  -- scrutinee
             (TFun (TFun TUnit (TVar "b"))  -- empty/false case

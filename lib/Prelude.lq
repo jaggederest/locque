@@ -13,6 +13,9 @@ module Prelude contains
   define opaque map as value map-prim
   define opaque not as value not-prim
   define opaque if-bool as value if-bool-prim
+  define opaque match-list as value match-list-prim
+  define opaque match-bool as value match-bool-prim
+  define opaque match-pair as value match-pair-prim
   define opaque match as value match-prim
   define opaque pair as value pair-prim
   define opaque fst as value fst-prim

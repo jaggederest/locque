@@ -1,0 +1,34 @@
+import Prelude as P
+import Assert as A
+
+module TypeCheckMatch contains
+  define transparent test-list-match as computation
+    bind _ <- perform io (A.assert-eq-string
+      (P.match-list (P.cons "first" P.nil)
+        (lambda () "empty")
+        (lambda h -> lambda t -> h))
+      "first") then
+    return P.tt
+
+  define transparent test-bool-match as computation
+    bind _ <- perform io (A.assert-eq-string
+      (P.match-bool true
+        (lambda () "false")
+        (lambda () "true"))
+      "true") then
+    return P.tt
+
+  define transparent test-pair-match as computation
+    bind _ <- perform io (A.assert-eq-nat
+      (P.match-pair (P.pair "hello" 42)
+        (lambda () 0)
+        (lambda s -> lambda n -> n))
+      42) then
+    return P.tt
+
+  define transparent main as computation
+    bind _ <- test-list-match then
+    bind _ <- test-bool-match then
+    bind _ <- test-pair-match then
+    return P.tt
+end

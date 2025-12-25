@@ -74,6 +74,9 @@ primEnv = Map.fromList
   , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
   , (T.pack "not-prim", BVal (VPrim primNot))
   , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
+  , (T.pack "match-list-prim", BVal (VPrim primMatchList))
+  , (T.pack "match-bool-prim", BVal (VPrim primMatchBool))
+  , (T.pack "match-pair-prim", BVal (VPrim primMatchPair))
   , (T.pack "match-prim", BVal (VPrim primMatch))
   , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
   , (T.pack "pair-prim", BVal (VPrim primPair))
@@ -175,13 +178,30 @@ primFold _ = error "fold-prim expects (fn, init, list)"
 
 primMatch :: [Value] -> IO Value
 primMatch [v, c1, c2] = case v of
-  VList []      -> apply c1 []
+  VList []      -> apply c1 [VUnit]
   VList (h:t)   -> apply c2 [h, VList t]
-  VBool False   -> apply c1 []
-  VBool True    -> apply c2 []
+  VBool False   -> apply c1 [VUnit]
+  VBool True    -> apply c2 [VUnit]
   VPair a b     -> apply c2 [a, b]
   _             -> error "match-prim unsupported value"
 primMatch _ = error "match-prim expects (value, case1, case2)"
+
+primMatchList :: [Value] -> IO Value
+primMatchList [VList [], c1, _c2] = apply c1 [VUnit]
+primMatchList [VList (h:t), _c1, c2] = apply c2 [h, VList t]
+primMatchList [v, _, _] = error $ "match-list-prim expects List, got " ++ show v
+primMatchList _ = error "match-list-prim expects (List, empty-handler, cons-handler)"
+
+primMatchBool :: [Value] -> IO Value
+primMatchBool [VBool False, c1, _c2] = apply c1 [VUnit]
+primMatchBool [VBool True, _c1, c2] = apply c2 [VUnit]
+primMatchBool [v, _, _] = error $ "match-bool-prim expects Bool, got " ++ show v
+primMatchBool _ = error "match-bool-prim expects (Bool, false-handler, true-handler)"
+
+primMatchPair :: [Value] -> IO Value
+primMatchPair [VPair a b, _c1, c2] = apply c2 [a, b]
+primMatchPair [v, _, _] = error $ "match-pair-prim expects Pair, got " ++ show v
+primMatchPair _ = error "match-pair-prim expects (Pair, unreachable-handler, pair-handler)"
 
 primPair :: [Value] -> IO Value
 primPair [a,b] = pure $ VPair a b

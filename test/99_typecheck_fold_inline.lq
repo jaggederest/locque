@@ -1,0 +1,17 @@
+import Prelude as P
+import String as S
+
+module TypeCheckFoldInline contains
+  define transparent has-item as value
+    function item of-type String produce
+      function xs of-type (List String) produce
+        P.fold
+          (function acc of-type Bool produce
+            function x of-type String produce
+              P.if-bool acc true (S.eq item x))
+          false
+          xs
+
+  define transparent main as computation
+    return P.tt
+end

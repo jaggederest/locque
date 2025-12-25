@@ -8,7 +8,7 @@ module MatchTests contains
     return P.tt
 
   define transparent list-match as computation
-    bind _ <- perform io (A.assert-eq-string (P.match (P.cons "x" P.nil) (lambda () "empty") (lambda h -> (lambda t -> h))) "x") then
+    bind _ <- perform io (A.assert-eq-string (P.match-list (P.cons "x" P.nil) (lambda () "empty") (lambda h -> (lambda t -> h))) "x") then
     return P.tt
 
   define transparent main as computation

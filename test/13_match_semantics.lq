@@ -5,7 +5,7 @@ module MatchSemantics contains
 
   define transparent test-list-empty-case as computation
     bind empty-list <- P.nil then
-    bind result <- P.match empty-list
+    bind result <- P.match-list empty-list
       (lambda () "empty")
       (lambda h -> lambda t -> "cons") then
     bind _ <- perform io (A.assert-eq-string result "empty") then
@@ -13,21 +13,21 @@ module MatchSemantics contains
 
   define transparent test-list-cons-case as computation
     bind non-empty <- P.cons "first" (P.cons "second" P.nil) then
-    bind result <- P.match non-empty
+    bind result <- P.match-list non-empty
       (lambda () "empty")
       (lambda h -> lambda t -> h) then
     bind _ <- perform io (A.assert-eq-string result "first") then
     return P.tt
 
   define transparent test-bool-false-case as computation
-    bind result <- P.match false
+    bind result <- P.match-bool false
       (lambda () "false-branch")
       (lambda () "true-branch") then
     bind _ <- perform io (A.assert-eq-string result "false-branch") then
     return P.tt
 
   define transparent test-bool-true-case as computation
-    bind result <- P.match true
+    bind result <- P.match-bool true
       (lambda () "false-branch")
       (lambda () "true-branch") then
     bind _ <- perform io (A.assert-eq-string result "true-branch") then
@@ -35,7 +35,7 @@ module MatchSemantics contains
 
   define transparent test-pair-case as computation
     bind my-pair <- P.pair "left" "right" then
-    bind result <- P.match my-pair
+    bind result <- P.match-pair my-pair
       (lambda () "never")
       (lambda a -> lambda b -> a) then
     bind _ <- perform io (A.assert-eq-string result "left") then

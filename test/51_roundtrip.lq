@@ -6,11 +6,9 @@ module Roundtrip contains
     function name of-type String produce concat-string-prim "hi " name
 
   define transparent choose as computation
-    inspect P.nil with
-      case -> "empty"
-      case h t -> h
-      case h t u -> u
-    end
+    P.match-list P.nil
+      (lambda () "empty")
+      (lambda h -> lambda t -> h)
 
   define transparent main as computation
     return P.tt

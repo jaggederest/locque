@@ -12,7 +12,7 @@ module List contains
 
   define transparent is-empty as value
     function xs of-type (List a) produce
-      P.match xs
+      P.match-list xs
         (lambda () true)
         (lambda h -> lambda t -> false)
 
@@ -64,4 +64,10 @@ module List contains
     function predicate of-type (-> a Bool) produce
       function xs of-type (List a) produce
         P.fold (all-fn predicate) true xs
+
+  define transparent slice as value
+    function start of-type Nat produce
+      function len of-type Nat produce
+        function xs of-type (List a) produce
+          take len (drop start xs)
 end

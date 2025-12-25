@@ -35,23 +35,32 @@ Examples/tests
 
 ## Match Primitive Semantics
 
-The `match` primitive (`match-prim` in Haskell) performs pattern matching on values.
+Locque provides three type-specific match primitives for pattern matching on different value types. Each primitive has a precise type signature that correctly represents its semantics in the Hindley-Milner type system.
 
-### Syntax
+### Type-Specific Match Primitives
 
-```locque
-P.match <value>
-  <empty-case-handler>
-  <non-empty-case-handler>
+**match-list**: Match on lists
+```
+∀a b. List a -> (() -> b) -> (a -> List a -> b) -> b
+```
+
+**match-bool**: Match on booleans
+```
+∀b. Bool -> (() -> b) -> (() -> b) -> b
+```
+
+**match-pair**: Match on pairs
+```
+∀a b c. Pair a b -> (() -> c) -> (a -> b -> c) -> c
 ```
 
 ### Handler Arities by Type
 
-| Value Type | Empty Case Args | Non-Empty Case Args | Example |
-|------------|----------------|---------------------|---------|
-| `List` | 0 (empty list) | 2 (head, tail) | `(lambda () ...) (lambda h -> lambda t -> ...)` |
-| `Bool` | 0 (false) | 0 (true) | `(lambda () ...) (lambda () ...)` |
-| `Pair` | N/A | 2 (first, second) | `(lambda () ...) (lambda a -> lambda b -> ...)` |
+| Primitive | Value Type | First Handler | Second Handler |
+|-----------|------------|---------------|----------------|
+| `match-list` | `List a` | `() -> b` (empty list) | `a -> List a -> b` (head, tail) |
+| `match-bool` | `Bool` | `() -> b` (false) | `() -> b` (true) |
+| `match-pair` | `Pair a b` | `() -> c` (unreachable) | `a -> b -> c` (first, second) |
 
 ### Critical Syntax Rule: Zero-Parameter Lambdas
 
@@ -61,32 +70,44 @@ P.match <value>
 - ❌ Wrong: `lambda () -> body` (syntax error - paren form doesn't use arrows)
 
 **The distinction**:
-- Paren form: `lambda () body` parses `()` as zero identifiers
-- Arrow form: `lambda x -> body` parses `x` as one identifier
-- Arrow form: `lambda -> body` would parse as zero identifiers, but is not valid syntax
+- Paren form: `lambda () body` parses `()` as zero identifiers (type: `() -> a`)
+- Arrow form: `lambda x -> body` parses `x` as one identifier (type: `a -> b`)
+
+All match handlers that take zero parameters must use the paren form because their type is `Unit -> b` (in Locque syntax: `() -> b`).
 
 ### Examples
 
 **List matching**:
 ```locque
-P.match my-list
+P.match-list my-list
   (lambda () "list is empty")
   (lambda h -> lambda t -> h)
 ```
 
 **Bool matching**:
 ```locque
-P.match my-bool
+P.match-bool my-bool
   (lambda () "was false")
   (lambda () "was true")
 ```
 
 **Pair matching**:
 ```locque
-P.match my-pair
+P.match-pair my-pair
   (lambda () "unreachable")
   (lambda a -> lambda b -> a)
 ```
+
+### Migration from Old `match`
+
+The old unified `match` primitive (`match-prim`) is kept for backward compatibility but has a broken type signature that cannot correctly represent all three matching semantics in Hindley-Milner. It will cause "occurs check" failures when type checking code that matches on lists.
+
+**Migration guide**:
+- Replace `P.match <list> ...` with `P.match-list <list> ...`
+- Replace `P.match <bool> ...` with `P.match-bool <bool> ...`
+- Replace `P.match <pair> ...` with `P.match-pair <pair> ...`
+
+**Note on `inspect` syntax**: The `inspect ... with ... end` syntax desugars to the old `match-prim` and will not type-check correctly for lists. Use explicit `P.match-list` calls instead. Future versions may add type-based dispatch or type classes to unify these back into a single polymorphic `match` function.
 
 ### S-expr Equivalent
 
@@ -97,10 +118,10 @@ P.match my-pair
 ; M-expr: lambda x -> body
 ; S-expr: (lambda ((x Type)) body)
 
-; Example:
-(P.match xs
-  (lambda () true)                          ; Zero params
-  (lambda ((h a)) (lambda ((t (List a))) false)))  ; Two params nested
+; Example with match-list:
+(P.match-list xs
+  (lambda () "empty")
+  (lambda ((h a)) (lambda ((t (List a))) h)))
 ```
 
 ## M-expr ↔ S-expr Conversion

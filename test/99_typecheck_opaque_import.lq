@@ -1,0 +1,16 @@
+import Prelude as P
+
+module TestOpaqueImport contains
+  define opaque my-take as value take-prim
+  define opaque my-drop as value drop-prim
+
+  define transparent my-slice as value
+    function start of-type Nat produce
+      function len of-type Nat produce
+        function xs of-type (List a) produce
+          my-take len (my-drop start xs)
+
+  define transparent main as computation
+    bind result <- my-slice 1 2 (P.cons 10 (P.cons 20 (P.cons 30 P.nil))) then
+    return P.tt
+end
