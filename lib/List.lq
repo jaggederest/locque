@@ -1,3 +1,70 @@
+import Prelude as P
+import Comparison as C
+import String as S
+
 module List contains
   define opaque drop-until as value drop-until-prim
+  define opaque nth as value nth-prim
+  define opaque take as value take-prim
+  define opaque drop as value drop-prim
+  define opaque list-last as value last-prim
+  define opaque list-init as value init-prim
+
+  define transparent is-empty as value
+    function xs of-type (List a) produce
+      P.match xs
+        (lambda () true)
+        (lambda h -> lambda t -> false)
+
+  define transparent length as value
+    function xs of-type (List a) produce
+      P.length-list xs
+
+  define transparent last as value
+    function xs of-type (List a) produce
+      list-last xs
+
+  define transparent first as value
+    function xs of-type (List a) produce
+      P.head xs
+
+  define transparent init as value
+    function xs of-type (List a) produce
+      list-init xs
+
+  define transparent contains-string as value
+    function item of-type String produce
+      function xs of-type (List String) produce
+        P.fold
+          (function acc of-type Bool produce
+            function x of-type String produce
+              P.if-bool acc true (S.eq item x))
+          false
+          xs
+
+  define transparent any as value
+    function predicate of-type Value produce
+      function xs of-type (List a) produce
+        P.fold
+          (function acc of-type Bool produce
+            function x of-type a produce
+              P.if-bool acc true (predicate x))
+          false
+          xs
+
+  define transparent all as value
+    function predicate of-type Value produce
+      function xs of-type (List a) produce
+        P.fold
+          (function acc of-type Bool produce
+            function x of-type a produce
+              P.if-bool acc (predicate x) false)
+          true
+          xs
+
+  define transparent slice as value
+    function start of-type Nat produce
+      function len of-type Nat produce
+        function xs of-type (List a) produce
+          take len (drop start xs)
 end

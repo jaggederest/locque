@@ -5,6 +5,10 @@
   (def transparent tokenize
     (value
       (lambda ((s String))
-        (P.filter (lambda ((x String)) (not (S.eq (S.trim x) "")))
-                  (S.split-on " " (S.trim s))))))
+        (let ((clean-newlines (S.join-with " " (S.split-on "\n" s)))
+             (clean-tabs (S.join-with " " (S.split-on "\t" clean-newlines)))
+             (parts (S.split-on " " (S.trim clean-tabs))))
+          (P.filter
+            (lambda ((x String)) (not (S.eq (S.trim x) "")))
+            parts)))))
 )

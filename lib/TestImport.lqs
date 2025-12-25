@@ -1,0 +1,3 @@
+(module TestImport
+  (def transparent test-value (value 99))
+  (def transparent test-string (value "hello from .lqs")))

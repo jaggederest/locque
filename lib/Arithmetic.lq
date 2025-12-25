@@ -1,0 +1,47 @@
+import Prelude as P
+import Comparison as C
+
+module Arithmetic contains
+  define opaque add-nat as value add-nat-prim
+  define opaque sub-nat as value sub-nat-prim
+  define opaque mul-nat as value mul-nat-prim
+  define opaque div-nat as value div-nat-prim
+  define opaque mod-nat as value mod-nat-prim
+
+  define transparent min as value
+    function a of-type Nat produce
+      function b of-type Nat produce
+        P.if-bool (C.lt-nat a b) a b
+
+  define transparent max as value
+    function a of-type Nat produce
+      function b of-type Nat produce
+        P.if-bool (C.gt-nat a b) a b
+
+  define transparent abs-diff as value
+    function a of-type Nat produce
+      function b of-type Nat produce
+        P.if-bool (C.gt-nat a b) (sub-nat a b) (sub-nat b a)
+
+  define transparent clamp as value
+    function low of-type Nat produce
+      function high of-type Nat produce
+        function val of-type Nat produce
+          min high (max low val)
+
+  define transparent even as value
+    function n of-type Nat produce
+      C.eq-nat (mod-nat n 2) 0
+
+  define transparent odd as value
+    function n of-type Nat produce
+      P.not (even n)
+
+  define transparent is-zero as value
+    function n of-type Nat produce
+      C.eq-nat n 0
+
+  define transparent is-positive as value
+    function n of-type Nat produce
+      C.gt-nat n 0
+end

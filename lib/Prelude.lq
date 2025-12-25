@@ -26,7 +26,7 @@ module Prelude contains
       fold
         (function acc of-type (List String) produce
           function x of-type String produce
-            append acc (cons x nil))
+            cons x acc)
         nil
         xs
 end

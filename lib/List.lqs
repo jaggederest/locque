@@ -1,2 +1,5 @@
 (module List
-  (def opaque drop-until (value drop-until-prim)))
+  (def opaque drop-until (value drop-until-prim))
+  (def opaque nth (value nth-prim))
+  (def opaque take (value take-prim))
+  (def opaque drop (value drop-prim)))

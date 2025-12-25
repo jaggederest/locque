@@ -1,0 +1,4 @@
+module TestImport contains
+  define transparent test-value as value 42
+  define transparent test-string as value "hello from .lq"
+end

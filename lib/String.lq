@@ -1,3 +1,6 @@
+import Prelude as P
+import Comparison as C
+
 module String contains
   define opaque concat as value concat-string-prim
   define opaque length as value length-string-prim
@@ -5,9 +8,59 @@ module String contains
   define opaque split-on as value split-on-prim
   define opaque join-with as value join-with-prim
   define opaque trim as value trim-prim
+  define opaque substring as value substring-prim
+  define opaque char-at as value char-at-prim
+  define opaque string-contains as value contains-prim
+  define opaque string-starts-with as value starts-with-prim
+  define opaque string-ends-with as value ends-with-prim
+  define opaque string-index-of as value index-of-prim
+
+  define transparent is-empty as value
+    function s of-type String produce
+      C.eq-nat (length s) 0
+
+  define transparent is-whitespace as value
+    function s of-type String produce
+      eq (trim s) ""
+
+  define transparent ends-with as value
+    function suffix of-type String produce
+      function s of-type String produce
+        string-ends-with suffix s
+
+  define transparent index-of as value
+    function needle of-type String produce
+      function haystack of-type String produce
+        string-index-of needle haystack
+
+  define transparent reverse as value
+    function s of-type String produce
+      reverse-string-prim s
+
+  define transparent lines as value
+    function s of-type String produce
+      split-on "\n" s
+
+  define transparent unlines as value
+    function xs of-type (List String) produce
+      join-with "\n" xs
+
+  define transparent words as value
+    function s of-type String produce
+      split-spaces s
+
+  define transparent unwords as value
+    function xs of-type (List String) produce
+      join-with " " xs
+
+  define transparent slice as value
+    function start of-type Nat produce
+      function len of-type Nat produce
+        function s of-type String produce
+          substring start len s
 
   define transparent split-spaces as value
     function s of-type String produce
       let trimmed = trim s in
-      filter (function x of-type String produce trim x) (split-on " " trimmed)
+      P.filter (function x of-type String produce trim x) (split-on " " trimmed)
 end

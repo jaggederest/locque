@@ -1,0 +1,2 @@
+(import Prelude P)
+(module Roundtrip (def transparent greet (value (lambda (name) ((concat-string-prim "hi ") name)))) (def transparent choose (computation (return (match P.nil "empty" (lambda (h) (lambda (t) h)) (lambda (h) (lambda (t) (lambda (u) u))))))) (def transparent main (computation (return P.tt))))

@@ -4,7 +4,7 @@ import Assert as A
 module MatchTests contains
 
   define transparent bool-match as computation
-    bind _ <- perform io (A.assert-eq-string (if-bool "true-branch" "false-branch" (P.not false)) "true-branch") then
+    bind _ <- perform io (A.assert-eq-string (if-bool (P.not false) "true-branch" "false-branch") "true-branch") then
     return P.tt
 
   define transparent list-match as computation

@@ -1,0 +1,21 @@
+(import Prelude P)
+(import Assert A)
+
+(module LetTests
+  (def transparent simple-let
+    (value
+      (let ((x 2) (y 3))
+        (P.add-nat x y))))
+
+  (def transparent multi-let
+    (value
+      (let ((a 1) (b 2))
+        (P.add-nat a b))))
+
+  (def transparent main
+    (computation
+      (do
+        (bind _ (perform io (A.assert-eq-nat simple-let 5)))
+        (bind _ (perform io (A.assert-eq-nat multi-let 3)))
+        (return P.tt)))))
+

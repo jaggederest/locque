@@ -1,0 +1,6 @@
+(module Arithmetic
+  (def opaque add-nat (value add-nat-prim))
+  (def opaque sub-nat (value sub-nat-prim))
+  (def opaque mul-nat (value mul-nat-prim))
+  (def opaque div-nat (value div-nat-prim))
+  (def opaque mod-nat (value mod-nat-prim)))

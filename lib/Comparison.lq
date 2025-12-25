@@ -1,0 +1,17 @@
+import Prelude as P
+
+module Comparison contains
+  define opaque lt-nat as value lt-nat-prim
+  define opaque le-nat as value le-nat-prim
+  define opaque gt-nat as value gt-nat-prim
+  define opaque ge-nat as value ge-nat-prim
+  define opaque eq-nat as value eq-nat-prim
+
+  define transparent between as value
+    function low of-type Nat produce
+      function high of-type Nat produce
+        function val of-type Nat produce
+          P.if-bool (ge-nat val low)
+            (P.if-bool (le-nat val high) true false)
+            false
+end

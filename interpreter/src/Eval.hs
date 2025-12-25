@@ -3,13 +3,14 @@ module Eval
   ) where
 
 import           AST
+import           Control.Exception (catch, IOException)
 import           Control.Monad (foldM, filterM)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           System.FilePath ((</>), (<.>))
+import           System.FilePath ((</>), (<.>), takeExtension)
 import qualified Data.Text.IO as TIO
-import           Parser (parseModuleFile)
+import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 
 -- Runtime values
@@ -41,10 +42,6 @@ data Binding
   | BCompExpr Comp
 
 type Env = Map.Map Text Binding
-
-toVal :: Binding -> Maybe Value
-toVal (BVal v) = Just v
-toVal _        = Nothing
 
 primEnv :: Env
 primEnv = Map.fromList
@@ -84,6 +81,32 @@ primEnv = Map.fromList
   , (T.pack "snd-prim", BVal (VPrim primSnd))
   , (T.pack "pair-to-list-prim", BVal (VPrim primPairToList))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
+  -- Comparison operators
+  , (T.pack "lt-nat-prim", BVal (VPrim primLtNat))
+  , (T.pack "le-nat-prim", BVal (VPrim primLeNat))
+  , (T.pack "gt-nat-prim", BVal (VPrim primGtNat))
+  , (T.pack "ge-nat-prim", BVal (VPrim primGeNat))
+  -- Arithmetic operators
+  , (T.pack "mul-nat-prim", BVal (VPrim primMulNat))
+  , (T.pack "div-nat-prim", BVal (VPrim primDivNat))
+  , (T.pack "mod-nat-prim", BVal (VPrim primModNat))
+  -- List operations
+  , (T.pack "nth-prim", BVal (VPrim primNth))
+  , (T.pack "take-prim", BVal (VPrim primTake))
+  , (T.pack "drop-prim", BVal (VPrim primDrop))
+  -- String operations
+  , (T.pack "substring-prim", BVal (VPrim primSubstring))
+  , (T.pack "char-at-prim", BVal (VPrim primCharAt))
+  , (T.pack "contains-prim", BVal (VPrim primContains))
+  , (T.pack "starts-with-prim", BVal (VPrim primStartsWith))
+  , (T.pack "ends-with-prim", BVal (VPrim primEndsWith))
+  , (T.pack "index-of-prim", BVal (VPrim primIndexOf))
+  , (T.pack "reverse-string-prim", BVal (VPrim primReverseString))
+  -- List operations (additional)
+  , (T.pack "last-prim", BVal (VPrim primLast))
+  , (T.pack "init-prim", BVal (VPrim primInit))
+  -- Error handling
+  , (T.pack "error-prim", BVal (VPrim primError))
   ]
 
 primAdd :: [Value] -> IO Value
@@ -235,10 +258,12 @@ primCons _ = error "cons-prim expects head and list"
 
 primHead :: [Value] -> IO Value
 primHead [VList (h:_)] = pure h
+primHead [VList []]    = pure (VList [])
 primHead _ = error "head-prim expects non-empty list"
 
 primTail :: [Value] -> IO Value
 primTail [VList (_:t)] = pure (VList t)
+primTail [VList []]    = pure (VList [])
 primTail _ = error "tail-prim expects non-empty list"
 
 primLengthList :: [Value] -> IO Value
@@ -262,6 +287,145 @@ primIfBool :: [Value] -> IO Value
 primIfBool [cond, t, f] = pure $ if isTruthy cond then t else f
 primIfBool _ = error "if-bool-prim expects (cond, then, else)"
 
+-- Comparison operators
+
+primLtNat :: [Value] -> IO Value
+primLtNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  pure $ VBool (a' < b')
+primLtNat _ = error "lt-nat-prim expects 2 args"
+
+primLeNat :: [Value] -> IO Value
+primLeNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  pure $ VBool (a' <= b')
+primLeNat _ = error "le-nat-prim expects 2 args"
+
+primGtNat :: [Value] -> IO Value
+primGtNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  pure $ VBool (a' > b')
+primGtNat _ = error "gt-nat-prim expects 2 args"
+
+primGeNat :: [Value] -> IO Value
+primGeNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  pure $ VBool (a' >= b')
+primGeNat _ = error "ge-nat-prim expects 2 args"
+
+-- Arithmetic operators
+
+primMulNat :: [Value] -> IO Value
+primMulNat vals = do
+  ints <- mapM expectNat vals
+  pure $ VNat (product ints)
+
+primDivNat :: [Value] -> IO Value
+primDivNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  if b' == 0
+    then error "div-nat-prim: division by zero"
+    else pure $ VNat (a' `div` b')
+primDivNat _ = error "div-nat-prim expects 2 args"
+
+primModNat :: [Value] -> IO Value
+primModNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  if b' == 0
+    then error "mod-nat-prim: modulo by zero"
+    else pure $ VNat (a' `mod` b')
+primModNat _ = error "mod-nat-prim expects 2 args"
+
+-- List operations
+
+primNth :: [Value] -> IO Value
+primNth [VNat idx, VList xs] = do
+  let i = fromInteger idx
+  if i < 0 || i >= length xs
+    then error $ "nth-prim: index " ++ show idx ++ " out of bounds for list of length " ++ show (length xs)
+    else pure $ xs !! i
+primNth _ = error "nth-prim expects (index, list)"
+
+primTake :: [Value] -> IO Value
+primTake [VNat n, VList xs] = do
+  let count = fromInteger n
+  pure $ VList (take count xs)
+primTake _ = error "take-prim expects (count, list)"
+
+primDrop :: [Value] -> IO Value
+primDrop [VNat n, VList xs] = do
+  let count = fromInteger n
+  pure $ VList (drop count xs)
+primDrop _ = error "drop-prim expects (count, list)"
+
+-- String operations
+
+primSubstring :: [Value] -> IO Value
+primSubstring [VNat start, VNat len, VString s] = do
+  let startIdx = fromInteger start
+      lenVal = fromInteger len
+      result = T.take lenVal (T.drop startIdx s)
+  pure $ VString result
+primSubstring _ = error "substring-prim expects (start, length, string)"
+
+primCharAt :: [Value] -> IO Value
+primCharAt [VNat idx, VString s] = do
+  let i = fromInteger idx
+  if i < 0 || i >= T.length s
+    then error $ "char-at-prim: index " ++ show idx ++ " out of bounds for string of length " ++ show (T.length s)
+    else pure $ VString (T.singleton (T.index s i))
+primCharAt _ = error "char-at-prim expects (index, string)"
+
+primContains :: [Value] -> IO Value
+primContains [VString needle, VString haystack] =
+  pure $ VBool (needle `T.isInfixOf` haystack)
+primContains _ = error "contains-prim expects (needle, haystack)"
+
+primStartsWith :: [Value] -> IO Value
+primStartsWith [VString prefix, VString s] =
+  pure $ VBool (prefix `T.isPrefixOf` s)
+primStartsWith _ = error "starts-with-prim expects (prefix, string)"
+
+primEndsWith :: [Value] -> IO Value
+primEndsWith [VString suffix, VString s] =
+  pure $ VBool (suffix `T.isSuffixOf` s)
+primEndsWith _ = error "ends-with-prim expects (suffix, string)"
+
+primIndexOf :: [Value] -> IO Value
+primIndexOf [VString needle, VString haystack] =
+  case T.breakOn needle haystack of
+    (before, after) | T.null after -> pure $ VNat (fromIntegral (T.length haystack))
+                    | otherwise -> pure $ VNat (fromIntegral (T.length before))
+primIndexOf _ = error "index-of-prim expects (needle, haystack)"
+
+primReverseString :: [Value] -> IO Value
+primReverseString [VString s] = pure $ VString (T.reverse s)
+primReverseString _ = error "reverse-string-prim expects 1 string arg"
+
+primLast :: [Value] -> IO Value
+primLast [VList xs] =
+  if null xs
+    then pure (VList [])
+    else pure (last xs)
+primLast _ = error "last-prim expects 1 list arg"
+
+primInit :: [Value] -> IO Value
+primInit [VList xs] =
+  if null xs
+    then pure (VList [])
+    else pure (VList (init xs))
+primInit _ = error "init-prim expects 1 list arg"
+
+primError :: [Value] -> IO Value
+primError [VString msg] = error (T.unpack msg)
+primError _ = error "error-prim expects 1 string arg"
+
 expectNat :: Value -> IO Integer
 expectNat (VNat n) = pure n
 expectNat v        = error $ "expected Nat, got " ++ show v
@@ -270,21 +434,13 @@ expectString :: Value -> IO Text
 expectString (VString s) = pure s
 expectString v           = error $ "expected String, got " ++ show v
 
-expectList :: Value -> IO [Value]
-expectList (VList xs) = pure xs
-expectList v          = error $ "expected List, got " ++ show v
-
-expectStringList :: Value -> IO [Text]
-expectStringList (VList xs) = mapM expectString xs
-expectStringList v          = error $ "expected List of Strings, got " ++ show v
-
 primDropUntil :: [Value] -> IO Value
 primDropUntil [target, VList xs] = do
   tgt <- expectString target
   pure $ VList (dropWhile (\v -> case v of
                             VString s -> s /= tgt
                             _ -> True) xs)
-primDropUntil _ = error "drop-until-prim expects (string, list)"
+primDropUntil _ = pure (VList [])
 isTruthy :: Value -> Bool
 isTruthy VUnit = True
 isTruthy (VBool b) = b
@@ -368,14 +524,31 @@ loadImports projectRoot (Module _ imports _) = do
 
 loadImport :: FilePath -> Import -> IO Env
 loadImport projectRoot (Import modName alias) = do
-  let path = projectRoot </> "lib" </> modNameToPath modName <.> "lqs"
-  contents <- TIO.readFile path
-  case parseModuleFile path contents of
-    Left err -> error err
-    Right m@(Module name _ defs) -> do
-      envImports <- loadImports projectRoot m
-      let envSelf = foldl (insertDef alias name) envImports defs
-      pure envSelf
+  let basePath = projectRoot </> "lib" </> modNameToPath modName
+      lqPath = basePath <.> "lq"
+      lqsPath = basePath <.> "lqs"
+
+  -- Try .lq first, fall back to .lqs if not found
+  (path, contents) <- tryLoadFile lqPath `catch` \(_ :: IOException) -> tryLoadFile lqsPath
+
+  -- Parse based on file extension
+  parsed <- case takeExtension path of
+    ".lq"  -> case parseMExprFile path contents of
+      Left err -> error err
+      Right m -> pure m
+    ".lqs" -> case parseModuleFile path contents of
+      Left err -> error err
+      Right m -> pure m
+    _      -> error $ "Unknown file extension: " ++ path
+
+  let Module name _ defs = parsed
+  envImports <- loadImports projectRoot parsed
+  let envSelf = foldl (insertDef alias name) envImports defs
+  pure envSelf
+  where
+    tryLoadFile p = do
+      c <- TIO.readFile p
+      pure (p, c)
 
 insertDef :: Text -> Text -> Env -> Definition -> Env
 insertDef alias modName env (Definition _ name kind body) =
