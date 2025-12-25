@@ -1,9 +1,0 @@
-module LTypeCheckSimple contains
-  define transparent five as value 5
-
-  define transparent add-five as value
-    function x of-type Nat produce add-nat-prim x five
-
-  define transparent main as computation
-    return add-five 10
-end

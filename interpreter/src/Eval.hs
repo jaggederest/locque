@@ -18,6 +18,7 @@ import           System.Process (readCreateProcessWithExitCode, shell)
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
+import           Utils (modNameToPath, qualifyName)
 
 -- Global assertion counter (reset at the start of each test run)
 {-# NOINLINE assertionCounter #-}
@@ -97,10 +98,10 @@ primEnv = Map.fromList
   , (T.pack "pair-to-list-prim", BVal (VPrim primPairToList))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
   -- Comparison operators
-  , (T.pack "lt-nat-prim", BVal (VPrim primLtNat))
-  , (T.pack "le-nat-prim", BVal (VPrim primLeNat))
-  , (T.pack "gt-nat-prim", BVal (VPrim primGtNat))
-  , (T.pack "ge-nat-prim", BVal (VPrim primGeNat))
+  , (T.pack "lt-nat-prim", BVal (VPrim (primCompareNat (<))))
+  , (T.pack "le-nat-prim", BVal (VPrim (primCompareNat (<=))))
+  , (T.pack "gt-nat-prim", BVal (VPrim (primCompareNat (>))))
+  , (T.pack "ge-nat-prim", BVal (VPrim (primCompareNat (>=))))
   -- Arithmetic operators
   , (T.pack "mul-nat-prim", BVal (VPrim primMulNat))
   , (T.pack "div-nat-prim", BVal (VPrim primDivNat))
@@ -270,10 +271,7 @@ primWriteFile _ = error "write-file-prim expects (path, contents)"
 
 primShell :: [Value] -> IO Value
 primShell [VString cmd] = do
-  -- Run shell command and capture stdout+stderr, ignoring exit code
-  -- UNSAFE: This executes arbitrary shell commands!
   (_exitCode, stdout, stderr) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
-  -- Combine stdout and stderr (stderr comes second, like 2>&1 redirect)
   pure $ VString (T.pack (stdout ++ stderr))
 primShell _ = error "shell-prim expects 1 string arg (command)"
 
@@ -334,35 +332,12 @@ primIfBool :: [Value] -> IO Value
 primIfBool [cond, t, f] = pure $ if isTruthy cond then t else f
 primIfBool _ = error "if-bool-prim expects (cond, then, else)"
 
--- Comparison operators
-
-primLtNat :: [Value] -> IO Value
-primLtNat [a, b] = do
+primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
+primCompareNat op [a, b] = do
   a' <- expectNat a
   b' <- expectNat b
-  pure $ VBool (a' < b')
-primLtNat _ = error "lt-nat-prim expects 2 args"
-
-primLeNat :: [Value] -> IO Value
-primLeNat [a, b] = do
-  a' <- expectNat a
-  b' <- expectNat b
-  pure $ VBool (a' <= b')
-primLeNat _ = error "le-nat-prim expects 2 args"
-
-primGtNat :: [Value] -> IO Value
-primGtNat [a, b] = do
-  a' <- expectNat a
-  b' <- expectNat b
-  pure $ VBool (a' > b')
-primGtNat _ = error "gt-nat-prim expects 2 args"
-
-primGeNat :: [Value] -> IO Value
-primGeNat [a, b] = do
-  a' <- expectNat a
-  b' <- expectNat b
-  pure $ VBool (a' >= b')
-primGeNat _ = error "ge-nat-prim expects 2 args"
+  pure $ VBool (a' `op` b')
+primCompareNat _ _ = error "comparison expects 2 args"
 
 -- Arithmetic operators
 
@@ -639,7 +614,7 @@ loadImport projectRoot (Import modName alias) = do
     insertQualified aliasPrefix envSelf env name =
       case Map.lookup name envSelf of
         Just binding ->
-          let qualifiedName = aliasPrefix <> "." <> name
+          let qualifiedName = qualifyName aliasPrefix name
           in Map.insert qualifiedName binding env
         Nothing -> env  -- Definition not in environment
 
@@ -656,17 +631,7 @@ processOpens opens env = foldl processOneOpen env opens
 
     openOneName :: Text -> Env -> Text -> Env
     openOneName modAlias e name =
-      let qualifiedName = aliasPref modAlias name
+      let qualifiedName = qualifyName modAlias name
       in case Map.lookup qualifiedName e of
            Just binding -> Map.insert name binding e
-           Nothing -> e  -- Silently ignore if qualified name doesn't exist
-
-aliasPref :: Text -> Text -> Text
-aliasPref prefix n = prefix <> T.pack "." <> n
-
-modNameToPath :: Text -> FilePath
-modNameToPath modName =
-  -- Convert Some::Module::Name to some/module/name
-  let withSlashes = T.replace (T.pack "::") (T.pack "/") modName
-      lowercased = T.toLower withSlashes
-  in T.unpack lowercased
+           Nothing -> e

@@ -48,7 +48,5 @@ findSmythfile = do
             then pure Nothing
             else search parent
 
--- | Load configuration from Smythfile.lq
--- For now, just return default config (parsing Smythfile.lq comes later)
 loadSmythConfig :: FilePath -> IO SmythConfig
 loadSmythConfig projectRoot = pure (defaultConfig projectRoot)

@@ -21,6 +21,7 @@ import Type
 import Parser (parseModuleFile, parseMExprFile)
 import SourceLoc
 import ErrorMsg
+import Utils (modNameToPath, qualifyName)
 
 -- | Type errors with context
 data TypeError
@@ -489,28 +490,12 @@ loadTypeImport projectRoot (Import modName alias) = do
       c <- TIO.readFile p
       pure (p, c)
 
--- | Convert module name to file path (Some::Module::Name -> some/module/name)
-modNameToPath :: Text -> FilePath
-modNameToPath modName =
-  let withSlashes = T.replace "::" "/" modName
-      lowercased = T.toLower withSlashes
-  in T.unpack lowercased
-
--- | Insert a type-checked definition with qualified names
--- Looks up the type from envSelf and inserts qualified versions
 insertQualified :: Text -> Text -> TypeEnv -> TypeEnv -> Text -> TypeEnv
-insertQualified alias modName envSelf env defName =
+insertQualified alias _modName envSelf env defName =
   case Map.lookup defName envSelf of
-    Just scheme ->
-      -- Only insert qualified name with alias
-      let names = [qualName alias defName]
-      in foldl (\acc n -> Map.insert n scheme acc) env names
-    Nothing -> env  -- Definition not in type-checked environment
-  where
-    qualName :: Text -> Text -> Text
-    qualName prefix n = prefix <> "." <> n
+    Just scheme -> Map.insert (qualifyName alias defName) scheme env
+    Nothing -> env
 
--- Process open statements to bring unqualified type names into scope
 processTypeOpens :: [Open] -> TypeEnv -> TypeEnv
 processTypeOpens opens env = foldl processOneOpen env opens
   where
@@ -520,11 +505,10 @@ processTypeOpens opens env = foldl processOneOpen env opens
 
     openOneName :: Text -> TypeEnv -> Text -> TypeEnv
     openOneName modAlias e name =
-      let qualifiedName = modAlias <> "." <> name
+      let qualifiedName = qualifyName modAlias name
       in case Map.lookup qualifiedName e of
            Just scheme -> Map.insert name scheme e
            Nothing ->
-             -- DEBUG: Print when name not found
              error $ "open: qualified name not found: " <> T.unpack qualifiedName <>
                      "\nAvailable keys: " <> show (take 20 $ Map.keys e)
 

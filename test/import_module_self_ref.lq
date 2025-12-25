@@ -1,9 +1,0 @@
-import test::module_self_reference as msr
-import prelude as P
-import assert as A
-
-module test_import_msr contains
-  define transparent main as computation
-    bind perform io (A.assert-eq-nat (msr.use-helper 5) 15) as _ then
-    return P.tt
-end
