@@ -34,7 +34,13 @@ data Comp
 
 -- Definition kinds and transparency
 
-data DefKind = ValueDef | ComputationDef deriving (Show, Eq)
+data DefKind
+  = ValueDef
+  | ComputationDef
+  | FamilyDef         -- Type family definition
+  | TypeClassDef      -- Type class definition
+  | InstanceDef       -- Type class instance
+  deriving (Show, Eq)
 
 data Transparency = Transparent | Opaque deriving (Show, Eq)
 
@@ -48,6 +54,39 @@ data Open = Open
   , openNames  :: [Text]  -- Specific names to bring into scope
   } deriving (Show, Eq)
 
+-- Type family case: pattern types -> result type
+data TypeFamilyCase = TypeFamilyCase
+  { tfcPatterns :: [T.Type]  -- Pattern types to match (e.g., [List a, b])
+  , tfcResult   :: T.Type    -- Result type (e.g., () -> b)
+  } deriving (Show, Eq)
+
+-- Type family body
+data TypeFamilyBody = TypeFamilyBody
+  { tfbKind  :: T.Type       -- Kind signature (e.g., Type -> Type -> Type)
+  , tfbCases :: [TypeFamilyCase]
+  } deriving (Show, Eq)
+
+-- Type class body
+data TypeClassBody = TypeClassBody
+  { tcbMethods :: [(Text, T.Type)]  -- Method name -> type signature
+  } deriving (Show, Eq)
+
+-- Instance body
+data InstanceBody = InstanceBody
+  { instClassName :: Text      -- Type class being instantiated
+  , instType      :: T.Type    -- Type being instantiated (e.g., List a)
+  , instImpls     :: [(Text, Expr)]  -- Method name -> implementation
+  } deriving (Show, Eq)
+
+-- Definition body (sum type for different definition kinds)
+data DefBody
+  = ValueBody Expr
+  | ComputationBody Comp
+  | FamilyBody TypeFamilyBody
+  | ClassBody TypeClassBody
+  | InstBody InstanceBody
+  deriving (Show, Eq)
+
 -- Module definition
 
 data Definition = Definition
@@ -55,7 +94,7 @@ data Definition = Definition
   , defName         :: Text
   , defKind         :: DefKind
   , defType         :: Maybe T.TypeScheme  -- Optional type annotation
-  , defBody         :: Either Expr Comp    -- Left for value, Right for computation
+  , defBody         :: DefBody
   }
   deriving (Show, Eq)
 

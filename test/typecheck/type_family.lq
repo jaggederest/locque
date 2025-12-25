@@ -1,0 +1,19 @@
+# Test type family parsing
+
+import prelude as P
+
+module type_family_test contains
+  # Simple type family - maps a type to a type
+  define transparent IsUnit as family (-> a a) where
+    IsUnit Unit equals Bool
+    IsUnit a equals Unit
+
+  # Type family for Match handlers - empty case
+  define transparent EmptyHandler as family (-> a (-> b b)) where
+    EmptyHandler (List a) b equals (-> Unit b)
+    EmptyHandler Bool b equals (-> Unit b)
+    EmptyHandler (Pair a b) c equals (-> Unit c)
+
+  define transparent main as computation
+    return P.tt
+end

@@ -26,9 +26,12 @@ checkDef :: Definition -> Either String ()
 checkDef (Definition _ n kind _mType body) = do
   if T.null n then Left "Empty definition name" else Right ()
   case (kind, body) of
-    (ValueDef, Left _)        -> Right ()
-    (ComputationDef, Right _) -> Right ()
-    _                         -> Left ("Kind/body mismatch in " ++ show n)
+    (ValueDef, ValueBody _)             -> Right ()
+    (ComputationDef, ComputationBody _) -> Right ()
+    (FamilyDef, FamilyBody _)           -> Right ()
+    (TypeClassDef, ClassBody _)         -> Right ()
+    (InstanceDef, InstBody _)           -> Right ()
+    _                                   -> Left ("Kind/body mismatch in " ++ show n)
 
 -- Simple parenthesis balance checker with position reporting
 checkParens :: FilePath -> T.Text -> Either String ()

@@ -478,9 +478,10 @@ bindModule (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
       addDef e (Definition _ name kind _mType body) =
         case (kind, body) of
-          (ValueDef, Left expr)      -> Map.insert name (BValueExpr env expr) e
-          (ComputationDef, Right comp) -> Map.insert name (BCompExpr env comp) e
-          _                          -> e
+          (ValueDef, ValueBody expr)        -> Map.insert name (BValueExpr env expr) e
+          (ComputationDef, ComputationBody comp) -> Map.insert name (BCompExpr env comp) e
+          -- Type families, type classes, and instances are handled at type-check time
+          _                                 -> e
   in env
 
 runModuleMain :: FilePath -> Module -> IO Int

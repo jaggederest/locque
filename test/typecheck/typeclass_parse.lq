@@ -1,0 +1,20 @@
+# Test typeclass and instance parsing
+
+import prelude as P
+
+module typeclass_parse_test contains
+  # Type class definition
+  define transparent Show as typeclass where
+    show of-type (-> a String)
+
+  # Instance for Nat
+  define transparent Show-Nat as instance Show Nat where
+    show produce lambda x -> "nat"
+
+  # Instance for Bool
+  define transparent Show-Bool as instance Show Bool where
+    show produce lambda x -> "bool"
+
+  define transparent main as computation
+    return P.tt
+end

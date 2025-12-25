@@ -149,10 +149,10 @@ fromDef path (SList [SAtom "def", SAtom tr, SAtom name, body]) = do
   case body of
     SList [SAtom "value", e] -> do
       e' <- fromExpr path e
-      pure $ Definition transparency name ValueDef Nothing (Left e')
+      pure $ Definition transparency name ValueDef Nothing (ValueBody e')
     SList [SAtom "computation", c] -> do
       c' <- fromComp path c
-      pure $ Definition transparency name ComputationDef Nothing (Right c')
+      pure $ Definition transparency name ComputationDef Nothing (ComputationBody c')
     _ -> Left (path ++ ": definition " ++ DT.unpack name ++ " must specify (value ...) or (computation ...)")
 fromDef path other = Left (path ++ ": invalid definition form " ++ renderHead other)
 
@@ -301,11 +301,82 @@ pDefinition = mLexeme $ do
   tr <- (Transparent <$ keyword "transparent") <|> (Opaque <$ keyword "opaque")
   name <- pIdentifier
   keyword "as"
-  kind <- (ValueDef <$ keyword "value") <|> (ComputationDef <$ keyword "computation")
+  kind <- (ValueDef <$ keyword "value")
+      <|> (ComputationDef <$ keyword "computation")
+      <|> (FamilyDef <$ keyword "family")
+      <|> (TypeClassDef <$ keyword "typeclass")
+      <|> (InstanceDef <$ keyword "instance")
   body <- case kind of
-    ValueDef        -> Left <$> pExpr
-    ComputationDef  -> Right <$> pComp
+    ValueDef        -> ValueBody <$> pExpr
+    ComputationDef  -> ComputationBody <$> pComp
+    FamilyDef       -> FamilyBody <$> pTypeFamilyBody name
+    TypeClassDef    -> ClassBody <$> pTypeClassBody
+    InstanceDef     -> InstBody <$> pInstanceBody
   pure (Definition tr name kind Nothing body)
+
+-- | Parse type family body:
+-- family (Type -> Type -> Type) where
+--   FamilyName (List a) b equals (() -> b)
+--   FamilyName Bool b equals (() -> b)
+pTypeFamilyBody :: Text -> Parser TypeFamilyBody
+pTypeFamilyBody familyName = do
+  kindSig <- pType  -- Parse kind signature like (Type -> Type -> Type)
+  keyword "where"
+  cases <- many (pTypeFamilyCase familyName)
+  pure (TypeFamilyBody kindSig cases)
+
+-- | Parse a single type family case:
+-- FamilyName (List a) b equals (() -> b)
+pTypeFamilyCase :: Text -> Parser TypeFamilyCase
+pTypeFamilyCase familyName = M.try $ do
+  -- Expect family name at start of each case
+  caseName <- pIdentifier
+  if caseName /= familyName
+    then fail ("Expected family name " ++ DT.unpack familyName ++ " but got " ++ DT.unpack caseName)
+    else pure ()
+  -- Parse pattern types (everything before "equals")
+  patterns <- manyTill pType (keyword "equals")
+  -- Parse result type
+  result <- pType
+  pure (TypeFamilyCase patterns result)
+
+-- | Parse type class body:
+-- typeclass where
+--   method1 of-type Type1
+--   method2 of-type Type2
+pTypeClassBody :: Parser TypeClassBody
+pTypeClassBody = do
+  keyword "where"
+  methods <- many pMethodSig
+  pure (TypeClassBody methods)
+
+-- | Parse method signature: name of-type Type
+pMethodSig :: Parser (Text, T.Type)
+pMethodSig = M.try $ do
+  name <- pIdentifier
+  keyword "of-type"
+  ty <- pType
+  pure (name, ty)
+
+-- | Parse instance body:
+-- instance ClassName Type where
+--   method1 produce expr1
+--   method2 produce expr2
+pInstanceBody :: Parser InstanceBody
+pInstanceBody = do
+  className <- pIdentifier
+  instType <- pType
+  keyword "where"
+  impls <- many pMethodImpl
+  pure (InstanceBody className instType impls)
+
+-- | Parse method implementation: name produce expr
+pMethodImpl :: Parser (Text, Expr)
+pMethodImpl = M.try $ do
+  name <- pIdentifier
+  keyword "produce"
+  impl <- pExpr
+  pure (name, impl)
 
 -- Computations
 
@@ -541,6 +612,7 @@ reservedWords =
   , "as", "value", "computation", "function", "of-type", "produce"
   , "lambda", "let", "in", "inspect", "with", "case", "return"
   , "perform", "io", "bind", "then", "do", "end"
+  , "family", "typeclass", "instance", "where", "equals"  -- Type classes
   ]
 
 pModuleName :: Parser Text
@@ -620,10 +692,10 @@ renderDef (Definition tr name kind _mType body) =
     renderTransparency Transparent = "transparent"
     renderTransparency Opaque      = "opaque"
 
-renderBody :: DefKind -> Either Expr Comp -> DT.Text
-renderBody ValueDef (Left e)        = "(value " <> renderExpr e <> ")"
-renderBody ComputationDef (Right c) = "(computation " <> renderComp c <> ")"
-renderBody _ _ = "(value <invalid>)"
+renderBody :: DefKind -> DefBody -> DT.Text
+renderBody ValueDef (ValueBody e)             = "(value " <> renderExpr e <> ")"
+renderBody ComputationDef (ComputationBody c) = "(computation " <> renderComp c <> ")"
+renderBody _ _                                = "(value <invalid>)"
 
 renderExpr :: Expr -> DT.Text
 renderExpr expr = case expr of
@@ -673,10 +745,10 @@ renderMOpen (Open modAlias names) =
 renderMDef :: Definition -> [DT.Text]
 renderMDef (Definition tr name kind _mType body) =
   let header = "  define " <> renderMTransparency tr <> " " <> name <> " as " <> renderMKind kind
-  in case (kind, body) of
-      (ValueDef, Left e)        -> [header <> " " <> renderMExpr e]
-      (ComputationDef, Right c) -> header : renderMComp 4 c
-      _                         -> [header <> " <invalid>"]
+  in case body of
+      ValueBody e       -> [header <> " " <> renderMExpr e]
+      ComputationBody c -> header : renderMComp 4 c
+      _                 -> [header <> " <invalid>"]
 
 renderMTransparency :: Transparency -> DT.Text
 renderMTransparency Transparent = "transparent"
@@ -685,6 +757,9 @@ renderMTransparency Opaque      = "opaque"
 renderMKind :: DefKind -> DT.Text
 renderMKind ValueDef       = "value"
 renderMKind ComputationDef = "computation"
+renderMKind FamilyDef      = "family"
+renderMKind TypeClassDef   = "typeclass"
+renderMKind InstanceDef    = "instance"
 
 renderMComp :: Int -> Comp -> [DT.Text]
 renderMComp indentLevel comp = case comp of

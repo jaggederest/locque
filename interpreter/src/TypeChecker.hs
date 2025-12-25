@@ -96,12 +96,33 @@ instance Eq TypeError where
 -- | Fresh variable counter for generating unique type variables
 type FreshCounter = Integer
 
--- | Type checking monad with fresh variable state
-type TypeCheckM a = StateT FreshCounter (Either TypeError) a
+-- | Type family environment: maps family name to its definition
+type TypeFamilyEnv = Map.Map Text TypeFamilyBody
 
--- | Run type checking computation with initial counter
+-- | Type class environment: maps class name to its methods
+type TypeClassEnv = Map.Map Text TypeClassBody
+
+-- | Instance environment: maps class name to list of instances
+type InstanceEnv = Map.Map Text [InstanceBody]
+
+-- | Full type checker state
+data TCState = TCState
+  { tcFreshCounter :: FreshCounter
+  , tcFamilyEnv    :: TypeFamilyEnv
+  , tcClassEnv     :: TypeClassEnv
+  , tcInstEnv      :: InstanceEnv
+  }
+
+-- | Initial type checker state
+initialTCState :: TCState
+initialTCState = TCState 0 Map.empty Map.empty Map.empty
+
+-- | Type checking monad with full state
+type TypeCheckM a = StateT TCState (Either TypeError) a
+
+-- | Run type checking computation with initial state
 runTypeCheck :: TypeCheckM a -> Either TypeError a
-runTypeCheck tc = evalStateT tc 0
+runTypeCheck tc = evalStateT tc initialTCState
 
 -- | Lift Either TypeError into TypeCheckM
 liftTC :: Either TypeError a -> TypeCheckM a
@@ -110,8 +131,8 @@ liftTC = lift
 -- | Generate a fresh type variable name
 freshVar :: Text -> TypeCheckM Text
 freshVar base = do
-  counter <- get
-  modify (+ 1)
+  counter <- gets tcFreshCounter
+  modify (\s -> s { tcFreshCounter = tcFreshCounter s + 1 })
   pure (base <> "$" <> T.pack (show counter))
 
 -- | Generate N fresh variables from a list of base names
@@ -153,30 +174,61 @@ typeCheckDef env (Definition _ name kind mType body) = do
       pure s
     Nothing ->
       -- Infer type from body
-      inferDefinition env kind body
+      inferDefinition env name kind body
   -- Add to environment
   pure (Map.insert name scheme env)
 
 -- | Infer type scheme for definition (no annotation)
-inferDefinition :: TypeEnv -> DefKind -> Either Expr Comp -> TypeCheckM TypeScheme
-inferDefinition env ValueDef (Left expr) = do
+inferDefinition :: TypeEnv -> Text -> DefKind -> DefBody -> TypeCheckM TypeScheme
+inferDefinition env _ ValueDef (ValueBody expr) = do
   ty <- inferExpr env expr
   pure (generalize env ty)
-inferDefinition env ComputationDef (Right comp) = do
+inferDefinition env _ ComputationDef (ComputationBody comp) = do
   ty <- inferComp env comp
   pure (generalize env ty)
-inferDefinition _ _ _ = liftTC (Left (KindMismatch noLoc ValueDef))
+inferDefinition _ name FamilyDef (FamilyBody tfBody) = do
+  -- Register type family in environment
+  registerTypeFamily name tfBody
+  pure (TypeScheme [] TUnit)
+inferDefinition _ name TypeClassDef (ClassBody tcBody) = do
+  -- Register type class in environment
+  registerTypeClass name tcBody
+  pure (TypeScheme [] TUnit)
+inferDefinition _ name InstanceDef (InstBody instBody) = do
+  -- Register instance in environment
+  registerInstance name instBody
+  pure (TypeScheme [] TUnit)
+inferDefinition _ _ _ _ = liftTC (Left (KindMismatch noLoc ValueDef))
+
+-- | Register a type family in the environment
+registerTypeFamily :: Text -> TypeFamilyBody -> TypeCheckM ()
+registerTypeFamily name body = do
+  modify (\s -> s { tcFamilyEnv = Map.insert name body (tcFamilyEnv s) })
+
+-- | Register a type class in the environment
+registerTypeClass :: Text -> TypeClassBody -> TypeCheckM ()
+registerTypeClass name body = do
+  modify (\s -> s { tcClassEnv = Map.insert name body (tcClassEnv s) })
+
+-- | Register an instance in the environment
+registerInstance :: Text -> InstanceBody -> TypeCheckM ()
+registerInstance _name body = do
+  let className = instClassName body
+  modify (\s -> s { tcInstEnv = Map.insertWith (++) className [body] (tcInstEnv s) })
 
 -- | Check definition against declared type
-checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> Either Expr Comp -> TypeCheckM ()
-checkDefinition env ValueDef (TypeScheme vars ty) (Left expr) = do
+checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> DefBody -> TypeCheckM ()
+checkDefinition env ValueDef (TypeScheme vars ty) (ValueBody expr) = do
   ty' <- instantiate vars ty
   checkExpr env expr ty'
-checkDefinition env ComputationDef (TypeScheme vars ty) (Right comp) = do
+checkDefinition env ComputationDef (TypeScheme vars ty) (ComputationBody comp) = do
   ty' <- instantiate vars ty
   case ty' of
     TComp innerTy -> checkComp env comp innerTy
     _ -> liftTC (Left (TypeMismatch noLoc (TComp (TVar "a")) ty'))
+checkDefinition _ FamilyDef _ (FamilyBody _) = pure ()  -- Type families checked separately
+checkDefinition _ TypeClassDef _ (ClassBody _) = pure ()  -- Type classes checked separately
+checkDefinition _ InstanceDef _ (InstBody _) = pure ()  -- Instances checked separately
 checkDefinition _ kind _ _ = liftTC (Left (KindMismatch noLoc kind))
 
 -- | BIDIRECTIONAL CHECKING: Synthesis mode (infer type)
