@@ -69,7 +69,7 @@ runTest projectRoot file = do
     Left parseErr -> pure $ Failed [TestError file Nothing (T.pack parseErr)]
     Right m -> do
       -- Type check
-      tcResult <- TC.typeCheckModuleWithImports projectRoot m
+      tcResult <- TC.typeCheckModuleWithImports projectRoot contents m
       case tcResult of
         Left tcErr -> pure $ TypeCheckFailed (T.pack $ show tcErr)
         Right _ -> do

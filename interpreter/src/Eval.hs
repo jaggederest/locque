@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Eval
   ( runModuleMain
   ) where
@@ -15,6 +16,7 @@ import qualified Data.Text.IO as TIO
 import           System.IO.Unsafe (unsafePerformIO)
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
+import           ErrorMsg (findFuzzyMatches)
 
 -- Global assertion counter (reset at the start of each test run)
 {-# NOINLINE assertionCounter #-}
@@ -510,7 +512,13 @@ evalExpr :: Env -> Expr -> IO Value
 evalExpr env expr = case expr of
   EVar t -> case Map.lookup t env of
     Just b  -> resolveBinding env b
-    Nothing -> error $ "Unknown variable: " ++ T.unpack t ++ " in env keys " ++ show (Map.keys env)
+    Nothing ->
+      let candidates = Map.keys env
+          matches = findFuzzyMatches t candidates
+          suggestion = case matches of
+                        [] -> T.empty
+                        (x:_) -> " (did you mean '" <> x <> "'?)"
+      in error $ T.unpack ("Unknown variable: " <> t <> suggestion)
   ELit lit -> pure $ case lit of
     LNat n    -> VNat n
     LString s -> VString s
@@ -548,7 +556,13 @@ runComp env comp = case comp of
   CVar t -> case Map.lookup t env of
     Just (BCompExpr c) -> runComp env c
     Just b             -> resolveBinding env b
-    Nothing            -> error $ "Unknown computation: " ++ T.unpack t
+    Nothing ->
+      let candidates = Map.keys env
+          matches = findFuzzyMatches t candidates
+          suggestion = case matches of
+                        [] -> T.empty
+                        (x:_) -> " (did you mean '" <> x <> "'?)"
+      in error $ T.unpack ("Unknown computation: " <> t <> suggestion)
   CSeq c1 c2 -> do
     _ <- runComp env c1
     runComp env c2

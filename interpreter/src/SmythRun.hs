@@ -23,7 +23,7 @@ runFile config file = do
       exitFailure
     Right m -> do
       -- Type check
-      tcResult <- TC.typeCheckModuleWithImports (projectRoot config) m
+      tcResult <- TC.typeCheckModuleWithImports (projectRoot config) contents m
       case tcResult of
         Left tcErr -> do
           putStrLn $ "Type error: " ++ show tcErr

@@ -19,48 +19,77 @@ import System.IO.Error (catchIOError, isDoesNotExistError)
 import AST
 import Type
 import Parser (parseModuleFile, parseMExprFile)
+import SourceLoc
+import ErrorMsg
 
 -- | Type errors with context
 data TypeError
-  = VarNotInScope Text
-  | TypeMismatch Type Type
-  | CannotApply Type Type
-  | NotAFunction Type
-  | KindMismatch DefKind
-  | OccursCheck Text Type
-  | PolymorphicInstantiationError Text
-  | UnexpectedAnnotation
+  = VarNotInScope SrcLoc Text TypeEnv    -- Added location + env for suggestions
+  | TypeMismatch SrcLoc Type Type        -- Added location
+  | CannotApply SrcLoc Type Type         -- Added location
+  | NotAFunction SrcLoc Type             -- Added location
+  | KindMismatch SrcLoc DefKind          -- Added location
+  | OccursCheck SrcLoc Text Type         -- Added location
+  | PolymorphicInstantiationError SrcLoc Text  -- Added location
+  | UnexpectedAnnotation SrcLoc          -- Added location
 
 -- | Pretty-print type errors
 instance Show TypeError where
-  show (VarNotInScope v) = "Variable not in scope: " ++ T.unpack v
-  show (TypeMismatch expected actual) =
-    "Type mismatch:\n  Expected: " ++ T.unpack (prettyType expected) ++
-    "\n  Actual:   " ++ T.unpack (prettyType actual)
-  show (CannotApply fType argType) =
-    "Cannot apply function of type " ++ T.unpack (prettyType fType) ++
-    " to argument of type " ++ T.unpack (prettyType argType)
-  show (NotAFunction ty) =
-    "Expected a function type, but got: " ++ T.unpack (prettyType ty)
-  show (KindMismatch kind) =
-    "Kind mismatch: expected " ++ show kind
-  show (OccursCheck var ty) =
-    "Occurs check failed: " ++ T.unpack var ++ " occurs in " ++ T.unpack (prettyType ty)
-  show (PolymorphicInstantiationError msg) =
-    "Polymorphic instantiation error: " ++ T.unpack msg
-  show UnexpectedAnnotation =
-    "Unexpected annotation: lambda requires type annotation for parameter in Phase 1"
+  show (VarNotInScope loc var env) =
+    let candidates = Map.keys env
+        suggestions = case findFuzzyMatches var candidates of
+                        [] -> []
+                        xs -> [DidYouMean (T.intercalate ", " xs)]
+        msg = ErrorMsg loc ("Variable not in scope: " <> var) Nothing suggestions Nothing
+    in T.unpack (formatError msg)
 
--- Eq instance still uses structural equality
+  show (TypeMismatch loc expected actual) =
+    let mainMsg = "Type mismatch"
+        note = Just $ "Expected: " <> prettyType expected <>
+                      "\n  Actual:   " <> prettyType actual
+        msg = ErrorMsg loc mainMsg Nothing [] note
+    in T.unpack (formatError msg)
+
+  show (CannotApply loc fType argType) =
+    let mainMsg = "Cannot apply function"
+        note = Just $ "Function type: " <> prettyType fType <>
+                      "\n  Argument type: " <> prettyType argType
+        msg = ErrorMsg loc mainMsg Nothing [] note
+    in T.unpack (formatError msg)
+
+  show (NotAFunction loc ty) =
+    let msg = ErrorMsg loc ("Expected function, got: " <> prettyType ty) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (KindMismatch loc kind) =
+    let msg = ErrorMsg loc ("Kind mismatch: expected " <> T.pack (show kind)) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (OccursCheck loc var ty) =
+    let mainMsg = "Occurs check failed"
+        note = Just $ var <> " occurs in " <> prettyType ty
+        msg = ErrorMsg loc mainMsg Nothing [] note
+    in T.unpack (formatError msg)
+
+  show (PolymorphicInstantiationError loc txt) =
+    let msg = ErrorMsg loc ("Polymorphic instantiation error: " <> txt) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (UnexpectedAnnotation loc) =
+    let msg = ErrorMsg loc "Unexpected annotation" Nothing
+                [Hint "Lambda requires type annotation for parameter"] Nothing
+    in T.unpack (formatError msg)
+
+-- Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where
-  VarNotInScope a == VarNotInScope b = a == b
-  TypeMismatch a1 a2 == TypeMismatch b1 b2 = a1 == b1 && a2 == b2
-  CannotApply a1 a2 == CannotApply b1 b2 = a1 == b1 && a2 == b2
-  NotAFunction a == NotAFunction b = a == b
-  KindMismatch a == KindMismatch b = a == b
-  OccursCheck a1 a2 == OccursCheck b1 b2 = a1 == b1 && a2 == b2
-  PolymorphicInstantiationError a == PolymorphicInstantiationError b = a == b
-  UnexpectedAnnotation == UnexpectedAnnotation = True
+  VarNotInScope _ a _ == VarNotInScope _ b _ = a == b
+  TypeMismatch _ a1 a2 == TypeMismatch _ b1 b2 = a1 == b1 && a2 == b2
+  CannotApply _ a1 a2 == CannotApply _ b1 b2 = a1 == b1 && a2 == b2
+  NotAFunction _ a == NotAFunction _ b = a == b
+  KindMismatch _ a == KindMismatch _ b = a == b
+  OccursCheck _ a1 a2 == OccursCheck _ b1 b2 = a1 == b1 && a2 == b2
+  PolymorphicInstantiationError _ a == PolymorphicInstantiationError _ b = a == b
+  UnexpectedAnnotation _ == UnexpectedAnnotation _ = True
   _ == _ = False
 
 -- | Fresh variable counter for generating unique type variables
@@ -94,8 +123,9 @@ typeCheckModule :: Module -> Either TypeError TypeEnv
 typeCheckModule m = runTypeCheck (typeCheckModuleWithEnv buildPrimitiveEnv m)
 
 -- | Type check module with imports loaded from filesystem
-typeCheckModuleWithImports :: FilePath -> Module -> IO (Either TypeError TypeEnv)
-typeCheckModuleWithImports projectRoot m = do
+-- Source contents parameter for future context display (currently unused)
+typeCheckModuleWithImports :: FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
+typeCheckModuleWithImports projectRoot _sourceContents m = do
   importedEnv <- loadTypeImports projectRoot m
   pure $ runTypeCheck (typeCheckModuleWithEnv importedEnv m)
 
@@ -134,7 +164,7 @@ inferDefinition env ValueDef (Left expr) = do
 inferDefinition env ComputationDef (Right comp) = do
   ty <- inferComp env comp
   pure (generalize env ty)
-inferDefinition _ _ _ = liftTC (Left (KindMismatch ValueDef))
+inferDefinition _ _ _ = liftTC (Left (KindMismatch noLoc ValueDef))
 
 -- | Check definition against declared type
 checkDefinition :: TypeEnv -> DefKind -> TypeScheme -> Either Expr Comp -> TypeCheckM ()
@@ -145,14 +175,14 @@ checkDefinition env ComputationDef (TypeScheme vars ty) (Right comp) = do
   ty' <- instantiate vars ty
   case ty' of
     TComp innerTy -> checkComp env comp innerTy
-    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty'))
-checkDefinition _ kind _ _ = liftTC (Left (KindMismatch kind))
+    _ -> liftTC (Left (TypeMismatch noLoc (TComp (TVar "a")) ty'))
+checkDefinition _ kind _ _ = liftTC (Left (KindMismatch noLoc kind))
 
 -- | BIDIRECTIONAL CHECKING: Synthesis mode (infer type)
 inferExpr :: TypeEnv -> Expr -> TypeCheckM Type
 inferExpr env (EVar v) =
   case Map.lookup v env of
-    Nothing -> liftTC (Left (VarNotInScope v))
+    Nothing -> liftTC (Left (VarNotInScope noLoc v env))
     Just (TypeScheme vars ty) -> instantiate vars ty
 
 inferExpr _ (ELit lit) = pure $ case lit of
@@ -168,7 +198,7 @@ inferExpr env (ELam param (Just paramType) body) = do
 inferExpr _ (ELam param Nothing _) =
   -- Phase 1: require annotation; Phase 2+: generate fresh variable
   -- This should only be hit if lambda is used in synthesis mode
-  liftTC (Left (PolymorphicInstantiationError ("Unannotated lambda parameter: " <> param)))
+  liftTC (Left (PolymorphicInstantiationError noLoc ("Unannotated lambda parameter: " <> param)))
 
 inferExpr env (EApp f args) = do
   -- Special case: if function is unannotated lambda, infer arg type first
@@ -189,7 +219,7 @@ inferExpr env (EApp f args) = do
         TFun paramType retType -> do
           checkExpr env arg paramType
           pure retType
-        _ -> liftTC (Left (NotAFunction fnType))
+        _ -> liftTC (Left (NotAFunction noLoc fnType))
 
 inferExpr env (EAnnot expr ty) = do
   checkExpr env expr ty
@@ -230,18 +260,18 @@ inferComp env (CBind var comp1 comp2) = do
     TComp innerTy -> do
       let env' = Map.insert var (TypeScheme [] innerTy) env
       inferComp env' comp2
-    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty1))
+    _ -> liftTC (Left (TypeMismatch noLoc (TComp (TVar "a")) ty1))
 
 inferComp env (CPerform expr) = do
   ty <- inferExpr env expr
   -- The expression should evaluate to a computation type
   case ty of
     TComp _ -> pure ty
-    _ -> liftTC (Left (TypeMismatch (TComp (TVar "a")) ty))
+    _ -> liftTC (Left (TypeMismatch noLoc (TComp (TVar "a")) ty))
 
 inferComp env (CVar v) =
   case Map.lookup v env of
-    Nothing -> liftTC (Left (VarNotInScope v))
+    Nothing -> liftTC (Left (VarNotInScope noLoc v env))
     Just (TypeScheme vars ty) -> do
       ty' <- instantiate vars ty
       -- If it's a computation type, return as-is; otherwise lift to computation
@@ -340,13 +370,13 @@ unify t1 t2 = case (t1, t2) of
   (TVar x, t) -> bindVar x t
   (t, TVar x) -> bindVar x t
 
-  _ -> liftTC (Left (TypeMismatch t1 t2))
+  _ -> liftTC (Left (TypeMismatch noLoc t1 t2))
 
 -- | Bind a type variable to a type (with occurs check)
 bindVar :: Text -> Type -> TypeCheckM Subst
 bindVar x t
   | TVar x == t = pure Map.empty
-  | x `Set.member` freeVars t = liftTC (Left (OccursCheck x t))
+  | x `Set.member` freeVars t = liftTC (Left (OccursCheck noLoc x t))
   | otherwise = pure (Map.singleton x t)
 
 --------------------------------------------------------------------------------

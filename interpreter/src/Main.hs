@@ -42,7 +42,7 @@ runLqs doTypeCheck file = do
       -- Type check before execution (if enabled)
       if doTypeCheck
         then do
-          typeResult <- TC.typeCheckModuleWithImports projectRoot m
+          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
           case typeResult of
             Left tcErr -> die ("Type error: " ++ show tcErr)
             Right _env -> do _ <- runModuleMain projectRoot m; pure ()
@@ -59,7 +59,7 @@ runLq doTypeCheck file = do
       -- Type check before execution (if enabled)
       if doTypeCheck
         then do
-          typeResult <- TC.typeCheckModuleWithImports projectRoot m
+          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
           case typeResult of
             Left tcErr -> die ("Type error: " ++ show tcErr)
             Right _env -> do _ <- runModuleMain projectRoot m; pure ()
@@ -103,7 +103,7 @@ typecheckFile file = do
   case parseResult of
     Left err -> die err
     Right m  -> do
-      result <- TC.typeCheckModuleWithImports projectRoot m
+      result <- TC.typeCheckModuleWithImports projectRoot contents m
       case result of
         Left tcErr -> die ("Type error: " ++ show tcErr)
         Right env  -> do
