@@ -1,0 +1,11 @@
+# Shell utilities
+# UNSAFE: Execute shell commands (use with caution!)
+
+module Shell contains
+
+  # Execute a shell command and return its output
+  # WARNING: This is VERY impure and UNSAFE - it executes arbitrary shell commands!
+  # Type: String -> {Comp String}
+  define opaque shell as value shell-prim
+
+end

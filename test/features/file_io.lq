@@ -7,8 +7,8 @@ import Assert as A
 module FileIO contains
 
   define transparent roundtrip as computation
-    bind _ <- perform io (IO.write-file "../tmp/test_tmp.txt" "abc") then
-    bind contents <- perform io (IO.read-file "../tmp/test_tmp.txt") then
+    bind _ <- perform io (IO.write-file "test/tmp/test_tmp.txt" "abc") then
+    bind contents <- perform io (IO.read-file "test/tmp/test_tmp.txt") then
     bind _ <- perform io (A.assert-eq-string contents "abc") then
     return P.tt
 

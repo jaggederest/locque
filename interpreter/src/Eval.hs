@@ -14,6 +14,7 @@ import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>), takeExtension)
 import qualified Data.Text.IO as TIO
 import           System.IO.Unsafe (unsafePerformIO)
+import           System.Process (readCreateProcessWithExitCode, shell)
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
@@ -70,6 +71,7 @@ primEnv = Map.fromList
   , (T.pack "print-prim", BVal (VPrim primPrint))
   , (T.pack "read-file-prim", BVal (VPrim primReadFile))
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
+  , (T.pack "shell-prim", BVal (VPrim primShell))
   , (T.pack "print", BVal (VPrim primPrint))
   , (T.pack "assert-eq-nat-prim", BVal (VPrim primAssertEqNat))
   , (T.pack "assert-eq-string-prim", BVal (VPrim primAssertEqString))
@@ -265,6 +267,15 @@ primWriteFile [VString path, VString contents] = do
   TIO.writeFile (T.unpack path) contents
   pure VUnit
 primWriteFile _ = error "write-file-prim expects (path, contents)"
+
+primShell :: [Value] -> IO Value
+primShell [VString cmd] = do
+  -- Run shell command and capture stdout+stderr, ignoring exit code
+  -- UNSAFE: This executes arbitrary shell commands!
+  (_exitCode, stdout, stderr) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
+  -- Combine stdout and stderr (stderr comes second, like 2>&1 redirect)
+  pure $ VString (T.pack (stdout ++ stderr))
+primShell _ = error "shell-prim expects 1 string arg (command)"
 
 primAssertEqNat :: [Value] -> IO Value
 primAssertEqNat [a,b] = do

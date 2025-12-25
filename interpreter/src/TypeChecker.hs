@@ -555,6 +555,7 @@ buildPrimitiveEnv = Map.fromList
   , ("print-prim", mono (TFun TString (TComp TUnit)))
   , ("read-file-prim", mono (TFun TString (TComp TString)))
   , ("write-file-prim", mono (TFun TString (TFun TString (TComp TUnit))))
+  , ("shell-prim", mono (TFun TString (TComp TString)))
 
   -- Assertions
   , ("assert-eq-nat-prim", mono (TFun TNat (TFun TNat (TComp TUnit))))

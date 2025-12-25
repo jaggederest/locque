@@ -1,0 +1,18 @@
+# Test: smyth run - basic execution
+# This file tests that `smyth run` can execute a simple program
+
+import Prelude as P
+import Assert as A
+import IO as IO
+
+module SmythRunBasic contains
+
+  define transparent test-run-basic as computation
+    bind _ <- perform io (A.assert-eq-nat 1 1) then
+    bind _ <- perform io (A.assert-eq-string "hello" "hello") then
+    return P.tt
+
+  define transparent main as computation
+    perform io test-run-basic
+
+end

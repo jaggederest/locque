@@ -7,10 +7,21 @@ Test harness sketch
 
 ## Test Organization
 
+### Current Structure (Modular)
+- `features/`: Language feature tests (basics, IO, lambda, fold, match, primitives, etc.)
+- `typecheck/`: Type checker tests (monomorphic, polymorphic, bidirectional, etc.)
+- `smyth/`: Smyth tool integration tests (run, test commands, assertion counting)
+- `errors/`: Error message tests (fuzzy matching, suggestions)
+- `syntax/`: Syntax tests (comments, validation)
+- `conversion/`: M-expr ↔ S-expr conversion tests
+
+### Legacy Structure (Numbered)
 - `00-39`: Feature tests (basics, IO, lambda, fold, match, primitives, etc.)
 - `40-49`: Validator/negative tests (malformed code, error cases)
 - `50-59`: Conversion/metaprogramming tests (roundtrip, AST manipulation)
 - `99-XX`: Type checker tests (monomorphic, polymorphic, etc.)
+
+**Note:** Legacy numbered tests at root level will be gradually migrated to the modular structure.
 
 ## Test Expectations
 

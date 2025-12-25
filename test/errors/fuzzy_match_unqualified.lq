@@ -1,0 +1,21 @@
+# Test: Fuzzy matching with unqualified names
+# This file tests fuzzy matching when a local variable is misspelled
+# Expected error: "Variable not in scope: my-functoin"
+# Expected suggestion: "Did you mean: my-function?"
+
+import Prelude as P
+
+module FuzzyMatchUnqualified contains
+
+  define transparent my-function as value
+    function x of-type Nat produce x
+
+  # Deliberately misspell my-function as my-functoin
+  define transparent test-typo as value
+    function x of-type Nat produce
+      my-functoin x
+
+  define transparent main as computation
+    return test-typo 5
+
+end

@@ -24,14 +24,18 @@
 
 **Benefits**: Will stress-test interpreter and grow stdlib organically
 
-### 3. Error Message Improvements
+### 3. Error Message Improvements - ✓ **PHASE 1-3 COMPLETED**
 **Philosophy**: Self-prompting for LLMs, concise for humans, optimize for token efficiency
 
-- [ ] Add "Did you mean?" suggestions (fuzzy matching on identifiers)
-- [ ] Show code context (line with error highlighted)
+- [x] Add "Did you mean?" suggestions (fuzzy matching on identifiers, Levenshtein distance ≤ 2)
+- [x] Error infrastructure (SourceLoc, ErrorMsg modules)
+- [x] Enhanced TypeError with location tracking
+- [x] Runtime error fuzzy matching (Eval.hs)
+- [x] Thread source contents through type checker (infrastructure for context display)
+- [ ] Show code context (line with error highlighted) - infrastructure ready, needs parser location integration
 - [ ] Suggest fixes inline: "Try: `function x of-type String produce`"
 - [ ] Migration hints: "Use `match-list` instead of `match` for lists"
-- [ ] Keep suggestions under 100 tokens per error
+- [x] Keep suggestions under 100 tokens per error
 - [ ] Color coding in terminal (red/yellow/green)
 - [ ] Error codes for programmatic handling
 
@@ -193,12 +197,18 @@
 - [x] `smyth run <file>` command (type check + execute)
 - [x] Assertion counting (115 assertions across full test suite)
 - [x] Standalone binary (`~/.local/bin/smyth`)
+- [x] Error message improvements Phase 1-3:
+  - [x] SourceLoc module for location tracking
+  - [x] ErrorMsg module with Levenshtein fuzzy matching
+  - [x] Enhanced TypeError with location and environment context
+  - [x] Runtime error fuzzy matching in Eval.hs
+  - [x] Source contents threading through type checker
 
 ---
 
 ## Next Session Goals
 
-Based on completed test runner, three main paths forward:
+Based on completed test runner, `smyth run`, assertion counting, and error message improvements, three main paths forward:
 
 ### Option A: Type Classes (Major Feature)
 **Goal**: Unify match-list/bool/pair into polymorphic `match` via type classes
@@ -207,25 +217,28 @@ Based on completed test runner, three main paths forward:
 - Would immediately improve ergonomics (single `match` instead of three)
 - Stress-tests type system with real-world use case
 - Foundation for future polymorphism needs
+- Natural next step after type system maturation
 
 **Effort**: High (touches parser, type checker, evaluator)
 
-### Option B: Error Message Improvements (Developer Experience)
-**Goal**: Self-prompting for LLMs, concise for humans, token-efficient
+### Option B: More `smyth` Commands (Tooling Expansion)
+**Goal**: Add `smyth check` (type check only), `smyth repl`, `smyth fmt`
 
 **Why now**:
-- Immediate payoff for development velocity
-- LLM-friendly error messages are core philosophy
-- Lower effort than type classes
-
-**Effort**: Medium (mostly type checker and parser error reporting)
-
-### Option C: More `smyth` Commands (Tooling Expansion)
-**Goal**: Add `smyth check`, `smyth run`, `smyth repl`
-
-**Why now**:
-- Natural extension of test runner work
+- Natural extension of test runner and run command work
 - Immediate utility for daily workflow
 - `smyth check` particularly useful for fast feedback
+- Infrastructure already exists for most commands
 
 **Effort**: Low-Medium (infrastructure already exists)
+
+### Option C: Standard Library Expansion
+**Goal**: Add Result/Option types, more list/string operations
+
+**Why now**:
+- Can be done in Locque itself (dogfooding)
+- Immediate practical value
+- Tests type system and tooling
+- Foundation for more complex features
+
+**Effort**: Low-Medium (mostly Locque code, some primitives)

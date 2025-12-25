@@ -23,7 +23,8 @@ executable locque-interpreter
       filepath >=1.4,
       directory >=1.3,
       mtl >=2.2,
-      array >=0.5
+      array >=0.5,
+      process >=1.6
 
 executable smyth
   main-is:             Smyth.hs
@@ -39,4 +40,5 @@ executable smyth
       filepath >=1.4,
       directory >=1.3,
       mtl >=2.2,
-      array >=0.5
+      array >=0.5,
+      process >=1.6
