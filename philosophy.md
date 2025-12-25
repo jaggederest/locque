@@ -16,3 +16,102 @@ LLM-first dependently typed language (working name TBD) guiding notes
 - Rationale for no-warnings policy: LLMs frequently ignore warnings during code generation. By making every problem an error, we force LLMs to address issues immediately rather than accumulating technical debt.
 - Exception: Deprecation notices for future breaking changes may be warnings, but these should be rare and temporary.
 - Implementation note: The Haskell interpreter may emit warnings (unused variables, incomplete patterns), but these are implementation details - Locque itself has no warning system.
+
+## Symbol Philosophy: Words Over Symbols
+
+**Guiding principle**: Prefer words to symbols. Each symbol should have exactly one meaning, never overloaded by context.
+
+**Structural symbols** (permitted - these build syntax, don't carry semantic meaning):
+- `->` for function types (arrow)
+- `()` for grouping and zero-parameter lambdas
+- `.` for qualified names (module qualification)
+- Parentheses for grouping type expressions
+
+**Semantic symbols** (avoid - use words instead):
+- NO `!` for linearity - use `once` keyword
+- NO `=` for equality/assignment/identity - use `equals`, `where`, `assign` as appropriate
+- NO `&` for conjunction/sharing - use `and`, `shared` as appropriate
+- NO `{...}` for effects - use `(effect IO)` or similar
+- NO symbolic operators for type constraints - use words
+
+**The arrow exception**: `->` is grandfathered in because it's purely structural (builds function types) and universally recognized. It doesn't carry semantic meaning beyond "maps from A to B".
+
+**Examples of word-based design**:
+```locque
+# Linear types: use 'once' keyword
+define send as value
+  function socket of-type (once Socket) produce ...
+
+# Effects: use 'effect' keyword
+define read-file as value
+  function path of-type String produce (effect IO) String
+
+# Refinement types: explicit 'refinement' and 'constraint' keywords
+define Positive as refinement Nat where
+  constraint (lambda x -> x > 0)
+```
+
+**Rationale**:
+- Words have semantic meaning → better LLM token embeddings
+- Reduces ambiguity and hallucination
+- Grep-able and searchable (can find all uses of `once`, can't search `!`)
+- Self-documenting code
+- No "symbol budget" constraints
+- Future macros can use symbols without conflicts with core language
+
+**One symbol, one meaning**: We never overload symbols. If `=` means assignment in one context, we don't reuse it for equality testing or pattern matching. Each construct gets its own keyword.
+
+## Extensibility: The "define X as Y" Pattern
+
+**Core pattern**: All top-level introductions follow `define <name> as <kind> <body>` where `kind` is a discriminator keyword.
+
+**Current discriminators**:
+- `value` - term-level values
+- `computation` - effectful computations
+- `typeclass` - overloading mechanism (planned)
+- `instance` - typeclass implementation (planned)
+
+**Future discriminators** (as language evolves):
+- `data` - algebraic data types (for when we add user-defined types)
+- `family` - type-level functions (type families)
+- `refinement` - subset types with constraints
+- `effect` - effect definitions
+- `protocol` - session types (if we add them)
+
+**Why this pattern scales**:
+1. Self-hosted parser becomes simple pattern matching on keyword after `as`
+2. Adding new features = add new discriminator, no grammar restructuring
+3. LLMs learn one pattern, apply it to all definition forms
+4. Consistent left-to-right reading: "define X as <what-kind-of-thing>"
+
+**Type system features vs definition forms**:
+- **Structural features** need `define X as Y`: data types, typeclasses, type families
+- **Parametric features** extend type syntax: higher-kinded types, existentials, rank-N polymorphism
+- Example: Higher-kinded typeclass still uses `define X as typeclass`, just with kind annotations
+
+**Examples of future extensions**:
+```locque
+# Type class (overloading)
+define Match as typeclass where
+  match of-type (a -> (() -> b) -> (a -> a -> b) -> b)
+
+# Instance (typeclass implementation)
+define Match-List as instance Match (List a) where
+  match produce lambda xs -> ...
+
+# GADT (when we add user-defined types)
+define Expr as data (a of-type Type) where
+  LitNat of-type (Nat -> Expr Nat)
+  Add of-type (Expr Nat -> Expr Nat -> Expr Nat)
+
+# Type family (type-level computation)
+define Length as family (List a -> Nat) where
+  Length Nil equals Zero
+  Length (Cons x xs) equals Succ (Length xs)
+
+# Refinement type (constrained subset)
+define NonZero as refinement Nat where
+  constraint (lambda n -> n > 0)
+```
+
+This pattern remains consistent regardless of how sophisticated the type system becomes.

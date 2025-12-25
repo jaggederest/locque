@@ -1,0 +1,12 @@
+# Migrated from ../07_import_lq.lq
+
+import TestImport as T
+import assert as A
+import prelude as P
+
+module LImportTest contains
+  define transparent main as computation
+    bind perform io (A.assert-eq-nat T.test-value 42) as _ then
+    bind perform io (A.assert-eq-string T.test-string "hello from .lq") as _ then
+    return P.tt
+end

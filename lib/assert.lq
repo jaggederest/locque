@@ -1,6 +1,6 @@
-import Prelude as P
+import prelude as P
 
-module Assert contains
+module assert contains
   define opaque assert-eq-nat as value assert-eq-nat-prim
   define opaque assert-eq-string as value assert-eq-string-prim
   define transparent assert-false as value

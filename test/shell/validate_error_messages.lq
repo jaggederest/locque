@@ -1,32 +1,32 @@
 # Test: Validate error message fuzzy matching using shell
 # This test runs smyth with intentionally broken code and validates the error output
 
-import Prelude as P
-import Shell as S
-import String as Str
-import Assert as A
-import IO as IO
+import prelude as P
+import shell as S
+import string as Str
+import assert as A
+import io as IO
 
-module ValidateErrorMessages contains
+module LValidateErrorMessages contains
 
   # Test that unqualified name typos get suggestions
   define transparent test-unqualified-fuzzy-match as computation
-    bind output <- perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_unqualified.lq 2>&1") then
-    bind _ <- perform io (A.assert-eq-string
+    bind perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_unqualified.lq 2>&1") as output then
+    bind perform io (A.assert-eq-string
       (P.if-bool (Str.string-contains "Did you mean: my-function?" output) "yes" "no")
-      "yes") then
+      "yes") as _ then
     return P.tt
 
   # Test that qualified name typos get suggestions
   define transparent test-qualified-fuzzy-match as computation
-    bind output <- perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_type.lq 2>&1") then
-    bind _ <- perform io (A.assert-eq-string
+    bind perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_type.lq 2>&1") as output then
+    bind perform io (A.assert-eq-string
       (P.if-bool (Str.string-contains "Did you mean: P.add-nat?" output) "yes" "no")
-      "yes") then
+      "yes") as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- perform io test-unqualified-fuzzy-match then
+    bind perform io test-unqualified-fuzzy-match as _ then
     perform io test-qualified-fuzzy-match
 
 end

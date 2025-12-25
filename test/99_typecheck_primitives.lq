@@ -1,4 +1,4 @@
-module TypeCheckPrimitives contains
+module LTypeCheckPrimitives contains
   define transparent five as value 5
 
   define transparent hello as value "hello world"

@@ -1,56 +1,56 @@
-import Prelude as P
-import Assert as A
-import String as S
+import prelude as P
+import assert as A
+import string as S
 
-module StringUtilsTests contains
+module LStringUtilsTests contains
 
   define transparent test-is-empty-whitespace as computation
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.is-empty "") "yes" "no") "yes") then
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.is-empty "hello") "yes" "no") "no") then
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "   ") "yes" "no") "yes") then
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "hello") "yes" "no") "no") then
+    bind perform io (A.assert-eq-string (P.if-bool (S.is-empty "") "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (S.is-empty "hello") "yes" "no") "no") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "   ") "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "hello") "yes" "no") "no") as _ then
     return P.tt
 
   define transparent test-ends-with-index-of as computation
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.ends-with "lo" "hello") "yes" "no") "yes") then
-    bind _ <- perform io (A.assert-eq-string (P.if-bool (S.ends-with "hi" "hello") "yes" "no") "no") then
-    bind _ <- perform io (A.assert-eq-nat (S.index-of "ell" "hello") 1) then
-    bind _ <- perform io (A.assert-eq-nat (S.index-of "xyz" "hello") 5) then
+    bind perform io (A.assert-eq-string (P.if-bool (S.ends-with "lo" "hello") "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (S.ends-with "hi" "hello") "yes" "no") "no") as _ then
+    bind perform io (A.assert-eq-nat (S.index-of "ell" "hello") 1) as _ then
+    bind perform io (A.assert-eq-nat (S.index-of "xyz" "hello") 5) as _ then
     return P.tt
 
   define transparent test-reverse as computation
-    bind _ <- perform io (A.assert-eq-string (S.reverse "hello") "olleh") then
-    bind _ <- perform io (A.assert-eq-string (S.reverse "a") "a") then
-    bind _ <- perform io (A.assert-eq-string (S.reverse "") "") then
+    bind perform io (A.assert-eq-string (S.reverse "hello") "olleh") as _ then
+    bind perform io (A.assert-eq-string (S.reverse "a") "a") as _ then
+    bind perform io (A.assert-eq-string (S.reverse "") "") as _ then
     return P.tt
 
   define transparent test-lines-unlines as computation
-    bind lines-result <- S.lines "hello\nworld" then
-    bind _ <- perform io (A.assert-eq-nat (P.length-list lines-result) 2) then
-    bind _ <- perform io (A.assert-eq-string (S.unlines lines-result) "hello\nworld") then
+    bind S.lines "hello\nworld" as lines-result then
+    bind perform io (A.assert-eq-nat (P.length-list lines-result) 2) as _ then
+    bind perform io (A.assert-eq-string (S.unlines lines-result) "hello\nworld") as _ then
     return P.tt
 
   define transparent test-words-unwords as computation
-    bind words-result <- S.words "hello world test" then
-    bind _ <- perform io (A.assert-eq-nat (P.length-list words-result) 3) then
-    bind first-word <- P.head words-result then
-    bind _ <- perform io (A.assert-eq-string first-word "hello") then
-    bind rejoined <- S.unwords words-result then
-    bind _ <- perform io (A.assert-eq-string rejoined "hello world test") then
+    bind S.words "hello world test" as words-result then
+    bind perform io (A.assert-eq-nat (P.length-list words-result) 3) as _ then
+    bind P.head words-result as first-word then
+    bind perform io (A.assert-eq-string first-word "hello") as _ then
+    bind S.unwords words-result as rejoined then
+    bind perform io (A.assert-eq-string rejoined "hello world test") as _ then
     return P.tt
 
   define transparent test-slice as computation
-    bind _ <- perform io (A.assert-eq-string (S.slice 0 3 "hello") "hel") then
-    bind _ <- perform io (A.assert-eq-string (S.slice 2 3 "hello") "llo") then
-    bind _ <- perform io (A.assert-eq-string (S.slice 1 2 "hello") "el") then
+    bind perform io (A.assert-eq-string (S.slice 0 3 "hello") "hel") as _ then
+    bind perform io (A.assert-eq-string (S.slice 2 3 "hello") "llo") as _ then
+    bind perform io (A.assert-eq-string (S.slice 1 2 "hello") "el") as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- test-is-empty-whitespace then
-    bind _ <- test-ends-with-index-of then
-    bind _ <- test-reverse then
-    bind _ <- test-lines-unlines then
-    bind _ <- test-words-unwords then
-    bind _ <- test-slice then
+    bind test-is-empty-whitespace as _ then
+    bind test-ends-with-index-of as _ then
+    bind test-reverse as _ then
+    bind test-lines-unlines as _ then
+    bind test-words-unwords as _ then
+    bind test-slice as _ then
     return P.tt
 end

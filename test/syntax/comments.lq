@@ -3,17 +3,17 @@
 # Line comments start with #
 # Block comments use /* */
 
-import Prelude as P
-import Assert as A
-import IO as IO
+import prelude as P
+import assert as A
+import io as IO
 
-module CommentsTest contains
+module LCommentsTest contains
 
   # This is a line comment
   define transparent test-line-comment as computation
     # Comments can appear anywhere
-    bind x <- return 1 then # Even at end of line
-    bind _ <- perform io (A.assert-eq-nat x 1) then
+    bind return 1 as x then # Even at end of line
+    bind perform io (A.assert-eq-nat x 1) as _ then
     return P.tt
 
   /*
@@ -21,12 +21,12 @@ module CommentsTest contains
   It can span multiple lines
   */
   define transparent test-block-comment as computation
-    bind y <- return /* inline comment */ 2 then
-    bind _ <- perform io (A.assert-eq-nat y 2) then
+    bind return /* inline comment */ 2 as y then
+    bind perform io (A.assert-eq-nat y 2) as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- perform io test-line-comment then
+    bind perform io test-line-comment as _ then
     perform io test-block-comment
 
 end

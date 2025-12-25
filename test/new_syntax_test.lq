@@ -1,0 +1,31 @@
+import prelude as P
+open P (add-nat, cons, nil, tt)
+
+module new_syntax_test contains
+  # Test zero-param lambda
+  define transparent const-five as value
+    function x of-type Nat produce
+      let f as (lambda -> 5) in
+      f tt
+
+  # Test multi-param lambda (use nested function annotations)
+  define transparent add-wrapper as value
+    function x of-type Nat produce
+      function y of-type Nat produce
+        add-nat x y
+
+  # Test let with as
+  define transparent test-let as value
+    function x of-type Nat produce
+      let y as add-nat x 10 in
+      let z as add-nat y 5 in
+      z
+
+  # Test bind with new syntax
+  define transparent test-bind as computation
+    return 42
+
+  define transparent main as computation
+    bind test-bind as result then
+    return tt
+end

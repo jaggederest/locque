@@ -49,8 +49,8 @@ instance Show Value where
 
 data Binding
   = BVal Value
-  | BValueExpr Expr
-  | BCompExpr Comp
+  | BValueExpr Env Expr  -- Capture environment for lazy evaluation (module-local scope)
+  | BCompExpr Env Comp   -- Capture environment for lazy evaluation (module-local scope)
 
 type Env = Map.Map Text Binding
 
@@ -497,26 +497,28 @@ isTruthy (VList xs) = not (null xs)
 isTruthy _ = False
 
 -- Build environment from module definitions atop an existing env (imports/prims)
+-- Uses lazy evaluation to tie-the-knot: all definitions capture the final environment
 bindModule :: Module -> Env -> Env
-bindModule (Module _ _ defs) base = foldl addDef base defs
-  where
-    addDef env (Definition _ name kind _mType body) =
-      case (kind, body) of
-        (ValueDef, Left e)        -> Map.insert name (BValueExpr e) env
-        (ComputationDef, Right c) -> Map.insert name (BCompExpr c) env
-        _                         -> env
+bindModule (Module _ _ _ defs) base =
+  let env = foldl addDef base defs
+      addDef e (Definition _ name kind _mType body) =
+        case (kind, body) of
+          (ValueDef, Left expr)      -> Map.insert name (BValueExpr env expr) e
+          (ComputationDef, Right comp) -> Map.insert name (BCompExpr env comp) e
+          _                          -> e
+  in env
 
 runModuleMain :: FilePath -> Module -> IO Int
-runModuleMain projectRoot m@(Module _ _ _) = do
+runModuleMain projectRoot m@(Module _ _ _ _) = do
   -- Reset assertion counter
   writeIORef assertionCounter 0
 
   envImports <- loadImports projectRoot m
   let env = bindModule m envImports
   case Map.lookup (T.pack "main") env of
-    Just (BCompExpr c)    -> do _ <- runComp env c; readIORef assertionCounter
+    Just (BCompExpr _localEnv c)    -> do _ <- runComp env c; readIORef assertionCounter
     Just (BVal (VPrim f)) -> do _ <- f []; readIORef assertionCounter
-    Just (BValueExpr e)   -> do _ <- evalExpr env e; readIORef assertionCounter
+    Just (BValueExpr _localEnv e)   -> do _ <- evalExpr env e; readIORef assertionCounter
     _                     -> error "No main computation found"
 
 evalExpr :: Env -> Expr -> IO Value
@@ -535,17 +537,24 @@ evalExpr env expr = case expr of
     LString s -> VString s
     LBool b   -> VBool b
   ELam v _mType body -> pure $ VClosure env v body  -- Type annotation ignored in evaluation
+  ELamMulti params _mType body -> pure $ makeNestedClosures env params body
   EAnnot expr _ty -> evalExpr env expr  -- Type annotation ignored in evaluation
   EApp f args -> do
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
     apply vf vs
 
+-- | Create nested closures from multi-parameter lambda
+makeNestedClosures :: Env -> [Text] -> Expr -> Value
+makeNestedClosures env [] body = error "makeNestedClosures called with empty parameter list"
+makeNestedClosures env [p] body = VClosure env p body
+makeNestedClosures env (p:ps) body = VClosure env p (ELamMulti ps Nothing body)
+
 resolveBinding :: Env -> Binding -> IO Value
-resolveBinding env b = case b of
-  BVal v        -> pure v
-  BValueExpr e  -> evalExpr env e
-  BCompExpr c   -> runComp env c
+resolveBinding _outerEnv b = case b of
+  BVal v               -> pure v
+  BValueExpr env e     -> evalExpr env e  -- Use captured environment
+  BCompExpr env c      -> runComp env c   -- Use captured environment
 
 apply :: Value -> [Value] -> IO Value
 apply v [] = pure v
@@ -565,8 +574,7 @@ runComp env comp = case comp of
     runComp env' c2
   CPerform e   -> evalExpr env e
   CVar t -> case Map.lookup t env of
-    Just (BCompExpr c) -> runComp env c
-    Just b             -> resolveBinding env b
+    Just b -> resolveBinding env b
     Nothing ->
       let candidates = Map.keys env
           matches = findFuzzyMatches t candidates
@@ -581,7 +589,7 @@ runComp env comp = case comp of
 -- Import loading
 
 loadImports :: FilePath -> Module -> IO Env
-loadImports projectRoot (Module _ imports _) = do
+loadImports projectRoot (Module _ imports _ _) = do
   envs <- mapM (loadImport projectRoot) imports
   pure $ Map.unions (primEnv : envs)
 
@@ -609,28 +617,68 @@ loadImport projectRoot (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  let Module name _ defs = parsed
+  let Module modName _ opens defs = parsed
   envImports <- loadImports projectRoot parsed
-  let envSelf = foldl (insertDef alias name) envImports defs
-  pure envSelf
+  -- Process opens to bring in unqualified names from open statements
+  let envWithOpens = processOpens opens envImports
+
+  -- Build two environments using tie-the-knot:
+  -- 1. envInternal: has both qualified and unqualified names for module self-reference
+  -- 2. envExport: has only NEW qualified names to export (avoids conflicts)
+  let envInternal = foldl addInternalDef envWithOpens defs
+      envExport = foldl addExportDef envWithOpens defs
+
+      -- Add both qualified and unqualified names, capturing envInternal
+      addInternalDef e (Definition _ name kind _mType body) =
+        case (kind, body) of
+          (ValueDef, Left expr) ->
+            let qualName = aliasPref alias name
+            in Map.insert qualName (BValueExpr envInternal expr) $
+               Map.insert name (BValueExpr envInternal expr) e
+          (ComputationDef, Right comp) ->
+            let qualName = aliasPref alias name
+            in Map.insert qualName (BCompExpr envInternal comp) $
+               Map.insert name (BCompExpr envInternal comp) e
+          _ -> e
+
+      -- Add only qualified names for export (bindings still capture envInternal)
+      addExportDef e (Definition _ name kind _mType body) =
+        case (kind, body) of
+          (ValueDef, Left expr) ->
+            let qualName = aliasPref alias name
+            in Map.insert qualName (BValueExpr envInternal expr) e
+          (ComputationDef, Right comp) ->
+            let qualName = aliasPref alias name
+            in Map.insert qualName (BCompExpr envInternal comp) e
+          _ -> e
+
+  pure envExport
   where
     tryLoadFile p = do
       c <- TIO.readFile p
       pure (p, c)
 
-insertDef :: Text -> Text -> Env -> Definition -> Env
-insertDef alias modName env (Definition _ name kind _mType body) =
-  let base = case (kind, body) of
-        (ValueDef, Left e)        -> Just (BValueExpr e)
-        (ComputationDef, Right c) -> Just (BCompExpr c)
-        _                         -> Nothing
-      names = [aliasPref alias name, aliasPref modName name, name]
-   in case base of
-        Nothing -> env
-        Just b  -> foldl (\acc n -> Map.insert n b acc) env names
+-- Process open statements to bring unqualified names into scope
+processOpens :: [Open] -> Env -> Env
+processOpens opens env = foldl processOneOpen env opens
+  where
+    processOneOpen :: Env -> Open -> Env
+    processOneOpen e (Open modAlias nameList) =
+      foldl (openOneName modAlias) e nameList
+
+    openOneName :: Text -> Env -> Text -> Env
+    openOneName modAlias e name =
+      let qualifiedName = aliasPref modAlias name
+      in case Map.lookup qualifiedName e of
+           Just binding -> Map.insert name binding e
+           Nothing -> e  -- Silently ignore if qualified name doesn't exist
 
 aliasPref :: Text -> Text -> Text
 aliasPref prefix n = prefix <> T.pack "." <> n
 
 modNameToPath :: Text -> FilePath
-modNameToPath = T.unpack . T.replace (T.pack ".") (T.pack "/")
+modNameToPath modName =
+  -- Convert Some::Module::Name to some/module/name
+  let withSlashes = T.replace (T.pack "::") (T.pack "/") modName
+      lowercased = T.toLower withSlashes
+  in T.unpack lowercased

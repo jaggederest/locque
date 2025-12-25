@@ -1,0 +1,11 @@
+import prelude as P
+import string as S
+
+module test_string_self_ref contains
+  # This should work - split-spaces internally calls trim
+  define transparent test as value
+    S.split-spaces "  hello  world  "
+
+  define transparent main as computation
+    return P.tt
+end

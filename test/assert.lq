@@ -1,0 +1,10 @@
+# Test rollup for Assert module
+# Runs all tests in test/assert/
+# TODO: Add tests for assert module
+
+import prelude as P
+
+module test_assert contains
+  define transparent main as computation
+    return P.tt
+end

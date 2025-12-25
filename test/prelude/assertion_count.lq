@@ -1,0 +1,22 @@
+# Test: Assertion counting
+# This file tests that the assertion counter correctly counts all assertions
+# Expected: 5 assertions
+
+import prelude as P
+import assert as A
+import io as IO
+
+module LSmythAssertionCount contains
+
+  define transparent test-five-assertions as computation
+    bind perform io (A.assert-eq-nat 1 1) as _ then
+    bind perform io (A.assert-eq-nat 2 2) as _ then
+    bind perform io (A.assert-eq-nat 3 3) as _ then
+    bind perform io (A.assert-eq-string "a" "a") as _ then
+    bind perform io (A.assert-eq-string "b" "b") as _ then
+    return P.tt
+
+  define transparent main as computation
+    perform io test-five-assertions
+
+end

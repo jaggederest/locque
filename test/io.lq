@@ -1,0 +1,10 @@
+# Test rollup for IO module
+# Runs all tests in test/io/
+
+import test::io::file_io as file_io
+import prelude as P
+
+module test_io contains
+  define transparent main as computation
+    perform io file_io.main
+end

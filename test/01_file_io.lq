@@ -1,16 +1,16 @@
-import IO as IO
-import Prelude as P
-import Assert as A
+import io as IO
+import prelude as P
+import assert as A
 
-module FileIO contains
+module LFileIO contains
 
   define transparent roundtrip as computation
-    bind _ <- perform io (IO.write-file "../tmp/test_tmp.txt" "abc") then
-    bind contents <- perform io (IO.read-file "../tmp/test_tmp.txt") then
-    bind _ <- perform io (A.assert-eq-string contents "abc") then
+    bind perform io (IO.write-file "../tmp/test_tmp.txt" "abc") as _ then
+    bind perform io (IO.read-file "../tmp/test_tmp.txt") as contents then
+    bind perform io (A.assert-eq-string contents "abc") as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- roundtrip then
+    bind roundtrip as _ then
     return P.tt
 end

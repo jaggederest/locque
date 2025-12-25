@@ -8,7 +8,7 @@ import qualified Data.Text as T
 import qualified Data.Set as Set
 
 validateModule :: Module -> Either String ()
-validateModule (Module name _ defs) = do
+validateModule (Module name _ _ defs) = do
   checkDuplicates defs
   mapM_ checkDef defs
   if T.null name then Left "Empty module name" else Right ()

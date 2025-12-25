@@ -1,7 +1,7 @@
 # Shell utilities
 # UNSAFE: Execute shell commands (use with caution!)
 
-module Shell contains
+module shell contains
 
   # Execute a shell command and return its output
   # WARNING: This is VERY impure and UNSAFE - it executes arbitrary shell commands!

@@ -3,9 +3,9 @@
 # Expected error: "Variable not in scope: my-functoin"
 # Expected suggestion: "Did you mean: my-function?"
 
-import Prelude as P
+import prelude as P
 
-module FuzzyMatchUnqualified contains
+module LFuzzyMatchUnqualified contains
 
   define transparent my-function as value
     function x of-type Nat produce x

@@ -1,7 +1,7 @@
-import Prelude as P
-import Comparison as C
+import prelude as P
+import comparison as C
 
-module Arithmetic contains
+module arithmetic contains
   define opaque add-nat as value add-nat-prim
   define opaque sub-nat as value sub-nat-prim
   define opaque mul-nat as value mul-nat-prim

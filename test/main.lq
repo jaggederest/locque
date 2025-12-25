@@ -1,53 +1,43 @@
 # Main test entry point
-# Runs all test modules
+# Runs all test rollup modules
 
-import test.features.basics as Basics
-import test.features.file_io as FileIO
-import test.features.lambda as Lambda
-import test.features.fold as Fold
-import test.features.match as Match
-import test.features.let_binding as LetBinding
-import test.features.primitives as Primitives
-import test.features.imports as Imports
-import test.features.arithmetic as Arithmetic
-import test.features.comparison as Comparison
-import test.features.new_primitives as NewPrimitives
-import test.features.string_utils as StringUtils
-import test.features.match_semantics as MatchSemantics
+import test::prelude as test_prelude
+import test::io as test_io
+import test::string as test_string
+import test::arithmetic as test_arithmetic
+import test::comparison as test_comparison
+import test::shell as test_shell
+import test::assert as test_assert
+import test::list as test_list
 
-import test.typecheck.simple as TSimple
-import test.typecheck.mono as TMono
-import test.typecheck.primitives as TPrimitives
-import test.typecheck.match as TMatch
-import test.typecheck.fold_inline as TFoldInline
-import test.typecheck.opaque_import as TOpaqueImport
+import test::typecheck::simple as t_simple
+import test::typecheck::mono as t_mono
+import test::typecheck::primitives as t_primitives
+import test::typecheck::match as t_match
+import test::typecheck::fold_inline as t_fold_inline
+import test::typecheck::opaque_import as t_opaque_import
 
-import Prelude as P
+import prelude as P
 
-module TestMain contains
+module test_main contains
   define transparent main as computation
-    # Feature tests
-    bind _ <- Basics.main then
-    bind _ <- FileIO.main then
-    bind _ <- Lambda.main then
-    bind _ <- Fold.main then
-    bind _ <- Match.main then
-    bind _ <- LetBinding.main then
-    bind _ <- Primitives.main then
-    bind _ <- Imports.main then
-    bind _ <- Arithmetic.main then
-    bind _ <- Comparison.main then
-    bind _ <- NewPrimitives.main then
-    bind _ <- StringUtils.main then
-    bind _ <- MatchSemantics.main then
+    # Module tests (rollups)
+    bind test_prelude.main as _ then
+    bind test_io.main as _ then
+    bind test_string.main as _ then
+    bind test_arithmetic.main as _ then
+    bind test_comparison.main as _ then
+    bind test_shell.main as _ then
+    bind test_assert.main as _ then
+    bind test_list.main as _ then
 
     # Type checker tests
-    bind _ <- TSimple.main then
-    bind _ <- TMono.main then
-    bind _ <- TPrimitives.main then
-    bind _ <- TMatch.main then
-    bind _ <- TFoldInline.main then
-    bind _ <- TOpaqueImport.main then
+    bind t_simple.main as _ then
+    bind t_mono.main as _ then
+    bind t_primitives.main as _ then
+    bind t_match.main as _ then
+    bind t_fold_inline.main as _ then
+    bind t_opaque_import.main as _ then
 
     return P.tt
 end

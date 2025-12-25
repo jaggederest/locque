@@ -131,7 +131,7 @@ typeCheckModuleWithImports projectRoot _sourceContents m = do
 
 -- | Type check a module given an initial type environment (includes primitives and imports)
 typeCheckModuleWithEnv :: TypeEnv -> Module -> TypeCheckM TypeEnv
-typeCheckModuleWithEnv initialEnv (Module _name _imports defs) = do
+typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) = do
   -- Type check all definitions with the initial environment
   typeCheckDefs initialEnv defs
 
@@ -200,6 +200,32 @@ inferExpr _ (ELam param Nothing _) =
   -- This should only be hit if lambda is used in synthesis mode
   liftTC (Left (PolymorphicInstantiationError noLoc ("Unannotated lambda parameter: " <> param)))
 
+inferExpr env (ELamMulti params (Just paramType) body) = do
+  -- Multi-param lambda desugars to nested function types
+  -- paramType should be the full function type (a -> b -> c)
+  inferNestedLambdas env params paramType body
+  where
+    inferNestedLambdas :: TypeEnv -> [Text] -> Type -> Expr -> TypeCheckM Type
+    inferNestedLambdas _ [] ty _ = pure ty
+    inferNestedLambdas e [p] ty b = do
+      case ty of
+        TFun pTy retTy -> do
+          let e' = Map.insert p (TypeScheme [] pTy) e
+          bodyType <- inferExpr e' b
+          unify retTy bodyType
+          pure ty
+        _ -> liftTC (Left (TypeMismatch noLoc (TFun (TVar "a") (TVar "b")) ty))
+    inferNestedLambdas e (p:ps) ty b = do
+      case ty of
+        TFun pTy restTy -> do
+          let e' = Map.insert p (TypeScheme [] pTy) e
+          inferNestedLambdas e' ps restTy (ELamMulti ps Nothing b)
+          pure ty
+        _ -> liftTC (Left (TypeMismatch noLoc (TFun (TVar "a") (TVar "b")) ty))
+
+inferExpr _ (ELamMulti params Nothing _) =
+  liftTC (Left (PolymorphicInstantiationError noLoc ("Unannotated multi-param lambda: " <> head params)))
+
 inferExpr env (EApp f args) = do
   -- Special case: if function is unannotated lambda, infer arg type first
   case (f, args) of
@@ -240,6 +266,35 @@ checkExpr env (ELam param (Just paramType) body) (TFun expectedParamType expecte
   let env' = Map.insert param (TypeScheme [] paramType) env
   -- Check body against expected return type
   checkExpr env' body expectedReturnType
+
+-- Multi-param lambda without annotation
+checkExpr env (ELamMulti params Nothing body) expectedType = do
+  checkNestedLambdas env params expectedType body
+  where
+    checkNestedLambdas :: TypeEnv -> [Text] -> Type -> Expr -> TypeCheckM ()
+    checkNestedLambdas e [p] (TFun pTy retTy) b = do
+      let e' = Map.insert p (TypeScheme [] pTy) e
+      checkExpr e' b retTy
+    checkNestedLambdas e (p:ps) (TFun pTy restTy) b = do
+      let e' = Map.insert p (TypeScheme [] pTy) e
+      checkNestedLambdas e' ps restTy b
+    checkNestedLambdas _ _ ty _ =
+      liftTC (Left (NotAFunction noLoc ty))
+
+-- Multi-param lambda with annotation
+checkExpr env (ELamMulti params (Just annotatedType) body) expectedType = do
+  _subst <- unify annotatedType expectedType
+  checkNestedLambdasAnnotated env params annotatedType body
+  where
+    checkNestedLambdasAnnotated :: TypeEnv -> [Text] -> Type -> Expr -> TypeCheckM ()
+    checkNestedLambdasAnnotated e [p] (TFun pTy retTy) b = do
+      let e' = Map.insert p (TypeScheme [] pTy) e
+      checkExpr e' b retTy
+    checkNestedLambdasAnnotated e (p:ps) (TFun pTy restTy) b = do
+      let e' = Map.insert p (TypeScheme [] pTy) e
+      checkNestedLambdasAnnotated e' ps restTy b
+    checkNestedLambdasAnnotated _ _ ty _ =
+      liftTC (Left (NotAFunction noLoc ty))
 
 -- General case: infer and unify
 checkExpr env expr expected = do
@@ -384,7 +439,7 @@ bindVar x t
 
 -- | Load type environments from all imports
 loadTypeImports :: FilePath -> Module -> IO TypeEnv
-loadTypeImports projectRoot (Module _ imports _) = do
+loadTypeImports projectRoot (Module _ imports _ _) = do
   envs <- mapM (loadTypeImport projectRoot) imports
   pure $ Map.unions (buildPrimitiveEnv : envs)
 
@@ -410,31 +465,39 @@ loadTypeImport projectRoot (Import modName alias) = do
   parsed <- case takeExtension path of
     ".lq"  -> case parseMExprFile path contents of
       Left err -> error err
-      Right m -> pure m
+      Right m@(Module _ _ opens _) -> do
+        let _ = if null opens then () else error $ "DEBUG after parse: found " <> show (length opens) <> " opens"
+        pure m
     ".lqs" -> case parseModuleFile path contents of
       Left err -> error err
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
   -- Recursively load imports and type check
-  let Module name _ defs = parsed
+  let Module name _ opens defs = parsed
   envImports <- loadTypeImports projectRoot parsed
-  case runTypeCheck (typeCheckModuleWithEnv envImports parsed) of
+  -- Process opens BEFORE type-checking so unqualified names are available
+  let _ = if null opens then () else error $ "DEBUG: Processing opens: " <> show (map (\(Open m ns) -> (m, ns)) opens)
+  let envWithOpens = processTypeOpens opens envImports
+  case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
     Right envSelf -> do
       -- Insert all type-checked definitions with qualified names
       -- For each definition that was type-checked, add qualified versions
       let defNames = map defName defs
-          envWithQualified = foldl (insertQualified alias name envSelf) envImports defNames
-      pure envWithQualified
+          envFinal = foldl (insertQualified alias name envSelf) envWithOpens defNames
+      pure envFinal
   where
     tryLoadFile p = do
       c <- TIO.readFile p
       pure (p, c)
 
--- | Convert module name to file path (replace dots with slashes)
+-- | Convert module name to file path (Some::Module::Name -> some/module/name)
 modNameToPath :: Text -> FilePath
-modNameToPath = T.unpack . T.replace "." "/"
+modNameToPath modName =
+  let withSlashes = T.replace "::" "/" modName
+      lowercased = T.toLower withSlashes
+  in T.unpack lowercased
 
 -- | Insert a type-checked definition with qualified names
 -- Looks up the type from envSelf and inserts qualified versions
@@ -442,12 +505,31 @@ insertQualified :: Text -> Text -> TypeEnv -> TypeEnv -> Text -> TypeEnv
 insertQualified alias modName envSelf env defName =
   case Map.lookup defName envSelf of
     Just scheme ->
-      let names = [qualName alias defName, qualName modName defName, defName]
+      -- Only insert qualified name with alias
+      let names = [qualName alias defName]
       in foldl (\acc n -> Map.insert n scheme acc) env names
     Nothing -> env  -- Definition not in type-checked environment
   where
     qualName :: Text -> Text -> Text
     qualName prefix n = prefix <> "." <> n
+
+-- Process open statements to bring unqualified type names into scope
+processTypeOpens :: [Open] -> TypeEnv -> TypeEnv
+processTypeOpens opens env = foldl processOneOpen env opens
+  where
+    processOneOpen :: TypeEnv -> Open -> TypeEnv
+    processOneOpen e (Open modAlias nameList) =
+      foldl (openOneName modAlias) e nameList
+
+    openOneName :: Text -> TypeEnv -> Text -> TypeEnv
+    openOneName modAlias e name =
+      let qualifiedName = modAlias <> "." <> name
+      in case Map.lookup qualifiedName e of
+           Just scheme -> Map.insert name scheme e
+           Nothing ->
+             -- DEBUG: Print when name not found
+             error $ "open: qualified name not found: " <> T.unpack qualifiedName <>
+                     "\nAvailable keys: " <> show (take 20 $ Map.keys e)
 
 --------------------------------------------------------------------------------
 -- Primitive type environment

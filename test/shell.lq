@@ -1,0 +1,12 @@
+# Test rollup for Shell module
+# Runs all tests in test/shell/
+
+import test::shell::basic as basic
+import test::shell::validate_error_messages as validate_error_messages
+import prelude as P
+
+module test_shell contains
+  define transparent main as computation
+    bind basic.main as _ then
+    perform io validate_error_messages.main
+end

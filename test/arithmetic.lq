@@ -1,0 +1,10 @@
+# Test rollup for Arithmetic module
+# Runs all tests in test/arithmetic/
+
+import test::arithmetic::basics as basics
+import prelude as P
+
+module test_arithmetic contains
+  define transparent main as computation
+    perform io basics.main
+end

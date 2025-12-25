@@ -1,7 +1,7 @@
-import Prelude as P
-import String as S
+import prelude as P
+import string as S
 
-module TypeCheckFoldInline contains
+module LTypeCheckFoldInline contains
   define transparent has-item as value
     function item of-type String produce
       function xs of-type (List String) produce

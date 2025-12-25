@@ -1,51 +1,51 @@
-import Prelude as P
-import Assert as A
+import prelude as P
+import assert as A
 
-module MatchSemantics contains
+module LMatchSemantics contains
 
   define transparent test-list-empty-case as computation
-    bind empty-list <- P.nil then
-    bind result <- P.match-list empty-list
-      (lambda () "empty")
-      (lambda h -> lambda t -> "cons") then
-    bind _ <- perform io (A.assert-eq-string result "empty") then
+    bind P.nil as empty-list then
+    bind P.match-list empty-list
+      (lambda -> "empty")
+      (lambda h -> lambda t -> "cons") as result then
+    bind perform io (A.assert-eq-string result "empty") as _ then
     return P.tt
 
   define transparent test-list-cons-case as computation
-    bind non-empty <- P.cons "first" (P.cons "second" P.nil) then
-    bind result <- P.match-list non-empty
-      (lambda () "empty")
-      (lambda h -> lambda t -> h) then
-    bind _ <- perform io (A.assert-eq-string result "first") then
+    bind P.cons "first" (P.cons "second" P.nil) as non-empty then
+    bind P.match-list non-empty
+      (lambda -> "empty")
+      (lambda h -> lambda t -> h) as result then
+    bind perform io (A.assert-eq-string result "first") as _ then
     return P.tt
 
   define transparent test-bool-false-case as computation
-    bind result <- P.match-bool false
-      (lambda () "false-branch")
-      (lambda () "true-branch") then
-    bind _ <- perform io (A.assert-eq-string result "false-branch") then
+    bind P.match-bool false
+      (lambda -> "false-branch")
+      (lambda -> "true-branch") as result then
+    bind perform io (A.assert-eq-string result "false-branch") as _ then
     return P.tt
 
   define transparent test-bool-true-case as computation
-    bind result <- P.match-bool true
-      (lambda () "false-branch")
-      (lambda () "true-branch") then
-    bind _ <- perform io (A.assert-eq-string result "true-branch") then
+    bind P.match-bool true
+      (lambda -> "false-branch")
+      (lambda -> "true-branch") as result then
+    bind perform io (A.assert-eq-string result "true-branch") as _ then
     return P.tt
 
   define transparent test-pair-case as computation
-    bind my-pair <- P.pair "left" "right" then
-    bind result <- P.match-pair my-pair
-      (lambda () "never")
-      (lambda a -> lambda b -> a) then
-    bind _ <- perform io (A.assert-eq-string result "left") then
+    bind P.pair "left" "right" as my-pair then
+    bind P.match-pair my-pair
+      (lambda -> "never")
+      (lambda a -> lambda b -> a) as result then
+    bind perform io (A.assert-eq-string result "left") as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- test-list-empty-case then
-    bind _ <- test-list-cons-case then
-    bind _ <- test-bool-false-case then
-    bind _ <- test-bool-true-case then
-    bind _ <- test-pair-case then
+    bind test-list-empty-case as _ then
+    bind test-list-cons-case as _ then
+    bind test-bool-false-case as _ then
+    bind test-bool-true-case as _ then
+    bind test-pair-case as _ then
     return P.tt
 end

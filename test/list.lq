@@ -1,0 +1,10 @@
+# Test rollup for List module
+# Runs all tests in test/list/
+# TODO: Add tests for list module
+
+import prelude as P
+
+module test_list contains
+  define transparent main as computation
+    return P.tt
+end

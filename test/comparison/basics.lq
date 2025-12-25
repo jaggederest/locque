@@ -1,0 +1,21 @@
+# Migrated from ../09_comparison.lq
+
+import prelude as P
+import assert as A
+import comparison as C
+
+module LComparisonTests contains
+
+  define transparent test-between as computation
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 15) "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 10) "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 20) "yes" "no") "yes") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 5) "yes" "no") "no") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 25) "yes" "no") "no") as _ then
+    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 10 10) "yes" "no") "yes") as _ then
+    return P.tt
+
+  define transparent main as computation
+    bind test-between as _ then
+    return P.tt
+end

@@ -1,7 +1,7 @@
-import Prelude as P
-import Comparison as C
+import prelude as P
+import comparison as C
 
-module String contains
+module string contains
   define opaque concat as value concat-string-prim
   define opaque length as value length-string-prim
   define opaque eq as value eq-string-prim
@@ -47,7 +47,7 @@ module String contains
 
   define transparent split-spaces as value
     function s of-type String produce
-      let trimmed = trim s in
+      let trimmed as trim s in
       P.filter (function x of-type String produce P.not (is-empty x)) (split-on " " trimmed)
 
   define transparent words as value

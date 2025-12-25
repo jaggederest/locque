@@ -1,4 +1,4 @@
-module Prelude contains
+module prelude contains
   define opaque add-nat as value add-nat-prim
   define opaque sub-nat as value sub-nat-prim
   define opaque tt as value tt-prim

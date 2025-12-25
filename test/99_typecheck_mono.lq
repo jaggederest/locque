@@ -1,4 +1,4 @@
-module TypeCheckMono contains
+module LTypeCheckMono contains
   define transparent five as value 5
 
   define transparent ten as value add-nat-prim 5 5

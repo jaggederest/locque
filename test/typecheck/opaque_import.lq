@@ -1,8 +1,8 @@
 # Migrated from ../99_typecheck_opaque_import.lq
 
-import Prelude as P
+import prelude as P
 
-module TestOpaqueImport contains
+module LTestOpaqueImport contains
   define opaque my-take as value take-prim
   define opaque my-drop as value drop-prim
 
@@ -13,6 +13,6 @@ module TestOpaqueImport contains
           my-take len (my-drop start xs)
 
   define transparent main as computation
-    bind result <- my-slice 1 2 (P.cons 10 (P.cons 20 (P.cons 30 P.nil))) then
+    bind my-slice 1 2 (P.cons 10 (P.cons 20 (P.cons 30 P.nil))) as result then
     return P.tt
 end

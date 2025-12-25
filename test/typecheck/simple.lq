@@ -1,6 +1,6 @@
 # Migrated from ../99_typecheck_simple.lq
 
-module TypeCheckSimple contains
+module LTypeCheckSimple contains
   define transparent five as value 5
 
   define transparent add-five as value

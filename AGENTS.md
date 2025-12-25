@@ -7,7 +7,11 @@ Project overview for agents
 Interpreter (Haskell, `interpreter/`)
 - AST: literals (Nat, String, Bool), vars, apps, lambdas, defs (transparency/kind), values vs computations.
 - Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Bool); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
-- Import resolution: loads `lib/<Module>.lq` or `.lqs`, qualifies names with module/alias, also inserts unqualified names.
+- Import resolution:
+  - Module names use `::` separator for namespacing (e.g., `Some::Module::Name`)
+  - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq`
+  - Examples: `prelude` → `lib/prelude.lq`, `test::prelude::basics` → `test/prelude/basics.lq`
+  - Qualifies names with module/alias, also inserts unqualified names
 - CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag to bypass type checking, `--typecheck <file>` (type check only), `--validate <file>` (parens + parse + structural validation), `--emit-lqs <file> <out>` (M-expr → S-expr), `--emit-lq <file> <out>` (S-expr → M-expr).
 - Smyth tool (standalone binary): `smyth run <file>` (type check + execute), `smyth test` (run all tests), `smyth test <file>` (run specific test). Installed at `~/.local/bin/smyth`.
 - Type checker: Bidirectional type checking with Hindley-Milner polymorphism, enforces CBPV split at type level, integrated into interpreter by default (use `--skip-typecheck` to disable for legacy code).

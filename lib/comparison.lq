@@ -1,6 +1,6 @@
-import Prelude as P
+import prelude as P
 
-module Comparison contains
+module comparison contains
   define opaque lt-nat as value lt-nat-prim
   define opaque le-nat as value le-nat-prim
   define opaque gt-nat as value gt-nat-prim

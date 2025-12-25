@@ -1,19 +1,19 @@
 # Migrated from ../02_lambda.lq
 
-import Prelude as P
-import Assert as A
+import prelude as P
+import assert as A
 
-module LambdaTests contains
+module LLambdaTests contains
 
   define transparent id as value
     function x of-type String produce x
 
   define transparent apply-id as computation
-    bind res <- id "hi" then
-    bind _ <- perform io (A.assert-eq-string res "hi") then
+    bind id "hi" as res then
+    bind perform io (A.assert-eq-string res "hi") as _ then
     return P.tt
 
   define transparent main as computation
-    bind _ <- apply-id then
+    bind apply-id as _ then
     return P.tt
 end

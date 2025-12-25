@@ -1,4 +1,4 @@
-module IO contains
+module io contains
   define opaque print as value print-prim
   define opaque read-file as value read-file-prim
   define opaque write-file as value write-file-prim

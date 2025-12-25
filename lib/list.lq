@@ -1,8 +1,8 @@
-import Prelude as P
-import Comparison as C
-import String as S
+import prelude as P
+import comparison as C
+import string as S
 
-module List contains
+module list contains
   define opaque drop-until as value drop-until-prim
   define opaque nth as value nth-prim
   define opaque take as value take-prim
@@ -13,7 +13,7 @@ module List contains
   define transparent is-empty as value
     function xs of-type (List a) produce
       P.match-list xs
-        (lambda () true)
+        (lambda -> true)
         (lambda h -> lambda t -> false)
 
   define transparent length as value

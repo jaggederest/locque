@@ -17,8 +17,9 @@ data Expr
   = EVar Text
   | ELit Literal
   | EApp Expr [Expr]
-  | ELam Text (Maybe T.Type) Expr  -- Optional type annotation for parameter
-  | EAnnot Expr T.Type             -- Explicit type annotation (expr : Type)
+  | ELam Text (Maybe T.Type) Expr      -- Single parameter lambda
+  | ELamMulti [Text] (Maybe T.Type) Expr  -- Multi-parameter lambda (sugar for curried)
+  | EAnnot Expr T.Type                 -- Explicit type annotation (expr : Type)
   deriving (Show, Eq)
 
 -- Computations (effectful world)
@@ -42,6 +43,11 @@ data Import = Import
   , impAlias  :: Text
   } deriving (Show, Eq)
 
+data Open = Open
+  { openModule :: Text  -- Module alias to open from
+  , openNames  :: [Text]  -- Specific names to bring into scope
+  } deriving (Show, Eq)
+
 -- Module definition
 
 data Definition = Definition
@@ -57,6 +63,7 @@ data Definition = Definition
 data Module = Module
   { modName    :: Text
   , modImports :: [Import]
+  , modOpens   :: [Open]  -- Open statements (explicit unqualified names)
   , modDefs    :: [Definition]
   }
   deriving (Show, Eq)

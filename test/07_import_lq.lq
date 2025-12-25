@@ -1,10 +1,10 @@
 import TestImport as T
-import Assert as A
-import Prelude as P
+import assert as A
+import prelude as P
 
-module ImportTest contains
+module LImportTest contains
   define transparent main as computation
-    bind _ <- perform io (A.assert-eq-nat T.test-value 42) then
-    bind _ <- perform io (A.assert-eq-string T.test-string "hello from .lq") then
+    bind perform io (A.assert-eq-nat T.test-value 42) as _ then
+    bind perform io (A.assert-eq-string T.test-string "hello from .lq") as _ then
     return P.tt
 end
