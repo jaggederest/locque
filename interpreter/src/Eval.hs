@@ -499,7 +499,7 @@ isTruthy _ = False
 -- Build environment from module definitions atop an existing env (imports/prims)
 -- Uses lazy evaluation to tie-the-knot: all definitions capture the final environment
 bindModule :: Module -> Env -> Env
-bindModule (Module _ _ _ defs) base =
+bindModule (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
       addDef e (Definition _ name kind _mType body) =
         case (kind, body) of
@@ -509,7 +509,7 @@ bindModule (Module _ _ _ defs) base =
   in env
 
 runModuleMain :: FilePath -> Module -> IO Int
-runModuleMain projectRoot m@(Module _ _ _ _) = do
+runModuleMain projectRoot m@(Module _modName _ _ _) = do
   -- Reset assertion counter
   writeIORef assertionCounter 0
 
@@ -622,41 +622,29 @@ loadImport projectRoot (Import modName alias) = do
   -- Process opens to bring in unqualified names from open statements
   let envWithOpens = processOpens opens envImports
 
-  -- Build two environments using tie-the-knot:
-  -- 1. envInternal: has both qualified and unqualified names for module self-reference
-  -- 2. envExport: has only NEW qualified names to export (avoids conflicts)
-  let envInternal = foldl addInternalDef envWithOpens defs
-      envExport = foldl addExportDef envWithOpens defs
+  -- Bind the module to get all definitions
+  let envSelf = bindModule parsed envWithOpens
+      -- Add qualified names for each definition using the alias
+      defNames = map defName defs
+      envFinal = foldl (insertQualified alias envSelf) envWithOpens defNames
 
-      -- Add both qualified and unqualified names, capturing envInternal
-      addInternalDef e (Definition _ name kind _mType body) =
-        case (kind, body) of
-          (ValueDef, Left expr) ->
-            let qualName = aliasPref alias name
-            in Map.insert qualName (BValueExpr envInternal expr) $
-               Map.insert name (BValueExpr envInternal expr) e
-          (ComputationDef, Right comp) ->
-            let qualName = aliasPref alias name
-            in Map.insert qualName (BCompExpr envInternal comp) $
-               Map.insert name (BCompExpr envInternal comp) e
-          _ -> e
-
-      -- Add only qualified names for export (bindings still capture envInternal)
-      addExportDef e (Definition _ name kind _mType body) =
-        case (kind, body) of
-          (ValueDef, Left expr) ->
-            let qualName = aliasPref alias name
-            in Map.insert qualName (BValueExpr envInternal expr) e
-          (ComputationDef, Right comp) ->
-            let qualName = aliasPref alias name
-            in Map.insert qualName (BCompExpr envInternal comp) e
-          _ -> e
-
-  pure envExport
+  pure envFinal
   where
     tryLoadFile p = do
       c <- TIO.readFile p
       pure (p, c)
+
+    -- Insert qualified name for a definition (if it exists in envSelf)
+    insertQualified :: Text -> Env -> Env -> Text -> Env
+    insertQualified aliasPrefix envSelf env name =
+      case Map.lookup name envSelf of
+        Just binding ->
+          let qualifiedName = aliasPrefix <> "." <> name
+          in Map.insert qualifiedName binding env
+        Nothing -> env  -- Definition not in environment
+
+    defName :: Definition -> Text
+    defName (Definition _ name _ _ _) = name
 
 -- Process open statements to bring unqualified names into scope
 processOpens :: [Open] -> Env -> Env

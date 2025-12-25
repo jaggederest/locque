@@ -1,0 +1,10 @@
+# Test runner that imports helper
+
+import test::test_imported_self_ref as helper
+import prelude as P
+
+module test_runner contains
+  define transparent main as computation
+    bind helper.main as _ then
+    return P.tt
+end

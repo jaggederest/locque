@@ -23,7 +23,7 @@ runFile config file = do
       exitFailure
     Right m -> do
       -- Type check
-      tcResult <- TC.typeCheckModuleWithImports (projectRoot config) contents m
+      tcResult <- (TC.typeCheckModuleWithImports (projectRoot config) contents m `catch` handleTypeCheckError)
       case tcResult of
         Left tcErr -> do
           putStrLn $ "Type error: " ++ show tcErr
@@ -33,8 +33,22 @@ runFile config file = do
           _ <- (runModuleMain (projectRoot config) m `catch` handleRuntimeError)
           exitSuccess
 
+-- | Handle type checking errors (including import loading failures)
+handleTypeCheckError :: SomeException -> IO (Either TC.TypeError TC.TypeEnv)
+handleTypeCheckError e = do
+  putStrLn $ "Type check phase error: " ++ show e
+  putStrLn $ "  (This may be a module import/loading issue)"
+  exitFailure
+
 -- | Handle runtime errors
 handleRuntimeError :: SomeException -> IO Int
 handleRuntimeError e = do
-  putStrLn $ "Runtime error: " ++ show e
+  let errMsg = show e
+  -- Strip the "ghc-internal:GHC.Internal.Exception.ErrorCall:" prefix if present
+  let cleanMsg = case break (== '\n') errMsg of
+        (firstLine, rest) ->
+          if "ErrorCall:" `elem` words firstLine
+          then drop 1 rest  -- Skip the newline
+          else errMsg
+  putStrLn $ "Runtime error (evaluation phase): " ++ cleanMsg
   exitFailure

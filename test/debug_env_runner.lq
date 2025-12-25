@@ -1,0 +1,9 @@
+import test::debug_env as dbg
+import prelude as P
+import assert as A
+
+module runner contains
+  define transparent main as computation
+    bind perform io (A.assert-eq-nat (dbg.use-helper 42) 42) as _ then
+    return P.tt
+end

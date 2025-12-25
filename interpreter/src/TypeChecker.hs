@@ -465,9 +465,7 @@ loadTypeImport projectRoot (Import modName alias) = do
   parsed <- case takeExtension path of
     ".lq"  -> case parseMExprFile path contents of
       Left err -> error err
-      Right m@(Module _ _ opens _) -> do
-        let _ = if null opens then () else error $ "DEBUG after parse: found " <> show (length opens) <> " opens"
-        pure m
+      Right m -> pure m
     ".lqs" -> case parseModuleFile path contents of
       Left err -> error err
       Right m -> pure m
@@ -477,7 +475,6 @@ loadTypeImport projectRoot (Import modName alias) = do
   let Module name _ opens defs = parsed
   envImports <- loadTypeImports projectRoot parsed
   -- Process opens BEFORE type-checking so unqualified names are available
-  let _ = if null opens then () else error $ "DEBUG: Processing opens: " <> show (map (\(Open m ns) -> (m, ns)) opens)
   let envWithOpens = processTypeOpens opens envImports
   case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
