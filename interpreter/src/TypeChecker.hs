@@ -39,6 +39,10 @@ data TypeError
   | MissingMethod SrcLoc Text Text Text  -- class name, instance type, method name
   | ExtraMethod SrcLoc Text Text Text    -- class name, instance type, method name
   | MethodTypeMismatch SrcLoc Text Text Type Type  -- class, method, expected, actual
+  -- Constraint resolution errors
+  | NoMatchingInstance SrcLoc Text Type  -- class name, concrete type
+  | AmbiguousInstance SrcLoc Text Type   -- class name, type (multiple matches)
+  | UnresolvedConstraint SrcLoc Constraint  -- constraint could not be resolved
 
 -- | Pretty-print type errors
 instance Show TypeError where
@@ -112,6 +116,21 @@ instance Show TypeError where
               " has wrong type") Nothing [] note
     in T.unpack (formatError msg)
 
+  show (NoMatchingInstance loc className ty) =
+    let msg = ErrorMsg loc ("No instance of '" <> className <> "' for type " <> prettyType ty)
+              Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (AmbiguousInstance loc className ty) =
+    let msg = ErrorMsg loc ("Ambiguous instance of '" <> className <> "' for type " <> prettyType ty)
+              Nothing [Hint "Multiple instances match this type"] Nothing
+    in T.unpack (formatError msg)
+
+  show (UnresolvedConstraint loc constraint) =
+    let msg = ErrorMsg loc ("Unresolved constraint: " <> prettyConstraint constraint)
+              Nothing [Hint "The constraint has unbound type variables"] Nothing
+    in T.unpack (formatError msg)
+
 -- Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where
   VarNotInScope _ a _ == VarNotInScope _ b _ = a == b
@@ -128,6 +147,9 @@ instance Eq TypeError where
   ExtraMethod _ a1 a2 a3 == ExtraMethod _ b1 b2 b3 = a1 == b1 && a2 == b2 && a3 == b3
   MethodTypeMismatch _ a1 a2 a3 a4 == MethodTypeMismatch _ b1 b2 b3 b4 =
     a1 == b1 && a2 == b2 && a3 == b3 && a4 == b4
+  NoMatchingInstance _ a1 a2 == NoMatchingInstance _ b1 b2 = a1 == b1 && a2 == b2
+  AmbiguousInstance _ a1 a2 == AmbiguousInstance _ b1 b2 = a1 == b1 && a2 == b2
+  UnresolvedConstraint _ a == UnresolvedConstraint _ b = a == b
   _ == _ = False
 
 -- | Fresh variable counter for generating unique type variables
@@ -226,6 +248,8 @@ typeCheckDefs env (def:defs) = do
 -- | Type check a single definition and add to environment
 typeCheckDef :: TypeEnv -> Definition -> TypeCheckM TypeEnv
 typeCheckDef env (Definition _ name kind mType body) = do
+  -- Clear constraints at start of each definition
+  clearConstraints
   scheme <- case mType of
     Just s  -> do
       -- Check that body matches declared type
@@ -234,6 +258,12 @@ typeCheckDef env (Definition _ name kind mType body) = do
     Nothing ->
       -- Infer type from body
       inferDefinition env name kind body
+  -- Resolve collected constraints before completing this definition
+  -- (Skip for type family, typeclass, and instance definitions - they don't generate constraints)
+  case kind of
+    ValueDef -> resolveAllConstraints
+    ComputationDef -> resolveAllConstraints
+    _ -> pure ()
   -- Add to environment
   pure (Map.insert name scheme env)
 
@@ -335,8 +365,19 @@ checkDefinition _ kind _ _ = liftTC (Left (KindMismatch noLoc kind))
 inferExpr :: TypeEnv -> Expr -> TypeCheckM Type
 inferExpr env (EVar v) =
   case Map.lookup v env of
-    Nothing -> liftTC (Left (VarNotInScope noLoc v env))
     Just (TypeScheme vars ty) -> instantiate vars ty
+    Nothing -> do
+      -- Variable not in scope - check if it's a typeclass method
+      classEnv <- gets tcClassEnv
+      case findMethodInClasses v classEnv of
+        Just (className, methodType, typeParam) -> do
+          -- Generate fresh type variable for the class parameter
+          freshTyVar <- freshVar typeParam
+          -- Add constraint: ClassName freshTyVar
+          addConstraint (Constraint className (TVar freshTyVar))
+          -- Substitute type param with fresh var in method type
+          pure (subst typeParam (TVar freshTyVar) methodType)
+        Nothing -> liftTC (Left (VarNotInScope noLoc v env))
 
 inferExpr _ (ELit lit) = pure $ case lit of
   LNat _    -> TNat
@@ -697,10 +738,13 @@ unifyNormalized t1 t2 = case (t1, t2) of
       then unify inner1 inner2
       else liftTC (Left (TypeMismatch noLoc t1 t2))
 
-  -- A constrained type can unify with unconstrained (simplified for Phase 2)
-  -- This strips constraints - Phase 3 will add proper constraint propagation
-  (TConstrained _ inner, t) -> unify inner t
-  (t, TConstrained _ inner) -> unify t inner
+  -- Collect constraints during unification instead of stripping them
+  (TConstrained cs inner, t) -> do
+    mapM_ addConstraint cs  -- Collect constraints
+    unify inner t
+  (t, TConstrained cs inner) -> do
+    mapM_ addConstraint cs  -- Collect constraints
+    unify t inner
 
   _ -> liftTC (Left (TypeMismatch noLoc t1 t2))
 
@@ -709,12 +753,83 @@ constraintsEqual :: [Constraint] -> [Constraint] -> Bool
 constraintsEqual cs1 cs2 =
   length cs1 == length cs2 && all (`elem` cs2) cs1
 
+-- ============================================================================
+-- Instance Resolution
+-- ============================================================================
+
+-- | Find instance that matches a constraint
+findMatchingInstance :: Constraint -> TypeCheckM (Maybe InstanceBody)
+findMatchingInstance (Constraint className ty) = do
+  instEnv <- gets tcInstEnv
+  case Map.lookup className instEnv of
+    Nothing -> pure Nothing
+    Just instances -> findMatch ty instances
+
+-- | Try to match concrete type against instance types
+findMatch :: Type -> [InstanceBody] -> TypeCheckM (Maybe InstanceBody)
+findMatch _ty [] = pure Nothing
+findMatch ty (inst:rest) = do
+  -- Try to match ty with instType inst using type pattern matching
+  case matchTypePattern (instType inst) ty of
+    Just _ -> pure (Just inst)  -- Found a matching instance
+    Nothing -> findMatch ty rest
+
+-- | Check if a constraint has concrete (ground) type
+isConcreteConstraint :: Constraint -> Bool
+isConcreteConstraint (Constraint _ ty) = Set.null (freeVars ty)
+
+-- | Resolve a single constraint by finding matching instance
+resolveConstraint :: Constraint -> TypeCheckM ()
+resolveConstraint (Constraint className ty) = do
+  -- Apply current substitutions to get concrete type
+  currentSubst <- getCurrentSubst
+  let concreteType = applySubst currentSubst ty
+
+  -- Try to find matching instance
+  result <- findMatchingInstance (Constraint className concreteType)
+  case result of
+    Nothing -> liftTC (Left (NoMatchingInstance noLoc className concreteType))
+    Just _inst -> pure ()  -- Constraint satisfied
+
+-- | Resolve all collected constraints
+resolveAllConstraints :: TypeCheckM ()
+resolveAllConstraints = do
+  constraints <- getConstraints
+  -- Apply current substitutions to all constraints first
+  currentSubst <- getCurrentSubst
+  let groundedConstraints = map (applySubstConstraint currentSubst) constraints
+  -- Filter to constraints that are now concrete (no free vars in type)
+  let (concrete, deferred) = partition isConcreteConstraint groundedConstraints
+  -- Resolve concrete constraints
+  mapM_ resolveConstraint concrete
+  -- For now, error on deferred constraints (future: keep as obligations)
+  case deferred of
+    [] -> pure ()
+    (c:_) -> liftTC (Left (UnresolvedConstraint noLoc c))
+  where
+    partition p xs = (filter p xs, filter (not . p) xs)
+
+-- | Find a method in any registered type class
+-- Returns (className, methodType, typeParam) if found
+findMethodInClasses :: Text -> TypeClassEnv -> Maybe (Text, Type, Text)
+findMethodInClasses methodName classEnv =
+  foldr checkClass Nothing (Map.toList classEnv)
+  where
+    checkClass (className, TypeClassBody typeParam methods) acc =
+      case lookup methodName methods of
+        Just methodType -> Just (className, methodType, typeParam)
+        Nothing -> acc
+
 -- | Bind a type variable to a type (with occurs check)
 bindVar :: Text -> Type -> TypeCheckM Subst
 bindVar x t
   | TVar x == t = pure Map.empty
   | x `Set.member` freeVars t = liftTC (Left (OccursCheck noLoc x t))
-  | otherwise = pure (Map.singleton x t)
+  | otherwise = do
+      let s = Map.singleton x t
+      -- Update global substitution state
+      updateSubst s
+      pure s
 
 --------------------------------------------------------------------------------
 -- Import loading for type checking

@@ -20,6 +20,8 @@ data Expr
   | ELam Text (Maybe T.Type) Expr      -- Single parameter lambda
   | ELamMulti [Text] (Maybe T.Type) Expr  -- Multi-parameter lambda (sugar for curried)
   | EAnnot Expr T.Type                 -- Explicit type annotation (expr : Type)
+  | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]
+  | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
   deriving (Show, Eq)
 
 -- Computations (effectful world)

@@ -727,6 +727,10 @@ renderExpr expr = case expr of
   ELamMulti ps _mType b -> "(lambda (" <> DT.unwords ps <> ") " <> renderExpr b <> ")"
   EAnnot e _ty    -> renderExpr e  -- Ignore type annotations in rendering
   EApp f args     -> "(" <> DT.unwords (renderExpr f : map renderExpr args) <> ")"
+  EDict className impls ->
+    "(dict " <> className <> " " <>
+    DT.intercalate " " [n <> " " <> renderExpr e | (n, e) <- impls] <> ")"
+  EDictAccess d method -> "(dict-access " <> renderExpr d <> " " <> method <> ")"
 
 renderComp :: Comp -> DT.Text
 renderComp comp = case comp of
@@ -811,6 +815,10 @@ renderMExpr expr = render expr False
           Nothing ->
             let parts = renderAtom f : map renderAtom args
             in "(" <> DT.unwords parts <> ")"
+      EDict className impls ->
+        "(dict " <> className <> " " <>
+        DT.intercalate " " [n <> " " <> render impl False | (n, impl) <- impls] <> ")"
+      EDictAccess d method -> "(dict-access " <> render d False <> " " <> method <> ")"
     renderAtom e = render e True
     wrapIf True t  = "(" <> t <> ")"
     wrapIf False t = t

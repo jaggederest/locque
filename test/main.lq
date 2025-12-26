@@ -16,6 +16,8 @@ import test::typecheck::primitives as t_primitives
 import test::typecheck::match as t_match
 import test::typecheck::fold_inline as t_fold_inline
 import test::typecheck::opaque_import as t_opaque_import
+import test::typecheck::typeclass_parse as t_typeclass_parse
+import test::typecheck::typeclass_resolution as t_typeclass_resolution
 
 import prelude as P
 
@@ -38,6 +40,8 @@ module test_main contains
     bind t_match.main as _ then
     bind t_fold_inline.main as _ then
     bind t_opaque_import.main as _ then
+    bind t_typeclass_parse.main as _ then
+    bind t_typeclass_resolution.main as _ then
 
     return P.tt
 end

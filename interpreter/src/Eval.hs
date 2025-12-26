@@ -19,6 +19,7 @@ import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
 import           Utils (modNameToPath, qualifyName)
+import           DictPass (transformModuleWithEnvs)
 
 -- Global assertion counter (reset at the start of each test run)
 {-# NOINLINE assertionCounter #-}
@@ -36,6 +37,7 @@ data Value
   | VPair Value Value
   | VClosure Env Text Expr
   | VPrim ([Value] -> IO Value)
+  | VDict Text (Map.Map Text Value)  -- className, method implementations
 
 instance Show Value where
   show (VNat n)    = show n
@@ -47,6 +49,7 @@ instance Show Value where
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
+  show (VDict className _) = "<dict:" ++ T.unpack className ++ ">"
 
 data Binding
   = BVal Value
@@ -519,6 +522,20 @@ evalExpr env expr = case expr of
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
     apply vf vs
+  EDict className impls -> do
+    -- Evaluate each method implementation
+    implVals <- mapM (\(name, implExpr) -> do
+      val <- evalExpr env implExpr
+      pure (name, val)) impls
+    pure (VDict className (Map.fromList implVals))
+  EDictAccess dictExpr methodName -> do
+    dictVal <- evalExpr env dictExpr
+    case dictVal of
+      VDict _ methods ->
+        case Map.lookup methodName methods of
+          Just val -> pure val
+          Nothing -> error $ "Method not found in dictionary: " ++ T.unpack methodName
+      _ -> error "Expected dictionary value"
 
 -- | Create nested closures from multi-parameter lambda
 makeNestedClosures :: Env -> [Text] -> Expr -> Value
@@ -593,13 +610,15 @@ loadImport projectRoot (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  let Module modName _ opens defs = parsed
-  envImports <- loadImports projectRoot parsed
+  -- Apply dictionary pass to transform typeclass method calls
+  let transformed = transformModuleWithEnvs parsed
+  let Module _modName _ opens defs = transformed
+  envImports <- loadImports projectRoot transformed
   -- Process opens to bring in unqualified names from open statements
   let envWithOpens = processOpens opens envImports
 
   -- Bind the module to get all definitions
-  let envSelf = bindModule parsed envWithOpens
+  let envSelf = bindModule transformed envWithOpens
       -- Add qualified names for each definition using the alias
       defNames = map defName defs
       envFinal = foldl (insertQualified alias envSelf) envWithOpens defNames

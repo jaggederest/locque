@@ -10,6 +10,7 @@ import Control.Exception (catch, SomeException)
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
 import Eval (runModuleMain)
+import DictPass (transformModuleWithEnvs)
 import SmythConfig (SmythConfig(..))
 
 -- | Run a single file with type checking
@@ -29,8 +30,10 @@ runFile config file = do
           putStrLn $ "Type error: " ++ show tcErr
           exitFailure
         Right _ -> do
+          -- Transform: dictionary passing for typeclasses
+          let m' = transformModuleWithEnvs m
           -- Run
-          _ <- (runModuleMain (projectRoot config) m `catch` handleRuntimeError)
+          _ <- (runModuleMain (projectRoot config) m' `catch` handleRuntimeError)
           exitSuccess
 
 -- | Handle type checking errors (including import loading failures)

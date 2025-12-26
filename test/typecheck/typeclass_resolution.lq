@@ -1,0 +1,31 @@
+# Test constraint resolution
+import prelude as P
+import assert as A
+
+module typeclass_resolution_test contains
+  # Define a simple typeclass
+  define transparent Show as typeclass a where
+    show of-type (-> a String)
+
+  # Define instances
+  define transparent Show-Nat as instance Show Nat where
+    show produce lambda x -> "nat"
+
+  define transparent Show-Bool as instance Show Bool where
+    show produce lambda x -> "bool"
+
+  # Test: using show with concrete Nat type should resolve
+  # Applying show directly to a Nat literal
+  define transparent test-show-nat as value
+    show 42
+
+  # Test: using show with concrete Bool type should resolve
+  define transparent test-show-bool as value
+    show true
+
+  define transparent main as computation
+    # Verify runtime behavior - method should be inlined and executed
+    bind A.assert-eq-string test-show-nat "nat" as _ then
+    bind A.assert-eq-string test-show-bool "bool" as _ then
+    return P.tt
+end

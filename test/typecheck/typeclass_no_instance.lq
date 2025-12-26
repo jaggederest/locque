@@ -1,0 +1,18 @@
+# Test error when no instance exists
+import prelude as P
+
+module typeclass_no_instance_test contains
+  define transparent Show as typeclass a where
+    show of-type (-> a String)
+
+  # Only instance for Nat, NOT for String
+  define transparent Show-Nat as instance Show Nat where
+    show produce lambda x -> "nat"
+
+  # This should fail - no instance of Show for String
+  define transparent bad as value
+    show "hello"
+
+  define transparent main as computation
+    return P.tt
+end
