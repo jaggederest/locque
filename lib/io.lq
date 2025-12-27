@@ -1,5 +1,6 @@
 module io contains
-  define opaque print as value print-prim
-  define opaque read-file as value read-file-prim
-  define opaque write-file as value write-file-prim
+  define opaque print as print-prim
+  define opaque read-file as read-file-prim
+  define opaque write-file as write-file-prim
+  define opaque shell as shell-prim
 end

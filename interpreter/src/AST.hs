@@ -1,7 +1,6 @@
 module AST where
 
 import Data.Text (Text)
-import qualified Type as T
 
 -- Literals in the language
 
@@ -9,6 +8,34 @@ data Literal
   = LNatural Integer
   | LString Text
   | LBoolean Bool
+  | LUnit
+  deriving (Show, Eq)
+
+data TypeConst
+  = TCNatural
+  | TCString
+  | TCBoolean
+  | TCUnit
+  | TCList
+  | TCPair
+  deriving (Show, Eq)
+
+data Param = Param
+  { paramName :: Text
+  , paramType :: Expr
+  } deriving (Show, Eq)
+
+data FunctionBody
+  = FunctionValue Expr
+  | FunctionCompute Comp
+  deriving (Show, Eq)
+
+data MatchCase
+  = MatchEmpty Expr
+  | MatchCons Text Expr Text Expr Expr
+  | MatchFalse Expr
+  | MatchTrue Expr
+  | MatchPair Text Expr Text Expr Expr
   deriving (Show, Eq)
 
 -- Expressions (value world)
@@ -16,11 +43,18 @@ data Literal
 data Expr
   = EVar Text
   | ELit Literal
+  | ETypeConst TypeConst
+  | ETypeUniverse Int
+  | EForAll Text Expr Expr
+  | EThereExists Text Expr Expr
+  | ECompType Expr
   | EApp Expr [Expr]
-  | ELam Text (Maybe T.Type) Expr      -- Single parameter lambda
-  | ELamMulti [Text] (Maybe T.Type) Expr  -- Multi-parameter lambda (sugar for curried)
-  | EAnnot Expr T.Type                 -- Explicit type annotation (expr : Type)
-  | ETyped Expr T.Type                 -- Inferred type wrapper (added by type checker)
+  | EFunction [Param] Expr FunctionBody
+  | ELet Text Expr Expr
+  | ECompute Comp
+  | EMatch Expr Expr [MatchCase]
+  | EAnnot Expr Expr                 -- Explicit type annotation (of-type)
+  | ETyped Expr Expr                 -- Inferred type wrapper (added by type checker)
   | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]
   | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
   deriving (Show, Eq)
@@ -31,18 +65,7 @@ data Comp
   = CReturn Expr
   | CBind Text Comp Comp
   | CPerform Expr
-  | CVar Text
   | CSeq Comp Comp -- sequencing where the result of the first is ignored
-  deriving (Show, Eq)
-
--- Definition kinds and transparency
-
-data DefKind
-  = ValueDef
-  | ComputationDef
-  | FamilyDef         -- Type family definition
-  | TypeClassDef      -- Type class definition
-  | InstanceDef       -- Type class instance
   deriving (Show, Eq)
 
 data Transparency = Transparent | Opaque deriving (Show, Eq)
@@ -57,48 +80,12 @@ data Open = Open
   , openNames  :: [Text]  -- Specific names to bring into scope
   } deriving (Show, Eq)
 
--- Type family case: pattern types -> result type
-data TypeFamilyCase = TypeFamilyCase
-  { tfcPatterns :: [T.Type]  -- Pattern types to match (e.g., [List a, b])
-  , tfcResult   :: T.Type    -- Result type (e.g., () -> b)
-  } deriving (Show, Eq)
-
--- Type family body
-data TypeFamilyBody = TypeFamilyBody
-  { tfbKind  :: T.Type       -- Kind signature (e.g., Type -> Type -> Type)
-  , tfbCases :: [TypeFamilyCase]
-  } deriving (Show, Eq)
-
--- Type class body
-data TypeClassBody = TypeClassBody
-  { tcbParam   :: Text              -- Type parameter name (e.g., "a")
-  , tcbMethods :: [(Text, T.Type)]  -- Method name -> type signature
-  } deriving (Show, Eq)
-
--- Instance body
-data InstanceBody = InstanceBody
-  { instClassName :: Text      -- Type class being instantiated
-  , instType      :: T.Type    -- Type being instantiated (e.g., List a)
-  , instImpls     :: [(Text, Expr)]  -- Method name -> implementation
-  } deriving (Show, Eq)
-
--- Definition body (sum type for different definition kinds)
-data DefBody
-  = ValueBody Expr
-  | ComputationBody Comp
-  | FamilyBody TypeFamilyBody
-  | ClassBody TypeClassBody
-  | InstBody InstanceBody
-  deriving (Show, Eq)
-
 -- Module definition
 
 data Definition = Definition
   { defTransparency :: Transparency
   , defName         :: Text
-  , defKind         :: DefKind
-  , defType         :: Maybe T.TypeScheme  -- Optional type annotation
-  , defBody         :: DefBody
+  , defBody         :: Expr
   }
   deriving (Show, Eq)
 

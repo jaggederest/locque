@@ -1,43 +1,66 @@
-# Migrated from ../00_basics.lq
+# Minimal prelude tests using the current surface syntax
 
 import prelude as P
 import assert as A
 import io as IO
 import string as S
-import prelude as P
 
-module LBasics contains
+module test::prelude::basics contains
+  define transparent add2 as
+    function x Natural returns Natural value
+      P::add-nat x 2
+    end
 
-  define transparent check-add as computation
-    bind perform io (A.assert-eq-nat (P.add-nat 2 3) 5) as _ then
-    return P.tt
+  define transparent hello as compute
+    bind ignored from perform (IO::print "Hello, locque!") then
+      return tt
+    end
+  end
 
-  define transparent check-string as computation
-    bind perform io (A.assert-eq-string "hi" "hi") as _ then
-    return P.tt
+  define transparent check-arithmetic as compute
+    bind ignored from perform (A::assert-eq-nat (add2 3) 5) then
+      return tt
+    end
+  end
 
-  define transparent check-output as computation
-    bind perform io (IO.print "Hello, test!") as _ then
-    return P.tt
+  define transparent check-string as compute
+    bind ignored from perform (A::assert-eq-string (S::join-with "-" (S::split-on "-" "a-b")) "a-b") then
+      return tt
+    end
+  end
 
-  define transparent check-string-length as computation
-    bind perform io (A.assert-eq-nat (S.length "abcd") 4) as _ then
-    return P.tt
+  define transparent check-match as compute
+    bind ignored from perform (A::assert-eq-nat
+      (match true of-type Boolean
+        false-case as 0
+        true-case as 1
+      end)
+      1) then
+      return tt
+    end
+  end
 
-  define transparent check-string-split-join as computation
-    bind perform io (A.assert-eq-string (S.join-with "-" (S.split-on "-" "a-b-c")) "a-b-c") as _ then
-    return P.tt
+  define transparent check-let as compute
+    bind ignored from perform (A::assert-eq-nat
+      (let value x be 4 in
+        P::add-nat x 1
+      end)
+      5) then
+      return tt
+    end
+  end
 
-  define transparent check-split-spaces as computation
-    bind perform io (A.assert-eq-string (S.join-with "-" (S.split-spaces " a  b c ")) "a-b-c") as _ then
-    return P.tt
-
-  define transparent main as computation
-    bind check-add as _ then
-    bind check-string as _ then
-    bind check-string-length as _ then
-    bind check-string-split-join as _ then
-    bind check-split-spaces as _ then
-    bind check-output as _ then
-    return P.tt
+  define transparent main as compute
+    bind ignored from perform hello then
+      bind ignored from perform check-arithmetic then
+        bind ignored from perform check-string then
+          bind ignored from perform check-match then
+            bind ignored from perform check-let then
+              return tt
+            end
+          end
+        end
+      end
+    end
+  end
 end

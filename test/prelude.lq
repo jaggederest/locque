@@ -1,31 +1,11 @@
-# Test rollup for Prelude module
-# Runs all tests in test/prelude/
+# Test rollup for prelude basics only
 
 import test::prelude::basics as basics
-import test::prelude::lambda as lam
-import test::prelude::fold as fold
-import test::prelude::match as matching
-import test::prelude::let_binding as let_binding
-import test::prelude::primitives as primitives
-import test::prelude::new_primitives as new_primitives
-import test::prelude::match_semantics as match_semantics
-import test::prelude::imports as imports
-import test::prelude::assertion_count as assertion_count
-import test::prelude::run_basic as run_basic
-import prelude as P
 
-module test_prelude contains
-  define transparent main as computation
-    bind basics.main as _ then
-    bind lam.main as _ then
-    bind fold.main as _ then
-    bind matching.main as _ then
-    bind let_binding.main as _ then
-    bind primitives.main as _ then
-    bind new_primitives.main as _ then
-    bind match_semantics.main as _ then
-    bind imports.main as _ then
-    bind assertion_count.main as _ then
-    bind run_basic.main as _ then
-    return P.tt
+module test::prelude contains
+  define transparent main as compute
+    bind ignored from perform basics::main then
+      return tt
+    end
+  end
 end

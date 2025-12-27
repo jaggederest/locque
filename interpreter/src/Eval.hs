@@ -20,6 +20,7 @@ import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
 import           Utils (modNameToPath, qualifyName)
 import           DictPass (transformModuleWithEnvs)
+import qualified Type as Type
 import qualified TypeChecker as TC
 
 -- Global assertion counter (reset at the start of each test run)
@@ -36,8 +37,15 @@ data Value
   | VUnit
   | VBoolean Bool
   | VPair Value Value
-  | VClosure Env Text Expr
+  | VTypeConst TypeConst
+  | VTypeUniverse Int
+  | VTypeForAll Text Expr Expr
+  | VTypeThereExists Text Expr Expr
+  | VTypeComp Expr
+  | VTypeApp Value [Value]
+  | VClosure Env [Text] FunctionBody
   | VPrim ([Value] -> IO Value)
+  | VComp (IO Value)
   | VDict Text (Map.Map Text Value)  -- className, method implementations
 
 instance Show Value where
@@ -48,14 +56,20 @@ instance Show Value where
   show VUnit       = "tt"
   show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
+  show (VTypeConst tc) = T.unpack (Type.typeConstName tc)
+  show (VTypeUniverse n) = "Type" ++ show n
+  show (VTypeForAll _ _ _) = "<for-all>"
+  show (VTypeThereExists _ _ _) = "<there-exists>"
+  show (VTypeComp _) = "<computation-type>"
+  show (VTypeApp _ _) = "<type-app>"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
+  show (VComp _)   = "<computation>"
   show (VDict className _) = "<dict:" ++ T.unpack className ++ ">"
 
 data Binding
   = BVal Value
   | BValueExpr Env Expr  -- Capture environment for lazy evaluation (module-local scope)
-  | BCompExpr Env Comp   -- Capture environment for lazy evaluation (module-local scope)
 
 type Env = Map.Map Text Binding
 
@@ -94,7 +108,6 @@ primEnv = Map.fromList
   , (T.pack "match-list-prim", BVal (VPrim primMatchList))
   , (T.pack "match-bool-prim", BVal (VPrim primMatchBool))
   , (T.pack "match-pair-prim", BVal (VPrim primMatchPair))
-  , (T.pack "match-prim", BVal (VPrim primMatch))
   , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
   , (T.pack "pair-prim", BVal (VPrim primPair))
   , (T.pack "fst-prim", BVal (VPrim primFst))
@@ -180,13 +193,9 @@ primTrim [VString s] = pure $ VString (T.strip s)
 primTrim _ = error "trim-prim expects 1 string"
 
 primFilter :: [Value] -> IO Value
-primFilter [VPrim f, VList xs] = do
-  kept <- filterM (\v -> isTruthy <$> f [v]) xs
-  pure $ VList kept
-primFilter [VClosure env param body, VList xs] = do
+primFilter [fn, VList xs] = do
   kept <- filterM (\v -> do
-                      let env' = Map.insert param (BVal v) env
-                      res <- evalExpr env' body
+                      res <- apply fn [v]
                       pure (isTruthy res)) xs
   pure $ VList kept
 primFilter _ = error "filter-prim expects (predicate, list)"
@@ -196,16 +205,6 @@ primFold [fn, z, VList xs] = foldM step z xs
   where
     step acc v = apply fn [acc, v]
 primFold _ = error "fold-prim expects (fn, init, list)"
-
-primMatch :: [Value] -> IO Value
-primMatch [v, c1, c2] = case v of
-  VList []      -> apply c1 [VUnit]
-  VList (h:t)   -> apply c2 [h, VList t]
-  VBoolean False   -> apply c1 [VUnit]
-  VBoolean True    -> apply c2 [VUnit]
-  VPair a b     -> apply c2 [a, b]
-  _             -> error "match-prim unsupported value"
-primMatch _ = error "match-prim expects (value, case1, case2)"
 
 primMatchList :: [Value] -> IO Value
 primMatchList [VList [], c1, _c2] = apply c1 [VUnit]
@@ -261,26 +260,27 @@ primLengthString _ = error "length-string-prim expects 1 arg"
 
 primPrint :: [Value] -> IO Value
 primPrint [v] = do
-  case v of
-    VString s -> putStrLn (T.unpack s)
-    other     -> putStrLn (show other)
-  pure VUnit
+  let action = case v of
+        VString s -> TIO.putStrLn s
+        other     -> TIO.putStrLn (T.pack (show other))
+  pure (VComp (action >> pure VUnit))
 primPrint _ = error "print-prim expects 1 arg"
 
 primReadFile :: [Value] -> IO Value
-primReadFile [VString path] = VString <$> TIO.readFile (T.unpack path)
+primReadFile [VString path] =
+  pure (VComp (VString <$> TIO.readFile (T.unpack path)))
 primReadFile _ = error "read-file-prim expects 1 string arg"
 
 primWriteFile :: [Value] -> IO Value
 primWriteFile [VString path, VString contents] = do
-  TIO.writeFile (T.unpack path) contents
-  pure VUnit
+  pure (VComp (TIO.writeFile (T.unpack path) contents >> pure VUnit))
 primWriteFile _ = error "write-file-prim expects (path, contents)"
 
 primShell :: [Value] -> IO Value
 primShell [VString cmd] = do
-  (_exitCode, stdout, stderr) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
-  pure $ VString (T.pack (stdout ++ stderr))
+  pure (VComp (do
+    (_exitCode, stdout, stderr) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
+    pure $ VString (T.pack (stdout ++ stderr))))
 primShell _ = error "shell-prim expects 1 string arg (command)"
 
 primAssertEqNat :: [Value] -> IO Value
@@ -288,10 +288,8 @@ primAssertEqNat [a,b] = do
   a' <- expectNat a
   b' <- expectNat b
   if a' == b'
-    then do
-      modifyIORef' assertionCounter (+1)
-      pure VUnit
-    else error $ "assert-eq-nat failed: " ++ show a' ++ " /= " ++ show b'
+    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
+    else pure (VComp (error $ "assert-eq-nat failed: " ++ show a' ++ " /= " ++ show b'))
 primAssertEqNat _ = error "assert-eq-nat expects 2 args"
 
 primAssertEqString :: [Value] -> IO Value
@@ -299,10 +297,8 @@ primAssertEqString [a,b] = do
   a' <- expectString a
   b' <- expectString b
   if a' == b'
-    then do
-      modifyIORef' assertionCounter (+1)
-      pure VUnit
-    else error $ "assert-eq-string failed: " ++ show a' ++ " /= " ++ show b'
+    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
+    else pure (VComp (error $ "assert-eq-string failed: " ++ show a' ++ " /= " ++ show b'))
 primAssertEqString _ = error "assert-eq-string expects 2 args"
 
 primCons :: [Value] -> IO Value
@@ -463,10 +459,8 @@ primNatToString _ = error "nat-to-string-prim expects 1 Natural arg"
 primAssertEqBool :: [Value] -> IO Value
 primAssertEqBool [VBoolean a, VBoolean b] = do
   if a == b
-    then do
-      modifyIORef' assertionCounter (+1)
-      pure VUnit
-    else error $ "assert-eq-bool failed: " ++ show a ++ " /= " ++ show b
+    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
+    else pure (VComp (error $ "assert-eq-bool failed: " ++ show a ++ " /= " ++ show b))
 primAssertEqBool _ = error "assert-eq-bool-prim expects 2 Boolean args"
 
 expectNat :: Value -> IO Integer
@@ -497,12 +491,8 @@ isTruthy _ = False
 bindModule :: Module -> Env -> Env
 bindModule (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
-      addDef e (Definition _ name kind _mType body) =
-        case (kind, body) of
-          (ValueDef, ValueBody expr)        -> Map.insert name (BValueExpr env expr) e
-          (ComputationDef, ComputationBody comp) -> Map.insert name (BCompExpr env comp) e
-          -- Type families, type classes, and instances are handled at type-check time
-          _                                 -> e
+      addDef e (Definition _ name body) =
+        Map.insert name (BValueExpr env body) e
   in env
 
 runModuleMain :: FilePath -> Module -> IO Int
@@ -513,10 +503,13 @@ runModuleMain projectRoot m@(Module _modName _ _ _) = do
   envImports <- loadImports projectRoot m
   let env = bindModule m envImports
   case Map.lookup (T.pack "main") env of
-    Just (BCompExpr _localEnv c)    -> do _ <- runComp env c; readIORef assertionCounter
-    Just (BVal (VPrim f)) -> do _ <- f []; readIORef assertionCounter
-    Just (BValueExpr _localEnv e)   -> do _ <- evalExpr env e; readIORef assertionCounter
-    _                     -> error "No main computation found"
+    Just b -> do
+      val <- resolveBinding env b
+      case val of
+        VComp action -> do _ <- action; readIORef assertionCounter
+        VPrim f -> do _ <- f []; readIORef assertionCounter
+        _ -> error "main must evaluate to a computation value"
+    _ -> error "No main computation found"
 
 evalExpr :: Env -> Expr -> IO Value
 evalExpr env expr = case expr of
@@ -533,10 +526,22 @@ evalExpr env expr = case expr of
     LNatural n    -> VNatural n
     LString s -> VString s
     LBoolean b   -> VBoolean b
-  ELam v _mType body -> pure $ VClosure env v body  -- Type annotation ignored in evaluation
-  ELamMulti params _mType body -> pure $ makeNestedClosures env params body
-  EAnnot expr _ty -> evalExpr env expr  -- Type annotation ignored in evaluation
-  ETyped expr _ty -> evalExpr env expr  -- Inferred type ignored in evaluation
+    LUnit     -> VUnit
+  ETypeConst tc -> pure (VTypeConst tc)
+  ETypeUniverse n -> pure (VTypeUniverse n)
+  EForAll v dom cod -> pure (VTypeForAll v dom cod)
+  EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
+  ECompType t -> pure (VTypeComp t)
+  EFunction params _retTy body ->
+    pure $ VClosure env (map paramName params) body
+  ELet name val body -> do
+    val' <- evalExpr env val
+    let env' = Map.insert name (BVal val') env
+    evalExpr env' body
+  ECompute comp -> pure $ VComp (runComp env comp)
+  EMatch scrut _scrutTy cases -> evalMatch env scrut cases
+  EAnnot annExpr _ty -> evalExpr env annExpr  -- Type annotation ignored in evaluation
+  ETyped typedExpr _ty -> evalExpr env typedExpr  -- Inferred type ignored in evaluation
   EApp f args -> do
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
@@ -556,26 +561,66 @@ evalExpr env expr = case expr of
           Nothing -> error $ "Method not found in dictionary: " ++ T.unpack methodName
       _ -> error "Expected dictionary value"
 
--- | Create nested closures from multi-parameter lambda
-makeNestedClosures :: Env -> [Text] -> Expr -> Value
-makeNestedClosures env [] body = error "makeNestedClosures called with empty parameter list"
-makeNestedClosures env [p] body = VClosure env p body
-makeNestedClosures env (p:ps) body = VClosure env p (ELamMulti ps Nothing body)
-
 resolveBinding :: Env -> Binding -> IO Value
 resolveBinding _outerEnv b = case b of
   BVal v               -> pure v
   BValueExpr env e     -> evalExpr env e  -- Use captured environment
-  BCompExpr env c      -> runComp env c   -- Use captured environment
 
 apply :: Value -> [Value] -> IO Value
 apply v [] = pure v
 apply (VPrim f) args = f args
-apply (VClosure cenv param body) (arg:rest) = do
-  let env' = Map.insert param (BVal arg) cenv
-  val <- evalExpr env' body
-  if null rest then pure val else apply val rest
+apply (VTypeConst tc) args = pure (VTypeApp (VTypeConst tc) args)
+apply (VTypeApp f existing) args = pure (VTypeApp f (existing ++ args))
+apply (VClosure cenv params body) args = do
+  let (used, remaining) = splitAt (length params) args
+  if length used < length params
+    then do
+      let env' = bindParams cenv (zip params used)
+          leftoverParams = drop (length used) params
+      pure (VClosure env' leftoverParams body)
+    else do
+      let env' = bindParams cenv (zip params used)
+      val <- evalFunctionBody env' body
+      if null remaining then pure val else apply val remaining
 apply v _            = error $ "Cannot apply non-function value: " ++ show v
+
+bindParams :: Env -> [(Text, Value)] -> Env
+bindParams = foldl (\e (name, val) -> Map.insert name (BVal val) e)
+
+evalFunctionBody :: Env -> FunctionBody -> IO Value
+evalFunctionBody env body = case body of
+  FunctionValue expr -> evalExpr env expr
+  FunctionCompute comp -> pure (VComp (runComp env comp))
+
+evalMatch :: Env -> Expr -> [MatchCase] -> IO Value
+evalMatch env scrut cases = do
+  scrutVal <- evalExpr env scrut
+  case scrutVal of
+    VList [] ->
+      case [body | MatchEmpty body <- cases] of
+        (body:_) -> evalExpr env body
+        [] -> error "match: missing empty-case"
+    VList (h:t) ->
+      case [(hName, tName, body) | MatchCons hName _ tName _ body <- cases] of
+        ((hName, tName, body):_) -> do
+          let env' = Map.insert tName (BVal (VList t)) (Map.insert hName (BVal h) env)
+          evalExpr env' body
+        [] -> error "match: missing cons-case"
+    VBoolean False ->
+      case [body | MatchFalse body <- cases] of
+        (body:_) -> evalExpr env body
+        [] -> error "match: missing false-case"
+    VBoolean True ->
+      case [body | MatchTrue body <- cases] of
+        (body:_) -> evalExpr env body
+        [] -> error "match: missing true-case"
+    VPair a b ->
+      case [(aName, bName, body) | MatchPair aName _ bName _ body <- cases] of
+        ((aName, bName, body):_) -> do
+          let env' = Map.insert bName (BVal b) (Map.insert aName (BVal a) env)
+          evalExpr env' body
+        [] -> error "match: missing pair-case"
+    _ -> error "match: unsupported scrutinee value"
 
 runComp :: Env -> Comp -> IO Value
 runComp env comp = case comp of
@@ -584,16 +629,11 @@ runComp env comp = case comp of
     val <- runComp env c1
     let env' = Map.insert v (BVal val) env
     runComp env' c2
-  CPerform e   -> evalExpr env e
-  CVar t -> case Map.lookup t env of
-    Just b -> resolveBinding env b
-    Nothing ->
-      let candidates = Map.keys env
-          matches = findFuzzyMatches t candidates
-          suggestion = case matches of
-                        [] -> T.empty
-                        (x:_) -> " (did you mean '" <> x <> "'?)"
-      in error $ T.unpack ("Unknown computation: " <> t <> suggestion)
+  CPerform e   -> do
+    val <- evalExpr env e
+    case val of
+      VComp action -> action
+      _ -> error "perform expects a computation value"
   CSeq c1 c2 -> do
     _ <- runComp env c1
     runComp env c2
@@ -664,9 +704,6 @@ loadImport projectRoot (Import modName alias) = do
           let qualifiedName = qualifyName aliasPrefix name
           in Map.insert qualifiedName binding env
         Nothing -> env  -- Definition not in environment
-
-    defName :: Definition -> Text
-    defName (Definition _ name _ _ _) = name
 
 -- Process open statements to bring unqualified names into scope
 processOpens :: [Open] -> Env -> Env

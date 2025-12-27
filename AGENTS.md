@@ -1,7 +1,7 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs: `define (transparent|opaque) name as <value|computation>`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B`, typed `match ... of-type ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
+- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B`, typed `match ... of-type ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
 
 Interpreter (Haskell, `interpreter/`)
 - AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, lambdas/functions, defs (transparency/kind), values vs computations.

@@ -2,65 +2,77 @@ import prelude as P
 import comparison as C
 
 module string contains
-  define opaque concat as value concat-string-prim
-  define opaque length as value length-string-prim
-  define opaque eq as value eq-string-prim
-  define opaque split-on as value split-on-prim
-  define opaque join-with as value join-with-prim
-  define opaque trim as value trim-prim
-  define opaque substring as value substring-prim
-  define opaque char-at as value char-at-prim
-  define opaque string-contains as value contains-prim
-  define opaque string-starts-with as value starts-with-prim
-  define opaque string-ends-with as value ends-with-prim
-  define opaque string-index-of as value index-of-prim
+  define opaque concat as concat-string-prim
+  define opaque length as length-string-prim
+  define opaque eq as eq-string-prim
+  define opaque split-on as split-on-prim
+  define opaque join-with as join-with-prim
+  define opaque trim as trim-prim
+  define opaque substring as substring-prim
+  define opaque char-at as char-at-prim
+  define opaque string-contains as contains-prim
+  define opaque string-starts-with as starts-with-prim
+  define opaque string-ends-with as ends-with-prim
+  define opaque string-index-of as index-of-prim
 
-  define transparent is-empty as value
-    function s of-type String produce
-      C.eq-nat (length s) 0
+  define transparent is-empty as
+    function s String returns Boolean value
+      C::eq-nat (length s) 0
+    end
 
-  define transparent is-whitespace as value
-    function s of-type String produce
+  define transparent is-whitespace as
+    function s String returns Boolean value
       eq (trim s) ""
+    end
 
-  define transparent ends-with as value
-    function suffix of-type String produce
-      function s of-type String produce
-        string-ends-with suffix s
+  define transparent ends-with as
+    function suffix String s String returns Boolean value
+      string-ends-with suffix s
+    end
 
-  define transparent index-of as value
-    function needle of-type String produce
-      function haystack of-type String produce
-        string-index-of needle haystack
+  define transparent index-of as
+    function needle String haystack String returns Natural value
+      string-index-of needle haystack
+    end
 
-  define transparent reverse as value
-    function s of-type String produce
+  define transparent reverse as
+    function s String returns String value
       reverse-string-prim s
+    end
 
-  define transparent lines as value
-    function s of-type String produce
+  define transparent lines as
+    function s String returns List String value
       split-on "\n" s
+    end
 
-  define transparent unlines as value
-    function xs of-type (List String) produce
+  define transparent unlines as
+    function xs (List String) returns String value
       join-with "\n" xs
+    end
 
-  define transparent split-spaces as value
-    function s of-type String produce
-      let trimmed as trim s in
-      P.filter (function x of-type String produce P.not (is-empty x)) (split-on " " trimmed)
+  define transparent split-spaces as
+    function s String returns List String value
+      let value trimmed be trim s in
+        P::filter
+          (function x String returns Boolean value
+            P::not (is-empty x)
+          end)
+          (split-on " " trimmed)
+      end
+    end
 
-  define transparent words as value
-    function s of-type String produce
+  define transparent words as
+    function s String returns List String value
       split-spaces s
+    end
 
-  define transparent unwords as value
-    function xs of-type (List String) produce
+  define transparent unwords as
+    function xs (List String) returns String value
       join-with " " xs
+    end
 
-  define transparent slice as value
-    function start of-type Natural produce
-      function len of-type Natural produce
-        function s of-type String produce
-          substring start len s
+  define transparent slice as
+    function start Natural len Natural s String returns String value
+      substring start len s
+    end
 end

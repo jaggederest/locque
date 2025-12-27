@@ -3,7 +3,7 @@ LLM-first dependently typed language (working name TBD) guiding notes
 - Purpose: a language meant to be written and read by LLMs/agents, with English-like, verbose keywords and a predictable, canonical surface form. S-expressions are the canonical serialized/AST form; a matching M-expression surface provides readability without precedence traps.
 - Type discipline: pursue a strong, dependent type system (Π/Σ, universes, inductive types, normalization) to give maximal guarantees and make iterative generation/checking by LLMs easier.
 - Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … value|compute … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type …`).
-- Assignment/definition: single, universal word with explicit transparency and body kind (e.g., `define transparent name as value …` / `define opaque name as computation …`), with no hidden scoping rules or implicit capture. Namespaces are explicit modules with `::` qualification and file mapping.
+- Assignment/definition: single, universal word with explicit transparency; definitions are values by default, and computation values use `compute ... end`. Namespaces are explicit modules with `::` qualification and file mapping.
 - S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism; one canonical spelling per construct.
 - Ergonomics for LLMs: keep whitespace/indentation cosmetic; ban implicit coercions; prefer explicit casts and effect boundaries. Provide canonical templates/patterns for completion and avoid ambiguous grammar.
 - Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform …`) to keep type checking and normalization clear.
@@ -36,13 +36,13 @@ LLM-first dependently typed language (working name TBD) guiding notes
 **Examples of word-based design**:
 ```locque
 # Linear types: use 'once' keyword
-define send as value
+define send as
   function socket (once Socket) returns computation Unit compute
     ...
   end
 
 # Effects: use explicit computation types and perform
-define read-file as value
+define read-file as
   function path String returns computation String compute
     perform read-file-prim path
   end
@@ -67,11 +67,9 @@ end
 
 ## Extensibility: The "define X as Y" Pattern
 
-**Core pattern**: All top-level introductions follow `define <name> as value|computation|...` with transparency on the binding (`transparent|opaque`). Function introduction is single-form `function … returns … value|compute … end`.
+**Core pattern**: All top-level introductions follow `define <name> as <Value>|<discriminator>` with transparency on the binding (`transparent|opaque`). Term-level definitions are values by default; computation values use `compute ... end`. Function introduction is single-form `function … returns … value|compute … end`.
 
 **Current discriminators**:
-- `value` - term-level values
-- `computation` - effectful computations
 - `typeclass` - overloading mechanism (planned)
 - `instance` - typeclass implementation (planned)
 

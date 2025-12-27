@@ -14,4 +14,4 @@ modNameToPath modName =
   in T.unpack lowercased
 
 qualifyName :: Text -> Text -> Text
-qualifyName prefix name = prefix <> "." <> name
+qualifyName prefix name = prefix <> "::" <> name

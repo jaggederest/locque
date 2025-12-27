@@ -1,12 +1,14 @@
 module Main where
 
-import qualified Data.Text.IO as T
+import           Data.Text (Text)
+import qualified Data.Text.IO as TIO
 import qualified Data.Map.Strict as Map
 import           System.Environment (getArgs)
 import           System.Exit (die)
 import           System.Directory (getCurrentDirectory)
 import           System.FilePath (takeDirectory, takeExtension)
 
+import           AST (Module)
 import           Eval
 import           Parser
 import           Validator
@@ -28,7 +30,7 @@ runFile :: FilePath -> IO ()
 runFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
-  contents <- T.readFile file
+  contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
     Right m  -> do
@@ -50,7 +52,7 @@ usage = unlines
 
 validateLqs :: FilePath -> IO ()
 validateLqs file = do
-  contents <- T.readFile file
+  contents <- TIO.readFile file
   case checkParens file contents of
     Left e -> die e
     Right _ -> case parseModuleFile file contents of
@@ -63,7 +65,7 @@ typecheckFile :: FilePath -> IO ()
 typecheckFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
-  contents <- T.readFile file
+  contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
     Right m  -> do
@@ -74,7 +76,7 @@ typecheckFile file = do
           putStrLn "✓ Type check passed"
           putStrLn ("  Definitions checked: " ++ show (Map.size env))
 
-parseAny :: FilePath -> T.Text -> Either String Module
+parseAny :: FilePath -> Text -> Either String Module
 parseAny file contents =
   case takeExtension file of
     ".lq"  -> parseMExprFile file contents
@@ -85,16 +87,16 @@ parseAny file contents =
 
 emitLqs :: FilePath -> FilePath -> IO ()
 emitLqs file out = do
-  contents <- T.readFile file
+  contents <- TIO.readFile file
   case parseMExprFile file contents of
     Left err -> die err
-    Right m  -> T.writeFile out (moduleToSExprText m)
+    Right m  -> TIO.writeFile out (moduleToSExprText m)
 
 emitLq :: FilePath -> FilePath -> IO ()
 emitLq file out = do
-  contents <- T.readFile file
+  contents <- TIO.readFile file
   case checkParens file contents of
     Left e -> die e
     Right _ -> case parseModuleFile file contents of
       Left err -> die err
-      Right m  -> T.writeFile out (moduleToMExprText m)
+      Right m  -> TIO.writeFile out (moduleToMExprText m)

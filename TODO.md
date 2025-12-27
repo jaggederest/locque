@@ -5,20 +5,26 @@
 ### 1. Grammar Alignment (text-first, no arrows/symbols)
 - Parser (M/S):
   - [x] Removed legacy forms (`lambda`, legacy `let … in`, `inspect`/`case`, `do … then …`, `perform io`).
-  - [x] Added `let value … be … in … end`, `bind name from … then … [end]`, `perform` (single expr).
-  - [ ] Add `function … returns … value|compute … end` fully (no reliance on ELam), unified `match … of-type …` cases, `open … exposing … end`.
-  - [ ] Switch type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
+  - [x] Added `let value … be … in … end`, `bind name from … then … end`, `perform` (single expr).
+  - [x] Implemented `function … returns … value|compute … end`, unified `match … of-type …` cases, `open … exposing … end`.
+  - [x] Switched `define … as <Value>` (no `as value|computation`) and added `compute … end` as explicit computation-value wrapper.
+  - [x] Switched type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
+  - [x] Require parenthesized non-atomic types in function params and match binders to avoid ambiguity.
 - Types/TypeChecker:
-  - [ ] Replace `TFun`/`TComp` with Pi (`for-all`) and computation wrapper; add Sigma (`there-exists`); explicit universes.
-  - [ ] Enforce value vs computation split at def/body level; drop `lambda`/`inspect`/`match-prim` paths; adjust primitive types.
-  - [ ] Update import/open handling to `::`-only qualifiers and explicit-name `open`.
+  - [x] Replace `TFun` with Pi (`for-all`); add Sigma (`there-exists`) and explicit universes.
+  - [x] Enforce compute-wrapper semantics: computations are values (`compute <Comp> end`) and run only via `perform`.
+  - [x] Drop legacy `lambda`/`inspect` paths; remove computation identifiers; adjust primitive types.
+  - [x] Update import/open handling to `::`-only qualifiers and explicit-name `open`.
+  - [ ] Add dependent substitution/elaboration for `for-all`/`there-exists` (currently structural only).
 - Evaluator:
-  - [ ] Remove `match-prim` and `perform io`; keep `perform` as single bridge.
+  - [x] Execute computation values only when performed; remove computation identifiers.
+  - [x] Remove `match-prim`; keep `perform` as single bridge.
   - [ ] Align primitives/env with new types; ensure `match` dispatch uses typed eliminators only.
 - Converter/rendering:
-  - [ ] Update S-expr/M-expr pretty-printers to new forms; keep full `define` keyword.
+  - [x] Update S-expr/M-expr pretty-printers to new forms; keep full `define` keyword; ban infix separators in S-expr.
 - Docs/tests:
   - [ ] Regenerate `.lqs` from `.lq`; refresh examples/tests to new surface once parser/typechecker are aligned.
+  - [x] Update core libs used by tests to new syntax (prelude/assert/io/string/comparison).
 
 ### 2. Type Classes (after alignment)
 - [ ] Design class/instance/constraint syntax that fits the new grammar.

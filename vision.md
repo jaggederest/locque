@@ -5,22 +5,23 @@ Value vs computation (CBPV-flavored)
 - Transparent value definition (pure, unfolds in conversion):
   - M:
     ```
-    define transparent add as value
+    define transparent add as
       function x Natural y Natural returns Natural value
         add-nat x y
       end
     ```
-  - S: `(define transparent add (value (function ((x Natural) (y Natural)) Natural (value (add-nat x y)))))`
+  - S: `(define transparent add (function ((x Natural) (y Natural)) Natural (value (add-nat x y))))`
 
 - Computation definition (can perform effects/diverge; does not unfold under value-only contexts):
   - M:
     ```
-    define transparent read-two as computation
+    define transparent read-two as compute
       bind a from perform read-number then
         bind b from perform read-number then
           return pair a b
         end
       end
+    end
     ```
   - S: `(define transparent read-two (compute (bind (a (perform read-number)) (bind (b (perform read-number)) (return (pair a b))))))`
 
@@ -29,53 +30,53 @@ Opacity and unfolding
 - Opaque value definition (does not unfold in conversion):
   - M:
     ```
-    define opaque secret-step as value
+    define opaque secret-step as
       function x Natural returns Natural value
         add-nat x 1
       end
     ```
-  - S: `(define opaque secret-step (value (function ((x Natural)) Natural (value (add-nat x 1)))))`
+  - S: `(define opaque secret-step (function ((x Natural)) Natural (value (add-nat x 1))))`
   - Equality: `secret-step 2` is not definitionally equal to `3` without a lemma or explicit rewrite.
 
 - Transparent counterpart (will unfold during conversion):
   - M:
     ```
-    define transparent step as value
+    define transparent step as
       function x Natural returns Natural value
         add-nat x 1
       end
     ```
-  - S: `(define transparent step (value (function ((x Natural)) Natural (value (add-nat x 1)))))`
+  - S: `(define transparent step (function ((x Natural)) Natural (value (add-nat x 1))))`
   - Equality: `step 2` is definitionally equal to `3` under βδι conversion.
 
 Extensionality posture (propositional, not definitional)
 
 - Function extensionality as a lemma:
-  - M (schema): `define transparent fun-ext as value for-all f as (for-all _ as A to B) to for-all g as (for-all _ as A to B) to for-all pf as (for-all x as A to Eq B (f x) (g x)) to Eq (for-all _ as A to B) f g`
-  - S: `(define transparent fun-ext (value (for-all (f (for-all (_ A) B)) (for-all (g (for-all (_ A) B)) (for-all (pf (for-all (x A) (Eq B (f x) (g x)))) (Eq (for-all (_ A) B) f g))))))`
+  - M (schema): `define transparent fun-ext as for-all f as (for-all _ as A to B) to for-all g as (for-all _ as A to B) to for-all pf as (for-all x as A to Eq B (f x) (g x)) to Eq (for-all _ as A to B) f g`
+  - S: `(define transparent fun-ext (for-all (f (for-all (_ A) B)) (for-all (g (for-all (_ A) B)) (for-all (pf (for-all (x A) (Eq B (f x) (g x)))) (Eq (for-all (_ A) B) f g)))))`
   - Use: proofs apply `fun-ext` explicitly; conversion does not rely on eta by default.
 
 Notes on surface cues
-- `define transparent|opaque name as value ...` declares a pure value; opacity controls δ-unfolding in conversion.
-- `define ... as computation ...` declares a computation; effects live here.
+- `define transparent|opaque name as <Value> ...` declares a value; opacity controls δ-unfolding in conversion.
+- Computation values are explicit: `define ... as compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr).
 - `value` and `compute` mark function bodies.
 - `perform ...`, `return ...`, `bind name from ... then ... end` are the computation sequencing vocabulary.
-- `end` closes every multiline construct (function, bind, match, module, open).
+- `end` closes every multiline construct (function, compute, bind, match, module, open).
 
 Universe choices and examples
 
 - Cumulative tower (explicit levels, `Type0 : Type1 : Type2 ...`)
   - Example 1 (Type0 inhabitant, lives in Type1):
-    - M: `define transparent id0 as value for-all A as Type0 to for-all _ as A to A`
-    - S: `(define transparent id0 (value (for-all (A Type0) (for-all (_ A) A))))`
+    - M: `define transparent id0 as for-all A as Type0 to for-all _ as A to A`
+    - S: `(define transparent id0 (for-all (A Type0) (for-all (_ A) A)))`
     - Type of `id0` is in `Type1` because it quantifies over `Type0`.
   - Example 2 (Type1 inhabitant using Type0 data):
-    - M: `define transparent pair0 as value for-all A as Type0 to for-all B as Type0 to Type0`
-    - S: `(define transparent pair0 (value (for-all (A Type0) (for-all (B Type0) Type0))))`
+    - M: `define transparent pair0 as for-all A as Type0 to for-all B as Type0 to Type0`
+    - S: `(define transparent pair0 (for-all (A Type0) (for-all (B Type0) Type0)))`
     - The type of `pair0` itself sits in `Type1`.
 
 - Type-in-type (rejected, but illustrative of the shape we avoid)
-  - Example 1: `Type : Type` collapses levels; would be written as `define transparent Type as value Type` in a type-in-type world.
+  - Example 1: `Type : Type` collapses levels; would be written as `define transparent Type as Type` in a type-in-type world.
   - Example 2: self-application of type transformers becomes possible, leading toward inconsistency (Girard-style); we avoid this by keeping an explicit tower.
 
 - Deferred (not in current grammar): level polymorphism and typical ambiguity; all levels are explicit `Type0/Type1/Type2`.
@@ -122,30 +123,31 @@ Total values vs. effectful computations
 - Total, pure value function:
   - M:
     ```
-    define transparent add2 as value
+    define transparent add2 as
       function x Natural returns Natural value
         add-nat x 2
       end
     ```
-  - S: `(define transparent add2 (value (function ((x Natural)) Natural (value (add-nat x 2)))))`
+  - S: `(define transparent add2 (function ((x Natural)) Natural (value (add-nat x 2))))`
   - This lives in the value world, normalizes, and can appear in types.
 
 - Effectful computation:
   - M:
     ```
-    define transparent read-and-increment as computation
+    define transparent read-and-increment as compute
       bind n from perform read-number then
         return add-nat n 1
       end
+    end
     ```
   - S: `(define transparent read-and-increment (compute (bind (n (perform read-number)) (return (add-nat n 1)))))`
-  - Lives in computation world; cannot appear in types without an explicit bridge.
+  - It is a computation value; it does not run until `perform`.
 
 Operators as ordinary identifiers (no infix)
 
 - Addition as prefix application:
-  - M: `define transparent add4 as value add-nat 2 2 2 4`
-  - S: `(define transparent add4 (value (add-nat 2 2 2 4)))`
+  - M: `define transparent add4 as add-nat 2 2 2 4`
+  - S: `(define transparent add4 (add-nat 2 2 2 4))`
   - Meaning: left-associated application; no precedence rules beyond application.
 
 Termination and coverage illustrations
@@ -153,7 +155,7 @@ Termination and coverage illustrations
 - Accepted structural recursion:
   - M:
     ```
-    define transparent sum-list as value
+    define transparent sum-list as
       function xs (List Natural) returns Natural value
         match xs of-type List Natural
           empty-case as 0
@@ -166,7 +168,7 @@ Termination and coverage illustrations
 - Rejected non-structural recursion (would loop):
   - M:
     ```
-    define transparent bad as value
+    define transparent bad as
       function n Natural returns Natural value
         bad n
       end
@@ -215,13 +217,13 @@ Namespaces and modules (current)
     open Prelude exposing map nil cons end
 
     module My::Module contains
-      define transparent add2 as value
+      define transparent add2 as
         function x Natural returns Natural value
           add-nat x 2
         end
     end
     ```
-  - S: `(module My::Module (define transparent add2 (value (function ((x Natural)) Natural (value (add-nat x 2))))))`
+  - S: `(module My::Module (define transparent add2 (function ((x Natural)) Natural (value (add-nat x 2)))))`
 
 Entrypoints and tooling (current)
 

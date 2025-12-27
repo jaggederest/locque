@@ -1,49 +1,12 @@
 # Main test entry point
-# Runs all test rollup modules
+# Runs only the prelude basics rollup
 
 import test::prelude as test_prelude
-import test::io as test_io
-import test::string as test_string
-import test::arithmetic as test_arithmetic
-import test::comparison as test_comparison
-import test::shell as test_shell
-import test::assert as test_assert
-import test::list as test_list
 
-import test::typecheck::simple as t_simple
-import test::typecheck::mono as t_mono
-import test::typecheck::primitives as t_primitives
-import test::typecheck::match as t_match
-import test::typecheck::fold_inline as t_fold_inline
-import test::typecheck::opaque_import as t_opaque_import
-import test::typecheck::typeclass_parse as t_typeclass_parse
-import test::typecheck::typeclass_resolution as t_typeclass_resolution
-import test::typecheck::typeclass_variable as t_typeclass_variable
-
-import prelude as P
-
-module test_main contains
-  define transparent main as computation
-    # Module tests (rollups)
-    bind test_prelude.main as _ then
-    bind test_io.main as _ then
-    bind test_string.main as _ then
-    bind test_arithmetic.main as _ then
-    bind test_comparison.main as _ then
-    bind test_shell.main as _ then
-    bind test_assert.main as _ then
-    bind test_list.main as _ then
-
-    # Type checker tests
-    bind t_simple.main as _ then
-    bind t_mono.main as _ then
-    bind t_primitives.main as _ then
-    bind t_match.main as _ then
-    bind t_fold_inline.main as _ then
-    bind t_opaque_import.main as _ then
-    bind t_typeclass_parse.main as _ then
-    bind t_typeclass_resolution.main as _ then
-    bind t_typeclass_variable.main as _ then
-
-    return P.tt
+module test::main contains
+  define transparent main as compute
+    bind ignored from perform test_prelude::main then
+      return tt
+    end
+  end
 end

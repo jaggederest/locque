@@ -1,34 +1,42 @@
 module prelude contains
-  define opaque add-nat as value add-nat-prim
-  define opaque sub-nat as value sub-nat-prim
-  define opaque tt as value tt-prim
-  define opaque nil as value nil-prim
-  define opaque cons as value cons-prim
-  define opaque head as value head-prim
-  define opaque tail as value tail-prim
-  define opaque length-list as value length-list-prim
-  define opaque append as value append-prim
-  define opaque filter as value filter-prim
-  define opaque fold as value fold-prim
-  define opaque map as value map-prim
-  define opaque not as value not-prim
-  define opaque if-bool as value if-bool-prim
-  define opaque match-list as value match-list-prim
-  define opaque match-bool as value match-bool-prim
-  define opaque match-pair as value match-pair-prim
-  define opaque pair as value pair-prim
-  define opaque fst as value fst-prim
-  define opaque snd as value snd-prim
-  define opaque pair-to-list as value pair-to-list-prim
+  define opaque add-nat as add-nat-prim
+  define opaque sub-nat as sub-nat-prim
+  define opaque nil as nil-prim
+  define opaque cons as cons-prim
+  define opaque head as head-prim
+  define opaque tail as tail-prim
+  define opaque length-list as length-list-prim
+  define opaque append as append-prim
+  define opaque filter as filter-prim
+  define opaque fold as fold-prim
+  define opaque map as map-prim
+  define opaque not as not-prim
+  define opaque if-bool as if-bool-prim
+  define opaque match-list as match-list-prim
+  define opaque match-bool as match-bool-prim
+  define opaque match-pair as match-pair-prim
+  define opaque pair as pair-prim
+  define opaque fst as fst-prim
+  define opaque snd as snd-prim
+  define opaque pair-to-list as pair-to-list-prim
 
-  define transparent id as value function x of-type String produce x
-  define transparent is-falsy as value function x of-type Boolean produce not x
-  define transparent reverse as value
-    function xs of-type (List String) produce
+  define transparent id as
+    function x String returns String value
+      x
+    end
+
+  define transparent is-falsy as
+    function x Boolean returns Boolean value
+      not x
+    end
+
+  define transparent reverse as
+    function xs (List String) returns List String value
       fold
-        (function acc of-type (List String) produce
-          function x of-type String produce
-            cons x acc)
+        (function acc (List String) x String returns List String value
+          cons x acc
+        end)
         nil
         xs
+    end
 end
