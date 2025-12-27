@@ -1,0 +1,33 @@
+# Display typeclass - converts values to String representation
+#
+# Similar to Haskell's Show typeclass.
+
+module display contains
+  # Display typeclass definition
+  define transparent Display as typeclass a where
+    display of-type (-> a String)
+
+  # Instance: Natural
+  define transparent Display-Natural as instance Display Natural where
+    display produce lambda n -> nat-to-string-prim n
+
+  # Instance: String (wraps in quotes)
+  define transparent Display-String as instance Display String where
+    display produce lambda s -> concat-string-prim "\"" (concat-string-prim s "\"")
+
+  # Instance: Boolean
+  define transparent Display-Boolean as instance Display Boolean where
+    display produce lambda b -> if-bool-prim b "true" "false"
+
+  # STUB: Display for List
+  # Requires instance constraints (not yet implemented in Locque)
+  # When available, implement as:
+  #   define transparent Display-List as instance Display a => Display (List a) where
+  #     display produce lambda xs -> ...join displayed elements...
+
+  # STUB: Display for Pair
+  # Requires instance constraints (not yet implemented in Locque)
+  # When available, implement as:
+  #   define transparent Display-Pair as instance (Display a, Display b) => Display (Pair a b) where
+  #     display produce lambda p -> ...display both elements...
+end

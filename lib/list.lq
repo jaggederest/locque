@@ -34,7 +34,7 @@ module list contains
 
   define transparent contains-string-fn as value
     function item of-type String produce
-      function acc of-type Bool produce
+      function acc of-type Boolean produce
         function x of-type String produce
           P.if-bool acc true (S.eq item x)
 
@@ -44,30 +44,30 @@ module list contains
         P.fold (contains-string-fn item) false xs
 
   define transparent any-fn as value
-    function predicate of-type (-> a Bool) produce
-      function acc of-type Bool produce
+    function predicate of-type (-> a Boolean) produce
+      function acc of-type Boolean produce
         function x of-type a produce
           P.if-bool acc true (predicate x)
 
   define transparent any as value
-    function predicate of-type (-> a Bool) produce
+    function predicate of-type (-> a Boolean) produce
       function xs of-type (List a) produce
         P.fold (any-fn predicate) false xs
 
   define transparent all-fn as value
-    function predicate of-type (-> a Bool) produce
-      function acc of-type Bool produce
+    function predicate of-type (-> a Boolean) produce
+      function acc of-type Boolean produce
         function x of-type a produce
           P.if-bool acc (predicate x) false
 
   define transparent all as value
-    function predicate of-type (-> a Bool) produce
+    function predicate of-type (-> a Boolean) produce
       function xs of-type (List a) produce
         P.fold (all-fn predicate) true xs
 
   define transparent slice as value
-    function start of-type Nat produce
-      function len of-type Nat produce
+    function start of-type Natural produce
+      function len of-type Natural produce
         function xs of-type (List a) produce
           take len (drop start xs)
 end

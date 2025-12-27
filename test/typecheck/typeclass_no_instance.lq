@@ -5,8 +5,8 @@ module typeclass_no_instance_test contains
   define transparent Show as typeclass a where
     show of-type (-> a String)
 
-  # Only instance for Nat, NOT for String
-  define transparent Show-Nat as instance Show Nat where
+  # Only instance for Natural, NOT for String
+  define transparent Show-Natural as instance Show Natural where
     show produce lambda x -> "nat"
 
   # This should fail - no instance of Show for String

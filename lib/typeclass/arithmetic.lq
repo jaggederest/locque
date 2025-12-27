@@ -1,0 +1,48 @@
+# Arithmetic typeclasses - provides arithmetic operations for types
+#
+# Due to parser limitations with multi-method typeclasses, each operation
+# is defined as a separate typeclass. When the parser is enhanced,
+# these can be unified into a single Arithmetic typeclass.
+#
+# NOTE: Multi-arg typeclass methods require explicit currying when called:
+#   Use (add 1) 2 instead of add 1 2
+
+module arithmetic contains
+  # Addition typeclass
+  define transparent Add as typeclass a where
+    add of-type (-> a (-> a a))
+
+  define transparent Add-Natural as instance Add Natural where
+    add produce lambda x -> lambda y -> add-nat-prim x y
+
+  # Subtraction typeclass (saturating for Natural)
+  define transparent Sub as typeclass a where
+    sub of-type (-> a (-> a a))
+
+  define transparent Sub-Natural as instance Sub Natural where
+    sub produce lambda x -> lambda y -> sub-nat-prim x y
+
+  # Multiplication typeclass
+  define transparent Mul as typeclass a where
+    mul of-type (-> a (-> a a))
+
+  define transparent Mul-Natural as instance Mul Natural where
+    mul produce lambda x -> lambda y -> mul-nat-prim x y
+
+  # Division typeclass
+  define transparent Div as typeclass a where
+    div of-type (-> a (-> a a))
+
+  define transparent Div-Natural as instance Div Natural where
+    div produce lambda x -> lambda y -> div-nat-prim x y
+
+  # Modulo typeclass
+  define transparent Mod as typeclass a where
+    mod of-type (-> a (-> a a))
+
+  define transparent Mod-Natural as instance Mod Natural where
+    mod produce lambda x -> lambda y -> mod-nat-prim x y
+
+  # NOTE: Currently only Natural has arithmetic instances.
+  # Future types like Integer, Rational, Float would add their own instances.
+end

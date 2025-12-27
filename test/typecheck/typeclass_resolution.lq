@@ -8,18 +8,18 @@ module typeclass_resolution_test contains
     show of-type (-> a String)
 
   # Define instances
-  define transparent Show-Nat as instance Show Nat where
+  define transparent Show-Natural as instance Show Natural where
     show produce lambda x -> "nat"
 
-  define transparent Show-Bool as instance Show Bool where
+  define transparent Show-Boolean as instance Show Boolean where
     show produce lambda x -> "bool"
 
-  # Test: using show with concrete Nat type should resolve
-  # Applying show directly to a Nat literal
+  # Test: using show with concrete Natural type should resolve
+  # Applying show directly to a Natural literal
   define transparent test-show-nat as value
     show 42
 
-  # Test: using show with concrete Bool type should resolve
+  # Test: using show with concrete Boolean type should resolve
   define transparent test-show-bool as value
     show true
 

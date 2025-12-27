@@ -14,6 +14,7 @@ import Control.Exception (catch, SomeException)
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
 import Eval (runModuleMain)
+import DictPass (transformModuleWithEnvs)
 import SmythConfig (SmythConfig(..))
 
 data TestResult
@@ -76,13 +77,19 @@ runTest projectRoot file = do
       tcResult <- TC.typeCheckModuleWithImports projectRoot contents m
       case tcResult of
         Left tcErr -> pure $ TypeCheckFailed (T.pack $ show tcErr)
-        Right _ -> do
-          -- Run and capture assertion count
-          result <- (do
-            count <- runModuleMain projectRoot m
-            pure (AllPassed count)
-            ) `catch` handleRuntimeError file
-          pure result
+        Right env -> do
+          -- Annotate: wrap expressions with inferred types
+          case TC.annotateModule env m of
+            Left annotErr -> pure $ TypeCheckFailed (T.pack $ show annotErr)
+            Right annotatedM -> do
+              -- Transform: dictionary passing for typeclasses
+              let m' = transformModuleWithEnvs annotatedM
+              -- Run and capture assertion count
+              result <- (do
+                count <- runModuleMain projectRoot m'
+                pure (AllPassed count)
+                ) `catch` handleRuntimeError file
+              pure result
 
 -- | Handle runtime errors (failed assertions)
 handleRuntimeError :: FilePath -> SomeException -> IO TestResult

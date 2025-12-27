@@ -1,0 +1,94 @@
+# Tests for Arithmetic typeclasses
+# NOTE: Multi-arg typeclass methods require explicit currying:
+#   Use (add 1) 2 instead of add 1 2
+import assert as A
+import prelude as P
+
+module arithmetic_test contains
+  # Addition typeclass
+  define transparent Add as typeclass a where
+    add of-type (-> a (-> a a))
+
+  define transparent Add-Natural as instance Add Natural where
+    add produce lambda x -> lambda y -> add-nat-prim x y
+
+  # Subtraction typeclass
+  define transparent Sub as typeclass a where
+    sub of-type (-> a (-> a a))
+
+  define transparent Sub-Natural as instance Sub Natural where
+    sub produce lambda x -> lambda y -> sub-nat-prim x y
+
+  # Multiplication typeclass
+  define transparent Mul as typeclass a where
+    mul of-type (-> a (-> a a))
+
+  define transparent Mul-Natural as instance Mul Natural where
+    mul produce lambda x -> lambda y -> mul-nat-prim x y
+
+  # Division typeclass
+  define transparent Div as typeclass a where
+    div of-type (-> a (-> a a))
+
+  define transparent Div-Natural as instance Div Natural where
+    div produce lambda x -> lambda y -> div-nat-prim x y
+
+  # Modulo typeclass
+  define transparent Mod as typeclass a where
+    mod of-type (-> a (-> a a))
+
+  define transparent Mod-Natural as instance Mod Natural where
+    mod produce lambda x -> lambda y -> mod-nat-prim x y
+
+  # Test add
+  define transparent test-add-1 as value (add 2) 3
+  define transparent test-add-2 as value (add 0) 5
+
+  # Test sub (saturating at 0)
+  define transparent test-sub-1 as value (sub 10) 3
+  define transparent test-sub-2 as value (sub 3) 10
+
+  # Test mul
+  define transparent test-mul-1 as value (mul 4) 5
+  define transparent test-mul-2 as value (mul 7) 0
+
+  # Test div
+  define transparent test-div-1 as value (div 20) 4
+  define transparent test-div-2 as value (div 17) 5
+
+  # Test mod
+  define transparent test-mod-1 as value (mod 17) 5
+  define transparent test-mod-2 as value (mod 20) 4
+
+  # Test with variables (ETyped)
+  define transparent test-add-var as value
+    function x of-type Natural produce
+      function y of-type Natural produce
+        (add x) y
+
+  define transparent test-mul-var as value
+    function x of-type Natural produce
+      function y of-type Natural produce
+        (mul x) y
+
+  define transparent main as computation
+    # add tests
+    bind A.assert-eq-nat test-add-1 5 as _ then
+    bind A.assert-eq-nat test-add-2 5 as _ then
+    # sub tests
+    bind A.assert-eq-nat test-sub-1 7 as _ then
+    bind A.assert-eq-nat test-sub-2 0 as _ then
+    # mul tests
+    bind A.assert-eq-nat test-mul-1 20 as _ then
+    bind A.assert-eq-nat test-mul-2 0 as _ then
+    # div tests
+    bind A.assert-eq-nat test-div-1 5 as _ then
+    bind A.assert-eq-nat test-div-2 3 as _ then
+    # mod tests
+    bind A.assert-eq-nat test-mod-1 2 as _ then
+    bind A.assert-eq-nat test-mod-2 0 as _ then
+    # variable tests
+    bind A.assert-eq-nat ((test-add-var 10) 20) 30 as _ then
+    bind A.assert-eq-nat ((test-mul-var 6) 7) 42 as _ then
+    return P.tt
+end

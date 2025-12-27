@@ -8,7 +8,7 @@ module LTypeCheckFoldInline contains
     function item of-type String produce
       function xs of-type (List String) produce
         P.fold
-          (function acc of-type Bool produce
+          (function acc of-type Boolean produce
             function x of-type String produce
               P.if-bool acc true (S.eq item x))
           false

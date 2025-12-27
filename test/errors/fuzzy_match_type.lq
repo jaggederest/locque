@@ -9,8 +9,8 @@ module LFuzzyMatchType contains
 
   # Deliberately misspell add-nat as add-natt
   define transparent test-typo as value
-    function x of-type Nat produce
-      function y of-type Nat produce
+    function x of-type Natural produce
+      function y of-type Natural produce
         P.add-natt x y
 
   define transparent main as computation

@@ -7,8 +7,8 @@ module LTestOpaqueImport contains
   define opaque my-drop as value drop-prim
 
   define transparent my-slice as value
-    function start of-type Nat produce
-      function len of-type Nat produce
+    function start of-type Natural produce
+      function len of-type Natural produce
         function xs of-type (List a) produce
           my-take len (my-drop start xs)
 

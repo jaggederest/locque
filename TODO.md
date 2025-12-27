@@ -18,7 +18,7 @@
 - [ ] Implement type class declaration in parser
 - [ ] Add type class constraint solving to type checker
 - [ ] Implement instance resolution
-- [ ] Create `Match` type class with instances for List, Bool, Pair
+- [ ] Create `Match` type class with instances for List, Boolean, Pair
 - [ ] Refactor standard library to use type classes
 - [ ] Update tests and documentation
 

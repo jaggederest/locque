@@ -8,9 +8,9 @@ module comparison contains
   define opaque eq-nat as value eq-nat-prim
 
   define transparent between as value
-    function low of-type Nat produce
-      function high of-type Nat produce
-        function val of-type Nat produce
+    function low of-type Natural produce
+      function high of-type Natural produce
+        function val of-type Natural produce
           P.if-bool (ge-nat val low)
             (P.if-bool (le-nat val high) true false)
             false

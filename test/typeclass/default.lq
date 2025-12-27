@@ -1,0 +1,52 @@
+# Tests for Default typeclass
+import assert as A
+import prelude as P
+
+module default_test contains
+  # Default typeclass definition
+  define transparent Default as typeclass a where
+    default-value of-type a
+
+  # Instance: Natural
+  define transparent Default-Natural as instance Default Natural where
+    default-value produce 0
+
+  # Instance: String
+  define transparent Default-String as instance Default String where
+    default-value produce ""
+
+  # Instance: Boolean
+  define transparent Default-Boolean as instance Default Boolean where
+    default-value produce false
+
+  # Instance: List
+  define transparent Default-List as instance Default (List a) where
+    default-value produce nil-prim
+
+  # Instance: Unit
+  define transparent Default-Unit as instance Default Unit where
+    default-value produce tt-prim
+
+  # Helper to get default with type context
+  # The x parameter provides type info even though we discard it
+  define transparent get-default-nat as value
+    function x of-type Natural produce default-value
+
+  define transparent get-default-str as value
+    function x of-type String produce default-value
+
+  define transparent get-default-bool as value
+    function x of-type Boolean produce default-value
+
+  # Test values - we call the helper with a dummy value to get the typed default
+  define transparent test-nat-default as value get-default-nat 999
+  define transparent test-str-default as value get-default-str "ignored"
+  define transparent test-bool-default as value get-default-bool true
+
+  define transparent main as computation
+    # Default values
+    bind A.assert-eq-nat test-nat-default 0 as _ then
+    bind A.assert-eq-string test-str-default "" as _ then
+    bind A.assert-eq-bool test-bool-default false as _ then
+    return P.tt
+end

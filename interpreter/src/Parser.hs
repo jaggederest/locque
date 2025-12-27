@@ -157,10 +157,10 @@ fromDef path (SList [SAtom "def", SAtom tr, SAtom name, body]) = do
 fromDef path other = Left (path ++ ": invalid definition form " ++ renderHead other)
 
 fromExpr :: FilePath -> SExpr -> Either String Expr
-fromExpr _ (SAtom "true")  = Right (ELit (LBool True))
-fromExpr _ (SAtom "false") = Right (ELit (LBool False))
+fromExpr _ (SAtom "true")  = Right (ELit (LBoolean True))
+fromExpr _ (SAtom "false") = Right (ELit (LBoolean False))
 fromExpr _ (SAtom t)       = Right (EVar t)
-fromExpr _ (SNum n)        = Right (ELit (LNat n))
+fromExpr _ (SNum n)        = Right (ELit (LNatural n))
 fromExpr _ (SStr s)        = Right (ELit (LString s))
 fromExpr path (SList [])   = Left (path ++ ": empty expression list")
 fromExpr path (SList (SAtom "lambda" : SList params : body : [])) = do
@@ -525,9 +525,9 @@ pExprAtom =
 
 pLiteral :: Parser Expr
 pLiteral =
-      (ELit (LBool True) <$ keyword "true")
-  <|> (ELit (LBool False) <$ keyword "false")
-  <|> (ELit . LNat <$> lexeme (L.decimal))
+      (ELit (LBoolean True) <$ keyword "true")
+  <|> (ELit (LBoolean False) <$ keyword "false")
+  <|> (ELit . LNatural <$> lexeme (L.decimal))
   <|> pStringLit
 
 pStringLit :: Parser Expr
@@ -543,9 +543,9 @@ pType = pTypeAtom <|> pTypeCompound
 
 pTypeAtom :: Parser T.Type
 pTypeAtom =
-      (T.TNat <$ keyword "Nat")
+      (T.TNatural <$ keyword "Natural")
   <|> (T.TString <$ keyword "String")
-  <|> (T.TBool <$ keyword "Bool")
+  <|> (T.TBoolean <$ keyword "Boolean")
   <|> (T.TUnit <$ keyword "Unit")
   <|> pTypeVar
 
@@ -613,7 +613,7 @@ pUppercaseIdent = mLexeme . M.try $ do
   rest <- many (M.satisfy (\c -> (isAlphaNum c && isAscii c) || c == '_' || c == '-'))
   let ident = DT.pack (first:rest)
   -- Don't match reserved type constructors
-  if ident `elem` ["Nat", "String", "Bool", "Unit", "List", "Pair", "Comp"]
+  if ident `elem` ["Natural", "String", "Boolean", "Unit", "List", "Pair", "Comp"]
      then fail ("builtin type " ++ DT.unpack ident ++ " is not a type family")
      else pure ident
 
@@ -726,6 +726,7 @@ renderExpr expr = case expr of
   ELam v _mType b -> "(lambda (" <> v <> ") " <> renderExpr b <> ")"
   ELamMulti ps _mType b -> "(lambda (" <> DT.unwords ps <> ") " <> renderExpr b <> ")"
   EAnnot e _ty    -> renderExpr e  -- Ignore type annotations in rendering
+  ETyped e _ty    -> renderExpr e  -- Ignore inferred type wrappers in rendering
   EApp f args     -> "(" <> DT.unwords (renderExpr f : map renderExpr args) <> ")"
   EDict className impls ->
     "(dict " <> className <> " " <>
@@ -742,9 +743,9 @@ renderComp comp = case comp of
 
 renderLit :: Literal -> DT.Text
 renderLit lit = case lit of
-  LNat n    -> DT.pack (show n)
+  LNatural n    -> DT.pack (show n)
   LString s -> DT.pack (show (DT.unpack s))
-  LBool b   -> if b then "true" else "false"
+  LBoolean b   -> if b then "true" else "false"
 
 --------------------------------------------------------------------------------
 -- AST -> M-expression pretty-printer
@@ -809,6 +810,7 @@ renderMExpr expr = render expr False
       ELam{}      -> wrapIf inAtom (renderLambdaChain e)
       ELamMulti{} -> wrapIf inAtom (renderLambdaChain e)
       EAnnot e' _ -> render e' inAtom  -- Ignore type annotations
+      ETyped e' _ -> render e' inAtom  -- Ignore inferred types
       EApp f args ->
         case matchAsInspect f args of
           Just (scrut, cases) -> wrapIf inAtom (renderInspect scrut cases)

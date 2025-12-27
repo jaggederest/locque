@@ -6,28 +6,28 @@ import assert as A
 module type_family_test contains
   # Simple type family - maps a type to a type
   define transparent IsUnit as family (-> a a) where
-    IsUnit Unit equals Bool
+    IsUnit Unit equals Boolean
     IsUnit a equals Unit
 
   # Type family for Match handlers - empty case
   define transparent EmptyHandler as family (-> a (-> b b)) where
     EmptyHandler (List a) b equals (-> Unit b)
-    EmptyHandler Bool b equals (-> Unit b)
+    EmptyHandler Boolean b equals (-> Unit b)
     EmptyHandler (Pair a b) c equals (-> Unit c)
 
   # Test 1: Basic type family reduction
-  # EmptyHandler (List Nat) String should reduce to (-> Unit String)
+  # EmptyHandler (List Natural) String should reduce to (-> Unit String)
   # Using type inference - lambda -> creates a thunk of type Unit -> String
   define transparent test-list-handler as value
     lambda -> "empty list"
 
   # Test 2: Different type family application
-  # EmptyHandler Bool Nat should reduce to (-> Unit Nat)
+  # EmptyHandler Boolean Natural should reduce to (-> Unit Natural)
   define transparent test-bool-handler as value
     lambda -> 42
 
   # Test 3: Type family with polymorphic type variables in pattern
-  # EmptyHandler (Pair Nat String) Bool should reduce to (-> Unit Bool)
+  # EmptyHandler (Pair Natural String) Boolean should reduce to (-> Unit Boolean)
   define transparent test-pair-handler as value
     lambda -> true
 

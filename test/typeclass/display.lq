@@ -1,0 +1,62 @@
+# Tests for Display typeclass
+import assert as A
+import prelude as P
+
+module display_test contains
+  # Display typeclass definition
+  define transparent Display as typeclass a where
+    display of-type (-> a String)
+
+  # Instance: Natural
+  define transparent Display-Natural as instance Display Natural where
+    display produce lambda n -> nat-to-string-prim n
+
+  # Instance: String (wraps in quotes)
+  define transparent Display-String as instance Display String where
+    display produce lambda s -> concat-string-prim "\"" (concat-string-prim s "\"")
+
+  # Instance: Boolean
+  define transparent Display-Boolean as instance Display Boolean where
+    display produce lambda b -> if-bool-prim b "true" "false"
+
+  # Test Natural display
+  define transparent test-nat-zero as value display 0
+  define transparent test-nat-42 as value display 42
+  define transparent test-nat-large as value display 12345
+
+  # Test String display
+  define transparent test-str-empty as value display ""
+  define transparent test-str-hello as value display "hello"
+
+  # Test Boolean display
+  define transparent test-bool-true as value display true
+  define transparent test-bool-false as value display false
+
+  # Test with variables (ETyped)
+  define transparent test-nat-display-var as value
+    function n of-type Natural produce display n
+
+  define transparent test-str-display-var as value
+    function s of-type String produce display s
+
+  define transparent test-bool-display-var as value
+    function b of-type Boolean produce display b
+
+  define transparent main as computation
+    # Natural display
+    bind A.assert-eq-string test-nat-zero "0" as _ then
+    bind A.assert-eq-string test-nat-42 "42" as _ then
+    bind A.assert-eq-string test-nat-large "12345" as _ then
+    # String display (wrapped in quotes)
+    bind A.assert-eq-string test-str-empty "\"\"" as _ then
+    bind A.assert-eq-string test-str-hello "\"hello\"" as _ then
+    # Boolean display
+    bind A.assert-eq-string test-bool-true "true" as _ then
+    bind A.assert-eq-string test-bool-false "false" as _ then
+    # Variable tests (ETyped)
+    bind A.assert-eq-string (test-nat-display-var 99) "99" as _ then
+    bind A.assert-eq-string (test-str-display-var "world") "\"world\"" as _ then
+    bind A.assert-eq-string (test-bool-display-var true) "true" as _ then
+    bind A.assert-eq-string (test-bool-display-var false) "false" as _ then
+    return P.tt
+end

@@ -5,8 +5,8 @@ Project overview for agents
 - Comments: M-expr uses `#` for line comments and `/* */` for block comments; S-expr uses `;` for line comments and `#| |#` for block comments.
 
 Interpreter (Haskell, `interpreter/`)
-- AST: literals (Nat, String, Bool), vars, apps, lambdas, defs (transparency/kind), values vs computations.
-- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Bool); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
+- AST: literals (Natural, String, Boolean), vars, apps, lambdas, defs (transparency/kind), values vs computations.
+- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Boolean); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
 - Import resolution:
   - Module names use `::` separator for namespacing (e.g., `Some::Module::Name`)
   - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq`
@@ -15,7 +15,7 @@ Interpreter (Haskell, `interpreter/`)
 - CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag to bypass type checking, `--typecheck <file>` (type check only), `--validate <file>` (parens + parse + structural validation), `--emit-lqs <file> <out>` (M-expr → S-expr), `--emit-lq <file> <out>` (S-expr → M-expr).
 - Smyth tool (standalone binary): `smyth run <file>` (type check + execute), `smyth test` (run all tests), `smyth test <file>` (run specific test). Installed at `~/.local/bin/smyth`.
 - Type checker: Bidirectional type checking with Hindley-Milner polymorphism, enforces CBPV split at type level, integrated into interpreter by default (use `--skip-typecheck` to disable for legacy code).
-- Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Bool for a string (adds trailing newline automatically).
+- Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
 - Prelude: add/sub; nil/cons/head/tail/length/append/map/filter/fold/reverse (string-list flavor); not/if-bool/match; pair/fst/snd/pair-to-list; id/is-falsy; tt.
@@ -27,11 +27,12 @@ Libraries (`lib/`)
   - Tokenizer (tokenize by spaces).
   - Validator (validate-string via validate-prim).
 - Notes:
-  - We’re aiming for minimal syntax surfaced in locque, but some primitives are currently defined in Haskell as scaffolding; these should be replaced with locque implementations over time.
+  - We're aiming for minimal syntax surfaced in locque, but some primitives are currently defined in Haskell as scaffolding; these should be replaced with locque implementations over time.
   - Work follows a test-driven loop: make a test fail, fix the code to pass, then refactor (no deleting tests to make them pass).
   - Do not add new primitives without explicit permission/instruction. Keep existing tests intact; do not suppress warnings with annotations unless explicitly told to.
   - Existing code/tests are good examples for extending functionality; prefer building on them rather than bypassing them.
   - Parentheses are brittle: NEVER hand-balance or manually rewrite `.lqs` S-expressions; author canonical `.lq` M-expr sources and use the converter to produce `.lqs` only when needed for debugging/fixtures. Keep `.lqs` tests as generated mirrors of `.lq` where required.
+  - Use `gsed` (GNU sed) instead of `sed` on macOS for word-boundary support (`\b`). BSD sed lacks this feature.
 
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
@@ -54,7 +55,7 @@ Locque provides three type-specific match primitives for pattern matching on dif
 
 **match-bool**: Match on booleans
 ```
-∀b. Bool -> (() -> b) -> (() -> b) -> b
+∀b. Boolean -> (() -> b) -> (() -> b) -> b
 ```
 
 **match-pair**: Match on pairs
@@ -67,7 +68,7 @@ Locque provides three type-specific match primitives for pattern matching on dif
 | Primitive | Value Type | First Handler | Second Handler |
 |-----------|------------|---------------|----------------|
 | `match-list` | `List a` | `() -> b` (empty list) | `a -> List a -> b` (head, tail) |
-| `match-bool` | `Bool` | `() -> b` (false) | `() -> b` (true) |
+| `match-bool` | `Boolean` | `() -> b` (false) | `() -> b` (true) |
 | `match-pair` | `Pair a b` | `() -> c` (unreachable) | `a -> b -> c` (first, second) |
 
 ### Critical Syntax Rule: Zero-Parameter Lambdas
@@ -92,7 +93,7 @@ P.match-list my-list
   (lambda h -> lambda t -> h)
 ```
 
-**Bool matching**:
+**Boolean matching**:
 ```locque
 P.match-bool my-bool
   (lambda () "was false")

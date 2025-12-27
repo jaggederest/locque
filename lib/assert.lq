@@ -3,8 +3,9 @@ import prelude as P
 module assert contains
   define opaque assert-eq-nat as value assert-eq-nat-prim
   define opaque assert-eq-string as value assert-eq-string-prim
+  define opaque assert-eq-bool as value assert-eq-bool-prim
   define transparent assert-false as value
     function msg of-type String produce
-      function cond of-type Bool produce
+      function cond of-type Boolean produce
         P.if-bool cond (error-prim msg) P.tt
 end

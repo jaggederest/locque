@@ -7,12 +7,12 @@ module typeclass_parse_test contains
   define transparent Show as typeclass a where
     show of-type (-> a String)
 
-  # Instance for Nat
-  define transparent Show-Nat as instance Show Nat where
+  # Instance for Natural
+  define transparent Show-Natural as instance Show Natural where
     show produce lambda x -> "nat"
 
-  # Instance for Bool
-  define transparent Show-Bool as instance Show Bool where
+  # Instance for Boolean
+  define transparent Show-Boolean as instance Show Boolean where
     show produce lambda x -> "bool"
 
   define transparent main as computation

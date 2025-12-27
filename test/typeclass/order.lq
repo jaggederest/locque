@@ -1,0 +1,116 @@
+# Tests for Order typeclasses
+# NOTE: Multi-arg typeclass methods require explicit currying:
+#   Use (lt 42) 43 instead of lt 42 43
+import assert as A
+import prelude as P
+
+module order_test contains
+  # Less-than typeclass
+  define transparent LessThan as typeclass a where
+    lt of-type (-> a (-> a Boolean))
+
+  define transparent LessThan-Natural as instance LessThan Natural where
+    lt produce lambda x -> lambda y -> lt-nat-prim x y
+
+  define transparent LessThan-Boolean as instance LessThan Boolean where
+    lt produce lambda x -> lambda y -> if-bool-prim x false y
+
+  # Less-than-or-equal typeclass
+  define transparent LessOrEqual as typeclass a where
+    le of-type (-> a (-> a Boolean))
+
+  define transparent LessOrEqual-Natural as instance LessOrEqual Natural where
+    le produce lambda x -> lambda y -> le-nat-prim x y
+
+  define transparent LessOrEqual-Boolean as instance LessOrEqual Boolean where
+    le produce lambda x -> lambda y -> if-bool-prim x y true
+
+  # Greater-than typeclass
+  define transparent GreaterThan as typeclass a where
+    gt of-type (-> a (-> a Boolean))
+
+  define transparent GreaterThan-Natural as instance GreaterThan Natural where
+    gt produce lambda x -> lambda y -> gt-nat-prim x y
+
+  define transparent GreaterThan-Boolean as instance GreaterThan Boolean where
+    gt produce lambda x -> lambda y -> if-bool-prim x (not-prim y) false
+
+  # Greater-than-or-equal typeclass
+  define transparent GreaterOrEqual as typeclass a where
+    ge of-type (-> a (-> a Boolean))
+
+  define transparent GreaterOrEqual-Natural as instance GreaterOrEqual Natural where
+    ge produce lambda x -> lambda y -> ge-nat-prim x y
+
+  define transparent GreaterOrEqual-Boolean as instance GreaterOrEqual Boolean where
+    ge produce lambda x -> lambda y -> if-bool-prim x true (not-prim y)
+
+  # Test Natural lt
+  define transparent test-nat-lt-yes as value (lt 5) 10
+  define transparent test-nat-lt-no as value (lt 10) 5
+  define transparent test-nat-lt-eq as value (lt 5) 5
+
+  # Test Natural le
+  define transparent test-nat-le-yes as value (le 5) 10
+  define transparent test-nat-le-eq as value (le 5) 5
+  define transparent test-nat-le-no as value (le 10) 5
+
+  # Test Natural gt
+  define transparent test-nat-gt-yes as value (gt 10) 5
+  define transparent test-nat-gt-no as value (gt 5) 10
+  define transparent test-nat-gt-eq as value (gt 5) 5
+
+  # Test Natural ge
+  define transparent test-nat-ge-yes as value (ge 10) 5
+  define transparent test-nat-ge-eq as value (ge 5) 5
+  define transparent test-nat-ge-no as value (ge 5) 10
+
+  # Test Boolean ordering (false < true)
+  define transparent test-bool-lt-ff as value (lt false) false
+  define transparent test-bool-lt-ft as value (lt false) true
+  define transparent test-bool-lt-tf as value (lt true) false
+  define transparent test-bool-lt-tt as value (lt true) true
+
+  define transparent test-bool-le-ff as value (le false) false
+  define transparent test-bool-le-ft as value (le false) true
+  define transparent test-bool-le-tf as value (le true) false
+  define transparent test-bool-le-tt as value (le true) true
+
+  # Test with variables (ETyped)
+  define transparent test-nat-lt-var as value
+    function x of-type Natural produce
+      function y of-type Natural produce
+        (lt x) y
+
+  define transparent main as computation
+    # Natural lt
+    bind A.assert-eq-bool test-nat-lt-yes true as _ then
+    bind A.assert-eq-bool test-nat-lt-no false as _ then
+    bind A.assert-eq-bool test-nat-lt-eq false as _ then
+    # Natural le
+    bind A.assert-eq-bool test-nat-le-yes true as _ then
+    bind A.assert-eq-bool test-nat-le-eq true as _ then
+    bind A.assert-eq-bool test-nat-le-no false as _ then
+    # Natural gt
+    bind A.assert-eq-bool test-nat-gt-yes true as _ then
+    bind A.assert-eq-bool test-nat-gt-no false as _ then
+    bind A.assert-eq-bool test-nat-gt-eq false as _ then
+    # Natural ge
+    bind A.assert-eq-bool test-nat-ge-yes true as _ then
+    bind A.assert-eq-bool test-nat-ge-eq true as _ then
+    bind A.assert-eq-bool test-nat-ge-no false as _ then
+    # Boolean lt (false < true)
+    bind A.assert-eq-bool test-bool-lt-ff false as _ then
+    bind A.assert-eq-bool test-bool-lt-ft true as _ then
+    bind A.assert-eq-bool test-bool-lt-tf false as _ then
+    bind A.assert-eq-bool test-bool-lt-tt false as _ then
+    # Boolean le
+    bind A.assert-eq-bool test-bool-le-ff true as _ then
+    bind A.assert-eq-bool test-bool-le-ft true as _ then
+    bind A.assert-eq-bool test-bool-le-tf false as _ then
+    bind A.assert-eq-bool test-bool-le-tt true as _ then
+    # Variable test
+    bind A.assert-eq-bool ((test-nat-lt-var 3) 7) true as _ then
+    bind A.assert-eq-bool ((test-nat-lt-var 7) 3) false as _ then
+    return P.tt
+end

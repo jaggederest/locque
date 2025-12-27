@@ -1,0 +1,36 @@
+# Default typeclass - provides default values for types
+#
+# The default-value method takes a Unit argument to enable typeclass
+# resolution via DictPass (which only handles function applications).
+
+module default contains
+  # Default typeclass definition
+  define transparent Default as typeclass a where
+    default-value of-type (-> Unit a)
+
+  # Instance: Natural (default is 0)
+  define transparent Default-Natural as instance Default Natural where
+    default-value produce lambda u -> 0
+
+  # Instance: String (default is empty string)
+  define transparent Default-String as instance Default String where
+    default-value produce lambda u -> ""
+
+  # Instance: Boolean (default is false)
+  define transparent Default-Boolean as instance Default Boolean where
+    default-value produce lambda u -> false
+
+  # Instance: List (default is empty list)
+  define transparent Default-List as instance Default (List a) where
+    default-value produce lambda u -> nil-prim
+
+  # Instance: Unit (default is tt)
+  define transparent Default-Unit as instance Default Unit where
+    default-value produce lambda u -> tt-prim
+
+  # STUB: Default for Pair
+  # Requires instance constraints (not yet implemented in Locque)
+  # When available, implement as:
+  #   define transparent Default-Pair as instance (Default a, Default b) => Default (Pair a b) where
+  #     default-value produce lambda u -> pair-prim (default-value tt-prim) (default-value tt-prim)
+end

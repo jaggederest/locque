@@ -3,8 +3,8 @@ Examples: CBPV surface, opacity markers, and extensionality posture
 Value vs computation (CBPV-flavored)
 
 - Transparent value definition (pure, unfolds in conversion):
-  - M: `define transparent add as value function x of-type Nat produce function y of-type Nat produce add-nat x y`
-  - S: `(def transparent add (value (lambda ((x Nat)) (lambda ((y Nat)) (add-nat x y)))))`
+  - M: `define transparent add as value function x of-type Natural produce function y of-type Natural produce add-nat x y`
+  - S: `(def transparent add (value (lambda ((x Natural)) (lambda ((y Natural)) (add-nat x y)))))`
 
 - Computation definition (can perform effects/diverge; does not unfold under value-only contexts):
   - M: `define transparent read-two as computation do a <- perform io read-number then b <- perform io read-number then return (pair a b)`
@@ -20,13 +20,13 @@ Value vs computation (CBPV-flavored)
 Opacity and unfolding
 
 - Opaque value definition (does not unfold in conversion unless explicitly opened):
-  - M: `define opaque secret-step as value function x of-type Nat produce add-nat x 1`
-  - S: `(def opaque secret-step (value (lambda ((x Nat)) (add-nat x 1))))`
+  - M: `define opaque secret-step as value function x of-type Natural produce add-nat x 1`
+  - S: `(def opaque secret-step (value (lambda ((x Natural)) (add-nat x 1))))`
   - Equality: `secret-step 2` is not definitionally equal to `3` unless you locally `open secret-step` or rewrite using a lemma.
 
 - Transparent counterpart (will unfold during conversion):
-  - M: `define transparent step as value function x of-type Nat produce add-nat x 1`
-  - S: `(def transparent step (value (lambda ((x Nat)) (add-nat x 1))))`
+  - M: `define transparent step as value function x of-type Natural produce add-nat x 1`
+  - S: `(def transparent step (value (lambda ((x Natural)) (add-nat x 1))))`
   - Equality: `step 2` is definitionally equal to `3` under βδι conversion.
 
 Extensionality posture (propositional, not definitional)
@@ -77,17 +77,17 @@ Universe choices and examples
 
 Inductives and eliminators: primer and examples
 
-- Base inductives (suggested core): `Bool`, `Nat`, dependent pair `Sigma` (Σ), dependent function `Pi` (Π), sums `Either`/`+`, lists. Each inductive comes with its recursor/eliminator; pattern matching is sugar over these recursors.
+- Base inductives (suggested core): `Boolean`, `Natural`, dependent pair `Sigma` (Σ), dependent function `Pi` (Π), sums `Either`/`+`, lists. Each inductive comes with its recursor/eliminator; pattern matching is sugar over these recursors.
 
 - Booleans (non-dependent eliminator as an example):
-  - M: `define transparent if-bool as value for-all A of-type Type0 -> Bool -> A -> A -> A`
-  - S: `(def transparent if-bool (value (pi ((A Type0)) (-> Bool A A A))))`
+  - M: `define transparent if-bool as value for-all A of-type Type0 -> Boolean -> A -> A -> A`
+  - S: `(def transparent if-bool (value (pi ((A Type0)) (-> Boolean A A A))))`
   - Reduction: `if-bool A true t f` → `t`, `if-bool A false t f` → `f`.
 
 - Naturals with explicit recursor:
   - Recursor type:
-    - M: `define transparent nat-rec as value for-all P of-type (Nat -> Type0) -> P zero -> (for-all n of-type Nat -> P n -> P (succ n)) -> for-all n of-type Nat -> P n`
-    - S: `(def transparent nat-rec (value (pi ((P (-> Nat Type0)) (pz (P zero)) (ps (pi ((n Nat)) (-> (P n) (P (succ n))))) (n Nat)) (P n))))`
+    - M: `define transparent nat-rec as value for-all P of-type (Natural -> Type0) -> P zero -> (for-all n of-type Natural -> P n -> P (succ n)) -> for-all n of-type Natural -> P n`
+    - S: `(def transparent nat-rec (value (pi ((P (-> Natural Type0)) (pz (P zero)) (ps (pi ((n Natural)) (-> (P n) (P (succ n))))) (n Natural)) (P n))))`
   - Example use (pattern-match sugar expanded):
     - Pattern sugar: `inspect n with case zero -> zcase; case succ m -> scase m end`
     - Desugars to: `nat-rec (\n. Type_of_result) zcase (\m rec. scase m rec) n`
@@ -140,23 +140,23 @@ Bootstrapping common types in a Prelude (derived from core)
     - S (using Either + Unit): `(def transparent none (value (lambda ((A Type0)) (left unit tt))))` and `(def transparent some (value (lambda ((A Type0) (a A)) (right A Unit a))))`
   - Eliminator via `either-rec` with a constant branch for `none`.
 
-- Finite sets `Fin n` indexed by a Nat bound:
+- Finite sets `Fin n` indexed by a Natural bound:
   - Constructors:
-    - M: `define transparent fin-zero as value for-all n of-type Nat -> Fin (succ n)`
-    - M: `define transparent fin-succ as value for-all n of-type Nat -> Fin n -> Fin (succ n)`
+    - M: `define transparent fin-zero as value for-all n of-type Natural -> Fin (succ n)`
+    - M: `define transparent fin-succ as value for-all n of-type Natural -> Fin n -> Fin (succ n)`
   - Eliminator ensures recursion is structurally decreasing on the Fin argument.
 
 - Length-indexed vectors `Vec A n`:
   - Constructors:
     - M: `define transparent vnil as value for-all A of-type Type0 -> Vec A zero`
-    - M: `define transparent vcons as value for-all A of-type Type0 -> for-all n of-type Nat -> A -> Vec A n -> Vec A (succ n)`
+    - M: `define transparent vcons as value for-all A of-type Type0 -> for-all n of-type Natural -> A -> Vec A n -> Vec A (succ n)`
   - Eliminator/recursor enforces structural recursion on the vector; indexing by length gives stronger guarantees for functions like `head`/`tail`.
 
 Total values vs. effectful computations
 
 - Total, pure value function:
-  - M: `define transparent add2 as value function x of-type Nat produce add-nat x 2`
-  - S: `(def transparent add2 (value (lambda ((x Nat)) (add-nat x 2))))`
+  - M: `define transparent add2 as value function x of-type Natural produce add-nat x 2`
+  - S: `(def transparent add2 (value (lambda ((x Natural)) (add-nat x 2))))`
   - This lives in the value world, normalizes, and can appear in types.
 
 - Effectful computation (IO):
@@ -185,7 +185,7 @@ Termination and coverage illustrations
   - M: 
     ```
     define transparent sum-list as value
-      function xs of-type List Nat produce
+      function xs of-type List Natural produce
         inspect xs with
           case nil -> zero
           case cons h t -> add-nat h (sum-list t)
@@ -197,7 +197,7 @@ Termination and coverage illustrations
   - M:
     ```
     define transparent bad as value
-      function n of-type Nat produce bad n
+      function n of-type Natural produce bad n
     ```
   - Fails termination check; no decreasing argument.
 
@@ -208,7 +208,7 @@ Termination and coverage illustrations
       case true -> zero
     end
     ```
-  - Must include `case false -> …` for `Bool`.
+  - Must include `case false -> …` for `Boolean`.
 
 CBPV small-step semantics (informal rules)
 
@@ -246,10 +246,10 @@ Namespaces and modules: options and examples
   - M:
     ```
     module Math contains
-      define transparent add2 as value function x of-type Nat produce add-nat x 2
+      define transparent add2 as value function x of-type Natural produce add-nat x 2
     end
     ```
-  - S: `(module Math (def transparent add2 (value (lambda ((x Nat)) (add-nat x 2)))))`
+  - S: `(module Math (def transparent add2 (value (lambda ((x Natural)) (add-nat x 2)))))`
   - Import:
     - M: `import Math` or `import Math as M`
     - Use: `Math.add2` or `M.add2`

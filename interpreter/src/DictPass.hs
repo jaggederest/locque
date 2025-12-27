@@ -34,7 +34,8 @@ transformDef env def = case defBody def of
 transformExpr :: DictEnv -> Expr -> Expr
 transformExpr env expr = case expr of
   -- Method call application: look for method applied to argument
-  EApp (EVar methodName) args ->
+  -- Also handle ETyped-wrapped function (from annotation pass)
+  EApp f args | Just methodName <- extractVarName f ->
     case findMethodClass methodName (deClassEnv env) of
       Just (className, _methodType, _typeParam) ->
         -- This is a method call - try to inline
@@ -48,17 +49,17 @@ transformExpr env expr = case expr of
                      Just inst ->
                        case lookup methodName (instImpls inst) of
                          Just impl -> EApp (transformExpr env impl) [transformedArg]
-                         Nothing -> EApp (EVar methodName) [transformedArg]
-                     Nothing -> EApp (EVar methodName) [transformedArg]
-                 Nothing -> EApp (EVar methodName) [transformedArg]
+                         Nothing -> EApp (transformExpr env f) [transformedArg]
+                     Nothing -> EApp (transformExpr env f) [transformedArg]
+                 Nothing -> EApp (transformExpr env f) [transformedArg]
           _ ->
             -- Multiple arguments or no arguments - transform recursively
-            EApp (EVar methodName) (map (transformExpr env) args)
+            EApp (transformExpr env f) (map (transformExpr env) args)
       Nothing ->
         -- Not a method call - transform recursively
-        EApp (EVar methodName) (map (transformExpr env) args)
+        EApp (transformExpr env f) (map (transformExpr env) args)
 
-  -- General application
+  -- General application (no method name found)
   EApp f args -> EApp (transformExpr env f) (map (transformExpr env) args)
 
   -- Lambda
@@ -67,6 +68,9 @@ transformExpr env expr = case expr of
 
   -- Annotation
   EAnnot e ty -> EAnnot (transformExpr env e) ty
+
+  -- Typed expression (from type checker)
+  ETyped e ty -> ETyped (transformExpr env e) ty
 
   -- Dictionary nodes (shouldn't exist yet, but handle them)
   EDict className impls -> EDict className [(n, transformExpr env e) | (n, e) <- impls]
@@ -95,14 +99,22 @@ findMethodClass methodName classEnv =
         Just methodType -> Just (className, methodType, typeParam)
         Nothing -> acc
 
--- | Infer type from a literal expression (simple cases only)
+-- | Extract variable name from expression, unwrapping ETyped wrappers
+extractVarName :: Expr -> Maybe Text
+extractVarName (EVar name) = Just name
+extractVarName (ETyped e _) = extractVarName e
+extractVarName (EAnnot e _) = extractVarName e
+extractVarName _ = Nothing
+
+-- | Infer type from an expression (uses ETyped wrapper if available, falls back to literals)
 inferArgType :: Expr -> Maybe Type
 inferArgType expr = case expr of
+  ETyped _ ty -> Just ty  -- Use type from type checker annotation
   ELit lit -> Just $ case lit of
-    LNat _    -> TNat
+    LNatural _    -> TNatural
     LString _ -> TString
-    LBool _   -> TBool
-  _ -> Nothing  -- Can't infer for non-literals without full type info
+    LBoolean _   -> TBoolean
+  _ -> Nothing  -- Can't infer for non-literals without type info
 
 -- | Find instance matching a concrete type
 findInstance :: Text -> Type -> Map.Map Text [InstanceBody] -> Maybe InstanceBody
@@ -123,9 +135,9 @@ findMatch ty (inst:rest) =
 matchType :: Type -> Type -> Bool
 matchType pattern target = case (pattern, target) of
   (TVar _, _) -> True  -- Type variable matches anything
-  (TNat, TNat) -> True
+  (TNatural, TNatural) -> True
   (TString, TString) -> True
-  (TBool, TBool) -> True
+  (TBoolean, TBoolean) -> True
   (TUnit, TUnit) -> True
   (TList p, TList t) -> matchType p t
   (TPair p1 p2, TPair t1 t2) -> matchType p1 t1 && matchType p2 t2

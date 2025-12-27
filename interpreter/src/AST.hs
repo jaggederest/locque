@@ -6,9 +6,9 @@ import qualified Type as T
 -- Literals in the language
 
 data Literal
-  = LNat Integer
+  = LNatural Integer
   | LString Text
-  | LBool Bool
+  | LBoolean Bool
   deriving (Show, Eq)
 
 -- Expressions (value world)
@@ -20,6 +20,7 @@ data Expr
   | ELam Text (Maybe T.Type) Expr      -- Single parameter lambda
   | ELamMulti [Text] (Maybe T.Type) Expr  -- Multi-parameter lambda (sugar for curried)
   | EAnnot Expr T.Type                 -- Explicit type annotation (expr : Type)
+  | ETyped Expr T.Type                 -- Inferred type wrapper (added by type checker)
   | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]
   | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
   deriving (Show, Eq)

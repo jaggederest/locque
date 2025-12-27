@@ -1,0 +1,48 @@
+# Test typeclass method resolution with variable arguments (not just literals)
+# This tests that ETyped wrappers propagate type info through DictPass
+import prelude as P
+import assert as A
+
+module typeclass_variable_test contains
+  # Define a simple typeclass
+  define transparent Show as typeclass a where
+    show of-type (-> a String)
+
+  # Define instances
+  define transparent Show-Natural as instance Show Natural where
+    show produce lambda x -> "natural"
+
+  define transparent Show-Boolean as instance Show Boolean where
+    show produce lambda x -> "boolean"
+
+  # Test: using show with a variable (not a literal)
+  # The type of x is inferred and should be propagated to DictPass
+  define transparent show-var as value
+    function x of-type Natural produce
+      show x
+
+  # Test: using show in a higher-order function
+  define transparent apply-show as value
+    function f of-type (-> Natural String) produce
+      function x of-type Natural produce
+        f x
+
+  # Test: nested function with typeclass method on variable
+  define transparent show-nat-var as value
+    function x of-type Natural produce
+      show x
+
+  define transparent show-bool-var as value
+    function y of-type Boolean produce
+      show y
+
+  define transparent main as computation
+    # Verify show with variable works (the key test!)
+    bind A.assert-eq-string (show-var 42) "natural" as _ then
+    # Verify higher-order application works
+    bind A.assert-eq-string (apply-show show-var 99) "natural" as _ then
+    # Verify both types work with variables
+    bind A.assert-eq-string (show-nat-var 1) "natural" as _ then
+    bind A.assert-eq-string (show-bool-var true) "boolean" as _ then
+    return P.tt
+end

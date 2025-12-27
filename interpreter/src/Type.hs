@@ -8,9 +8,9 @@ import qualified Data.Set as Set
 
 -- | Type representation for locque
 data Type
-  = TNat                    -- ^ Natural numbers
+  = TNatural                    -- ^ Natural numbers
   | TString                 -- ^ Strings
-  | TBool                   -- ^ Booleans
+  | TBoolean                   -- ^ Booleans
   | TUnit                   -- ^ Unit type (for tt)
   | TList Type              -- ^ Homogeneous lists
   | TPair Type Type         -- ^ Pairs
@@ -37,9 +37,9 @@ type TypeEnv = Map.Map Text TypeScheme
 
 -- | Get free type variables in a type
 freeVars :: Type -> Set.Set Text
-freeVars TNat = Set.empty
+freeVars TNatural = Set.empty
 freeVars TString = Set.empty
-freeVars TBool = Set.empty
+freeVars TBoolean = Set.empty
 freeVars TUnit = Set.empty
 freeVars (TList t) = freeVars t
 freeVars (TPair a b) = freeVars a `Set.union` freeVars b
@@ -55,11 +55,11 @@ freeVarsScheme :: TypeScheme -> Set.Set Text
 freeVarsScheme (TypeScheme vars ty) = freeVars ty Set.\\ Set.fromList vars
 
 -- | Pretty-print a type in human-readable format
--- Examples: "Nat", "List String", "Nat -> Bool", "∀a. List a -> Nat", "Comp String"
+-- Examples: "Natural", "List String", "Nat -> Bool", "∀a. List a -> Nat", "Comp String"
 prettyType :: Type -> Text
-prettyType TNat = "Nat"
+prettyType TNatural = "Natural"
 prettyType TString = "String"
-prettyType TBool = "Bool"
+prettyType TBoolean = "Boolean"
 prettyType TUnit = "Unit"
 prettyType (TList t) = "List " <> prettyTypeAtom t
 prettyType (TPair a b) = "Pair " <> prettyTypeAtom a <> " " <> prettyTypeAtom b
@@ -77,9 +77,9 @@ prettyConstraint (Constraint cls ty) = cls <> " " <> prettyTypeAtom ty
 
 -- | Pretty-print a type in atomic position (add parens if needed)
 prettyTypeAtom :: Type -> Text
-prettyTypeAtom t@TNat = prettyType t
+prettyTypeAtom t@TNatural = prettyType t
 prettyTypeAtom t@TString = prettyType t
-prettyTypeAtom t@TBool = prettyType t
+prettyTypeAtom t@TBoolean = prettyType t
 prettyTypeAtom t@TUnit = prettyType t
 prettyTypeAtom t@(TVar _) = prettyType t
 prettyTypeAtom t = "(" <> prettyType t <> ")"
@@ -90,11 +90,11 @@ prettyTypeScheme (TypeScheme [] ty) = prettyType ty
 prettyTypeScheme (TypeScheme vars ty) = "∀" <> T.intercalate " " vars <> ". " <> prettyType ty
 
 -- | Render a type as S-expression format
--- Examples: "Nat", "(List String)", "(-> Nat Bool)", "(for-all (a) (-> (List a) Nat))"
+-- Examples: "Natural", "(List String)", "(-> Nat Bool)", "(for-all (a) (-> (List a) Nat))"
 typeToSExpr :: Type -> Text
-typeToSExpr TNat = "Nat"
+typeToSExpr TNatural = "Natural"
 typeToSExpr TString = "String"
-typeToSExpr TBool = "Bool"
+typeToSExpr TBoolean = "Boolean"
 typeToSExpr TUnit = "Unit"
 typeToSExpr (TList t) = "(List " <> typeToSExpr t <> ")"
 typeToSExpr (TPair a b) = "(Pair " <> typeToSExpr a <> " " <> typeToSExpr b <> ")"

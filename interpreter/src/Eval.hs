@@ -20,6 +20,7 @@ import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
 import           Utils (modNameToPath, qualifyName)
 import           DictPass (transformModuleWithEnvs)
+import qualified TypeChecker as TC
 
 -- Global assertion counter (reset at the start of each test run)
 {-# NOINLINE assertionCounter #-}
@@ -29,23 +30,23 @@ assertionCounter = unsafePerformIO (newIORef 0)
 -- Runtime values
 
 data Value
-  = VNat Integer
+  = VNatural Integer
   | VString Text
   | VList [Value]
   | VUnit
-  | VBool Bool
+  | VBoolean Bool
   | VPair Value Value
   | VClosure Env Text Expr
   | VPrim ([Value] -> IO Value)
   | VDict Text (Map.Map Text Value)  -- className, method implementations
 
 instance Show Value where
-  show (VNat n)    = show n
+  show (VNatural n)    = show n
   show (VString s) = show s
   show (VList xs)  = "[" ++ inner xs ++ "]"
     where inner = concat . map ((++ ",") . show)
   show VUnit       = "tt"
-  show (VBool b)   = if b then "true" else "false"
+  show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
@@ -126,32 +127,36 @@ primEnv = Map.fromList
   , (T.pack "init-prim", BVal (VPrim primInit))
   -- Error handling
   , (T.pack "error-prim", BVal (VPrim primError))
+  -- Display/conversion
+  , (T.pack "nat-to-string-prim", BVal (VPrim primNatToString))
+  -- Boolean assertions
+  , (T.pack "assert-eq-bool-prim", BVal (VPrim primAssertEqBool))
   ]
 
 primAdd :: [Value] -> IO Value
 primAdd vals = do
   ints <- mapM expectNat vals
-  pure $ VNat (sum ints)
+  pure $ VNatural (sum ints)
 
 primSub :: [Value] -> IO Value
 primSub [a,b] = do
   a' <- expectNat a
   b' <- expectNat b
-  pure $ VNat (max 0 (a' - b'))
+  pure $ VNatural (max 0 (a' - b'))
 primSub _ = error "sub-nat-prim expects 2 args"
 
 primEqNat :: [Value] -> IO Value
 primEqNat [a,b] = do
   a' <- expectNat a
   b' <- expectNat b
-  pure $ VBool (a' == b')
+  pure $ VBoolean (a' == b')
 primEqNat _ = error "eq-nat-prim expects 2 args"
 
 primEqString :: [Value] -> IO Value
 primEqString [a,b] = do
   a' <- expectString a
   b' <- expectString b
-  pure $ VBool (a' == b')
+  pure $ VBoolean (a' == b')
 primEqString _ = error "eq-string-prim expects 2 args"
 
 primConcatString :: [Value] -> IO Value
@@ -196,8 +201,8 @@ primMatch :: [Value] -> IO Value
 primMatch [v, c1, c2] = case v of
   VList []      -> apply c1 [VUnit]
   VList (h:t)   -> apply c2 [h, VList t]
-  VBool False   -> apply c1 [VUnit]
-  VBool True    -> apply c2 [VUnit]
+  VBoolean False   -> apply c1 [VUnit]
+  VBoolean True    -> apply c2 [VUnit]
   VPair a b     -> apply c2 [a, b]
   _             -> error "match-prim unsupported value"
 primMatch _ = error "match-prim expects (value, case1, case2)"
@@ -209,8 +214,8 @@ primMatchList [v, _, _] = error $ "match-list-prim expects List, got " ++ show v
 primMatchList _ = error "match-list-prim expects (List, empty-handler, cons-handler)"
 
 primMatchBool :: [Value] -> IO Value
-primMatchBool [VBool False, c1, _c2] = apply c1 [VUnit]
-primMatchBool [VBool True, _c1, c2] = apply c2 [VUnit]
+primMatchBool [VBoolean False, c1, _c2] = apply c1 [VUnit]
+primMatchBool [VBoolean True, _c1, c2] = apply c2 [VUnit]
 primMatchBool [v, _, _] = error $ "match-bool-prim expects Bool, got " ++ show v
 primMatchBool _ = error "match-bool-prim expects (Bool, false-handler, true-handler)"
 
@@ -240,18 +245,18 @@ primValidate [VString s] = do
   -- Add trailing newline if missing (parser requires it)
   let s' = if T.isSuffixOf (T.pack "\n") s then s else s <> T.pack "\n"
   case checkParens "<inline>" s' of
-    Left _ -> pure (VBool False)
+    Left _ -> pure (VBoolean False)
     Right _ -> case parseModuleFile "<inline>" s' of
-      Left _ -> pure (VBool False)
+      Left _ -> pure (VBoolean False)
       Right m -> case validateModule m of
-        Left _ -> pure (VBool False)
-        Right _ -> pure (VBool True)
+        Left _ -> pure (VBoolean False)
+        Right _ -> pure (VBoolean True)
 primValidate _ = error "validate-prim expects 1 string"
 
 primLengthString :: [Value] -> IO Value
 primLengthString [a] = do
   s <- expectString a
-  pure $ VNat (fromIntegral (T.length s))
+  pure $ VNatural (fromIntegral (T.length s))
 primLengthString _ = error "length-string-prim expects 1 arg"
 
 primPrint :: [Value] -> IO Value
@@ -315,7 +320,7 @@ primTail [VList []]    = pure (VList [])
 primTail _ = error "tail-prim expects non-empty list"
 
 primLengthList :: [Value] -> IO Value
-primLengthList [VList xs] = pure $ VNat (fromIntegral (length xs))
+primLengthList [VList xs] = pure $ VNatural (fromIntegral (length xs))
 primLengthList _ = error "length-list-prim expects 1 list arg"
 
 primAppend :: [Value] -> IO Value
@@ -327,8 +332,8 @@ primMap [fn, VList xs] = VList <$> mapM (\v -> apply fn [v]) xs
 primMap _ = error "map-prim expects (fn, list)"
 
 primNot :: [Value] -> IO Value
-primNot [VBool b] = pure $ VBool (not b)
-primNot [v] = pure $ VBool (not (isTruthy v))
+primNot [VBoolean b] = pure $ VBoolean (not b)
+primNot [v] = pure $ VBoolean (not (isTruthy v))
 primNot _ = error "not-prim expects 1 arg"
 
 primIfBool :: [Value] -> IO Value
@@ -339,7 +344,7 @@ primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
 primCompareNat op [a, b] = do
   a' <- expectNat a
   b' <- expectNat b
-  pure $ VBool (a' `op` b')
+  pure $ VBoolean (a' `op` b')
 primCompareNat _ _ = error "comparison expects 2 args"
 
 -- Arithmetic operators
@@ -347,7 +352,7 @@ primCompareNat _ _ = error "comparison expects 2 args"
 primMulNat :: [Value] -> IO Value
 primMulNat vals = do
   ints <- mapM expectNat vals
-  pure $ VNat (product ints)
+  pure $ VNatural (product ints)
 
 primDivNat :: [Value] -> IO Value
 primDivNat [a, b] = do
@@ -355,7 +360,7 @@ primDivNat [a, b] = do
   b' <- expectNat b
   if b' == 0
     then error "div-nat-prim: division by zero"
-    else pure $ VNat (a' `div` b')
+    else pure $ VNatural (a' `div` b')
 primDivNat _ = error "div-nat-prim expects 2 args"
 
 primModNat :: [Value] -> IO Value
@@ -364,13 +369,13 @@ primModNat [a, b] = do
   b' <- expectNat b
   if b' == 0
     then error "mod-nat-prim: modulo by zero"
-    else pure $ VNat (a' `mod` b')
+    else pure $ VNatural (a' `mod` b')
 primModNat _ = error "mod-nat-prim expects 2 args"
 
 -- List operations
 
 primNth :: [Value] -> IO Value
-primNth [VNat idx, VList xs] = do
+primNth [VNatural idx, VList xs] = do
   let i = fromInteger idx
   if i < 0 || i >= length xs
     then error $ "nth-prim: index " ++ show idx ++ " out of bounds for list of length " ++ show (length xs)
@@ -378,13 +383,13 @@ primNth [VNat idx, VList xs] = do
 primNth _ = error "nth-prim expects (index, list)"
 
 primTake :: [Value] -> IO Value
-primTake [VNat n, VList xs] = do
+primTake [VNatural n, VList xs] = do
   let count = fromInteger n
   pure $ VList (take count xs)
 primTake _ = error "take-prim expects (count, list)"
 
 primDrop :: [Value] -> IO Value
-primDrop [VNat n, VList xs] = do
+primDrop [VNatural n, VList xs] = do
   let count = fromInteger n
   pure $ VList (drop count xs)
 primDrop _ = error "drop-prim expects (count, list)"
@@ -392,7 +397,7 @@ primDrop _ = error "drop-prim expects (count, list)"
 -- String operations
 
 primSubstring :: [Value] -> IO Value
-primSubstring [VNat start, VNat len, VString s] = do
+primSubstring [VNatural start, VNatural len, VString s] = do
   let startIdx = fromInteger start
       lenVal = fromInteger len
       result = T.take lenVal (T.drop startIdx s)
@@ -400,7 +405,7 @@ primSubstring [VNat start, VNat len, VString s] = do
 primSubstring _ = error "substring-prim expects (start, length, string)"
 
 primCharAt :: [Value] -> IO Value
-primCharAt [VNat idx, VString s] = do
+primCharAt [VNatural idx, VString s] = do
   let i = fromInteger idx
   if i < 0 || i >= T.length s
     then error $ "char-at-prim: index " ++ show idx ++ " out of bounds for string of length " ++ show (T.length s)
@@ -409,24 +414,24 @@ primCharAt _ = error "char-at-prim expects (index, string)"
 
 primContains :: [Value] -> IO Value
 primContains [VString needle, VString haystack] =
-  pure $ VBool (needle `T.isInfixOf` haystack)
+  pure $ VBoolean (needle `T.isInfixOf` haystack)
 primContains _ = error "contains-prim expects (needle, haystack)"
 
 primStartsWith :: [Value] -> IO Value
 primStartsWith [VString prefix, VString s] =
-  pure $ VBool (prefix `T.isPrefixOf` s)
+  pure $ VBoolean (prefix `T.isPrefixOf` s)
 primStartsWith _ = error "starts-with-prim expects (prefix, string)"
 
 primEndsWith :: [Value] -> IO Value
 primEndsWith [VString suffix, VString s] =
-  pure $ VBool (suffix `T.isSuffixOf` s)
+  pure $ VBoolean (suffix `T.isSuffixOf` s)
 primEndsWith _ = error "ends-with-prim expects (suffix, string)"
 
 primIndexOf :: [Value] -> IO Value
 primIndexOf [VString needle, VString haystack] =
   case T.breakOn needle haystack of
-    (before, after) | T.null after -> pure $ VNat (fromIntegral (T.length haystack))
-                    | otherwise -> pure $ VNat (fromIntegral (T.length before))
+    (before, after) | T.null after -> pure $ VNatural (fromIntegral (T.length haystack))
+                    | otherwise -> pure $ VNatural (fromIntegral (T.length before))
 primIndexOf _ = error "index-of-prim expects (needle, haystack)"
 
 primReverseString :: [Value] -> IO Value
@@ -451,8 +456,21 @@ primError :: [Value] -> IO Value
 primError [VString msg] = error (T.unpack msg)
 primError _ = error "error-prim expects 1 string arg"
 
+primNatToString :: [Value] -> IO Value
+primNatToString [VNatural n] = pure $ VString (T.pack (show n))
+primNatToString _ = error "nat-to-string-prim expects 1 Natural arg"
+
+primAssertEqBool :: [Value] -> IO Value
+primAssertEqBool [VBoolean a, VBoolean b] = do
+  if a == b
+    then do
+      modifyIORef' assertionCounter (+1)
+      pure VUnit
+    else error $ "assert-eq-bool failed: " ++ show a ++ " /= " ++ show b
+primAssertEqBool _ = error "assert-eq-bool-prim expects 2 Boolean args"
+
 expectNat :: Value -> IO Integer
-expectNat (VNat n) = pure n
+expectNat (VNatural n) = pure n
 expectNat v        = error $ "expected Nat, got " ++ show v
 
 expectString :: Value -> IO Text
@@ -468,9 +486,9 @@ primDropUntil [target, VList xs] = do
 primDropUntil _ = pure (VList [])
 isTruthy :: Value -> Bool
 isTruthy VUnit = True
-isTruthy (VBool b) = b
+isTruthy (VBoolean b) = b
 isTruthy (VString s) = not (T.null s)
-isTruthy (VNat n) = n /= 0
+isTruthy (VNatural n) = n /= 0
 isTruthy (VList xs) = not (null xs)
 isTruthy _ = False
 
@@ -512,12 +530,13 @@ evalExpr env expr = case expr of
                         (x:_) -> " (did you mean '" <> x <> "'?)"
       in error $ T.unpack ("Unknown variable: " <> t <> suggestion)
   ELit lit -> pure $ case lit of
-    LNat n    -> VNat n
+    LNatural n    -> VNatural n
     LString s -> VString s
-    LBool b   -> VBool b
+    LBoolean b   -> VBoolean b
   ELam v _mType body -> pure $ VClosure env v body  -- Type annotation ignored in evaluation
   ELamMulti params _mType body -> pure $ makeNestedClosures env params body
   EAnnot expr _ty -> evalExpr env expr  -- Type annotation ignored in evaluation
+  ETyped expr _ty -> evalExpr env expr  -- Inferred type ignored in evaluation
   EApp f args -> do
     vf <- evalExpr env f
     vs <- mapM (evalExpr env) args
@@ -610,8 +629,16 @@ loadImport projectRoot (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
+  -- Type check the imported module
+  tcResult <- TC.typeCheckModuleWithImports projectRoot contents parsed
+  annotated <- case tcResult of
+    Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
+    Right env -> case TC.annotateModule env parsed of
+      Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
+      Right m -> pure m
+
   -- Apply dictionary pass to transform typeclass method calls
-  let transformed = transformModuleWithEnvs parsed
+  let transformed = transformModuleWithEnvs annotated
   let Module _modName _ opens defs = transformed
   envImports <- loadImports projectRoot transformed
   -- Process opens to bring in unqualified names from open statements

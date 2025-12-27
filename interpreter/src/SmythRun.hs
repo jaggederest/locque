@@ -29,12 +29,18 @@ runFile config file = do
         Left tcErr -> do
           putStrLn $ "Type error: " ++ show tcErr
           exitFailure
-        Right _ -> do
-          -- Transform: dictionary passing for typeclasses
-          let m' = transformModuleWithEnvs m
-          -- Run
-          _ <- (runModuleMain (projectRoot config) m' `catch` handleRuntimeError)
-          exitSuccess
+        Right env -> do
+          -- Annotate: wrap expressions with inferred types
+          case TC.annotateModule env m of
+            Left annotErr -> do
+              putStrLn $ "Annotation error: " ++ show annotErr
+              exitFailure
+            Right annotatedM -> do
+              -- Transform: dictionary passing for typeclasses
+              let m' = transformModuleWithEnvs annotatedM
+              -- Run
+              _ <- (runModuleMain (projectRoot config) m' `catch` handleRuntimeError)
+              exitSuccess
 
 -- | Handle type checking errors (including import loading failures)
 handleTypeCheckError :: SomeException -> IO (Either TC.TypeError TC.TypeEnv)

@@ -8,11 +8,11 @@ import prelude as P
 module LFuzzyMatchUnqualified contains
 
   define transparent my-function as value
-    function x of-type Nat produce x
+    function x of-type Natural produce x
 
   # Deliberately misspell my-function as my-functoin
   define transparent test-typo as value
-    function x of-type Nat produce
+    function x of-type Natural produce
       my-functoin x
 
   define transparent main as computation
