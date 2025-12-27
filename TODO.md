@@ -3,10 +3,22 @@
 ## Immediate Priorities
 
 ### 1. Grammar Alignment (text-first, no arrows/symbols)
-- [ ] Parser: adopt `function … returns … as|do … end`, `let value … end`, `bind name from … then … end`, `perform` without `io`, unified `match … of-type …` cases, `computation T`, `for-all`/`there-exists`, explicit universes `Type0/1/2`, `::` qualifiers only, `open … exposing … end`.
-- [ ] Types/TypeChecker: switch to explicit universes and `for-all`/`there-exists`; replace arrow/Comp wrappers with `computation`; drop `lambda`/`inspect`/`match-prim` handling; enforce value vs computation split.
-- [ ] Evaluator: drop `match-prim` and `perform io`; align primitives with new types; keep `perform` as the only bridge.
-- [ ] Regenerate examples/tests/docs to new surface; converter emits S-expr with full `define`.
+- Parser (M/S):
+  - [x] Removed legacy forms (`lambda`, legacy `let … in`, `inspect`/`case`, `do … then …`, `perform io`).
+  - [x] Added `let value … be … in … end`, `bind name from … then … [end]`, `perform` (single expr).
+  - [ ] Add `function … returns … as|do … end` fully (no reliance on ELam), unified `match … of-type …` cases, `open … exposing … end`.
+  - [ ] Switch type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
+- Types/TypeChecker:
+  - [ ] Replace `TFun`/`TComp` with Pi (`for-all`) and computation wrapper; add Sigma (`there-exists`); explicit universes.
+  - [ ] Enforce value vs computation split at def/body level; drop `lambda`/`inspect`/`match-prim` paths; adjust primitive types.
+  - [ ] Update import/open handling to `::`-only qualifiers and explicit-name `open`.
+- Evaluator:
+  - [ ] Remove `match-prim` and `perform io`; keep `perform` as single bridge.
+  - [ ] Align primitives/env with new types; ensure `match` dispatch uses typed eliminators only.
+- Converter/rendering:
+  - [ ] Update S-expr/M-expr pretty-printers to new forms; keep full `define` keyword.
+- Docs/tests:
+  - [ ] Regenerate `.lqs` from `.lq`; refresh examples/tests to new surface once parser/typechecker are aligned.
 
 ### 2. Type Classes (after alignment)
 - [ ] Design class/instance/constraint syntax that fits the new grammar.

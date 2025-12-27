@@ -163,25 +163,6 @@ fromExpr _ (SAtom t)       = Right (EVar t)
 fromExpr _ (SNum n)        = Right (ELit (LNatural n))
 fromExpr _ (SStr s)        = Right (ELit (LString s))
 fromExpr path (SList [])   = Left (path ++ ": empty expression list")
-fromExpr path (SList (SAtom "lambda" : SList params : body : [])) = do
-  (names, finalBody) <- peel path params body
-  -- Compress nested lambdas into multi-param form
-  let (allParams, ultimateBody) = collectNestedLambdas finalBody
-  let totalParams = names ++ allParams
-  case totalParams of
-    [] -> pure (ELam (DT.pack "_unit") (Just T.TUnit) ultimateBody)  -- Zero-param lambda
-    [p] -> pure (ELam p Nothing ultimateBody)  -- Single-param lambda
-    _  -> pure (ELamMulti totalParams Nothing ultimateBody)  -- Multi-param lambda
-  where
-    collectNestedLambdas :: Expr -> ([Text], Expr)
-    collectNestedLambdas (ELam p _ body) =
-      let (ps, b) = collectNestedLambdas body
-      in (p:ps, b)
-    collectNestedLambdas other = ([], other)
-fromExpr path (SList (SAtom "let" : SList binds : body : [])) = do
-  binds' <- mapM (fromLetBind path) binds
-  body' <- fromExpr path body
-  pure (desugarLet binds' body')
 fromExpr path (SList (f:args)) = do
   f' <- fromExpr path f
   args' <- mapM (fromExpr path) args
@@ -191,33 +172,10 @@ mkApp :: Expr -> [Expr] -> Expr
 mkApp (EApp f existing) more = EApp f (existing ++ more)
 mkApp f more                 = EApp f more
 
-fromLetBind :: FilePath -> SExpr -> Either String (Text, Expr)
-fromLetBind path (SList (SAtom v : parts)) = case parts of
-  []      -> Left (path ++ ": let binding for " ++ DT.unpack v ++ " must have a value")
-  [expr]  -> do e <- fromExpr path expr; pure (v, e)
-  exprs   -> do e <- fromExpr path (SList exprs); pure (v, e)
-fromLetBind path other = Left (path ++ ": invalid let binding form " ++ renderHead other)
-
-desugarLet :: [(Text, Expr)] -> Expr -> Expr
-desugarLet binds body = foldr wrap body binds
-  where
-    wrap (v, val) acc = EApp (ELam v Nothing acc) [val]
-
-peel :: FilePath -> [SExpr] -> SExpr -> Either String ([Text], Expr)
-peel path ps b = do
-  names <- mapM grab ps
-  b' <- fromExpr path b
-  pure (names, b')
-  where
-    grab (SAtom v)            = Right v
-    grab (SList (SAtom v:_))  = Right v
-    grab otherExpr            = Left (path ++ ": lambda parameters must be atoms, saw " ++ renderHead otherExpr)
-
 fromComp :: FilePath -> SExpr -> Either String Comp
 fromComp path se = case se of
   SList [SAtom "return", e] -> CReturn <$> fromExpr path e
-  SList (SAtom "do" : rest) -> doBlock path rest
-  SList [SAtom "perform", SAtom "io", e] -> CPerform <$> fromExpr path e
+  SList [SAtom "perform", e] -> CPerform <$> fromExpr path e
   SAtom t -> Right (CVar t)
   SList (SAtom "bind" : SAtom v : c1 : c2 : []) -> do
     c1' <- fromComp path c1
@@ -228,21 +186,6 @@ fromComp path se = case se of
     args' <- mapM (fromExpr path) args
     pure $ CReturn (EApp f' args')
   _ -> Left (path ++ ": invalid computation form " ++ renderHead se)
-
--- Parse (do ...) block into nested binds/seqs
-
-doBlock :: FilePath -> [SExpr] -> Either String Comp
-doBlock path [] = Left (path ++ ": empty do block")
-doBlock path [one] = fromComp path one
-doBlock path (stmt:rest) = case stmt of
-  SList [SAtom "bind", SAtom v, c] -> do
-    c' <- fromComp path c
-    rest' <- doBlock path rest
-    pure $ CBind v c' rest'
-  _ -> do
-    c' <- fromComp path stmt
-    rest' <- doBlock path rest
-    pure $ CSeq c' rest'
 
 renderHead :: SExpr -> String
 renderHead sexpr = case sexpr of
@@ -388,18 +331,18 @@ pComp = pBind <|> pCompNonBind
 pBind :: Parser Comp
 pBind = M.try $ do
   keyword "bind"
-  first <- pCompNonBind
-  keyword "as"
   v <- pIdentifier
+  keyword "from"
+  first <- pCompNonBind
   keyword "then"
   rest <- pComp
+  optional (keyword "end")
   pure (CBind v first rest)
 
 pCompNonBind :: Parser Comp
 pCompNonBind =
   pReturn
     <|> pPerform
-    <|> pSeq
     <|> compFromExpr <$> pExpr
 
 pReturn :: Parser Comp
@@ -410,15 +353,7 @@ pReturn = do
 pPerform :: Parser Comp
 pPerform = do
   keyword "perform"
-  keyword "io"
   CPerform <$> pExpr
-
-pSeq :: Parser Comp
-pSeq = M.try $ do
-  keyword "do"
-  first <- pComp
-  keyword "then"
-  CSeq first <$> pComp
 
 compFromExpr :: Expr -> Comp
 compFromExpr (EVar t) = CVar t
@@ -427,86 +362,34 @@ compFromExpr e        = CReturn e
 -- Expressions
 
 pExpr :: Parser Expr
-pExpr = pLet <|> pFunction <|> pLambda <|> pInspect <|> pApp
+pExpr = pLet <|> pFunction <|> pApp
 
 pLet :: Parser Expr
 pLet = M.try $ do
   keyword "let"
-  schemeBinds <- optional (M.try schemeBindings)
-  case schemeBinds of
-    Just binds -> do
-      body <- pExpr
-      pure (foldr (\(v,val) acc -> EApp (ELam v Nothing acc) [val]) body binds)
-    Nothing -> do
-      v <- pIdentifier
-      keyword "as"
-      val <- pExpr
-      keyword "in"
-      body <- pExpr
-      pure (EApp (ELam v Nothing body) [val])
-  where
-    schemeBindings = between (mSymbol "(") (mSymbol ")") (some oneBind)
-    oneBind = between (mSymbol "(") (mSymbol ")") $ do
-      v <- pIdentifier
-      val <- pExpr
-      pure (v, val)
-
-pLambda :: Parser Expr
-pLambda = do
-  keyword "lambda"
-  zeroParamForm <|> multiParamForm <|> curryForm
-  where
-    -- Zero-param: lambda -> body
-    zeroParamForm = M.try $ do
-      keyword "->"
-      body <- pExpr
-      pure (ELam (DT.pack "_unit") (Just T.TUnit) body)
-
-    -- Multi-param: lambda (x y z) -> body
-    multiParamForm = M.try $ do
-      params <- between (mSymbol "(") (mSymbol ")") (some pIdentifier)
-      keyword "->"
-      body <- pExpr
-      pure (ELamMulti params Nothing body)
-
-    -- Curried: lambda x -> body or lambda x -> lambda y -> body
-    curryForm = do
-      params <- some pIdentifier
-      keyword "->"
-      body <- pExpr
-      case params of
-        [p] -> pure (ELam p Nothing body)
-        _   -> pure (ELamMulti params Nothing body)
+  keyword "value"
+  v <- pIdentifier
+  keyword "be"
+  val <- pExpr
+  keyword "in"
+  body <- pExpr
+  optional (keyword "end")
+  pure (EApp (ELam v Nothing body) [val])
 
 pFunction :: Parser Expr
 pFunction = M.try $ do
   keyword "function"
-  params <- some pIdentifier
-  keyword "of-type"
-  ty <- pType  -- parse the type annotation
-  keyword "produce"
-  body <- pExpr
-  -- Attach type to the outermost lambda parameter
-  case params of
-    [] -> fail "function must have at least one parameter"
-    (p:ps) -> pure (ELam p (Just ty) (foldr (\n b -> ELam n Nothing b) body ps))
-
-pInspect :: Parser Expr
-pInspect = do
-  keyword "inspect"
-  scrut <- pExpr
-  keyword "with"
-  cases <- some pCase
-  keyword "end"
-  pure (EApp (EVar "match") (scrut : cases))
-
-pCase :: Parser Expr
-pCase = do
-  keyword "case"
-  args <- many pIdentifier
-  keyword "->"
-  body <- pExpr
-  pure (foldr (\n b -> ELam n Nothing b) body args)
+  params <- many paramWithType
+  keyword "returns"
+  _retTy <- pType
+  body <- (keyword "as" *> pExpr) <|> (keyword "do" *> pExpr)
+  optional (keyword "end")
+  pure (foldr (\(n, _t) b -> ELam n Nothing b) body params)
+  where
+    paramWithType = do
+      name <- pIdentifier
+      ty <- pType
+      pure (name, ty)
 
 pApp :: Parser Expr
 pApp = do
@@ -632,8 +515,7 @@ reservedWords :: [Text]
 reservedWords =
   [ "module", "contains", "import", "open", "define", "transparent", "opaque"
   , "as", "value", "computation", "function", "of-type", "produce"
-  , "lambda", "let", "in", "inspect", "with", "case", "return"
-  , "perform", "io", "bind", "then", "do", "end"
+  , "return", "returns", "perform", "bind", "then", "from", "end", "exposing", "be", "in"
   , "family", "typeclass", "instance", "where", "equals"  -- Type classes
   ]
 
