@@ -10,7 +10,7 @@ Interpreter (Haskell, `interpreter/`)
   - Module names use `::` separator (e.g., `Some::Module::Name`)
   - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`)
   - Qualifies names with module/alias and can open explicit names
-- CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag, `--typecheck <file>` (type check only), `--validate <file>`, `--emit-lqs <file> <out>`, `--emit-lq <file> <out>`.
+- CLI: `locque-interpreter run <file>` (type check + run .lq/.lqs), `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`. Smyth tool: `smyth run <file>` (type check + run), `smyth test` (all via test/main.lq), `smyth test <file>` (one). Installed at `~/.local/bin/smyth`.
 - Smyth tool: `smyth run <file>`, `smyth test` (all), `smyth test <file>` (one). Installed at `~/.local/bin/smyth`.
 - Type checker: currently Hindley-Milner with CBPV-aware `Comp` wrapper and type classes/families scaffolding; needs upgrade to the new dependent/universe grammar (explicit `Type0/1/2`, `for-all`/`there-exists`, `computation T`).
 - Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).

@@ -17,66 +17,35 @@ main = do
   args <- getArgs
   case args of
     ["--help"] -> putStrLn usage
-    ["--run-lqs", file] -> runLqs True file
-    ["--run-lq", file] -> runLq True file
-    ["--run-lqs", "--skip-typecheck", file] -> runLqs False file
-    ["--run-lq", "--skip-typecheck", file] -> runLq False file
-    ["--skip-typecheck", "--run-lqs", file] -> runLqs False file
-    ["--skip-typecheck", "--run-lq", file] -> runLq False file
-    ["--typecheck", file] -> typecheckFile file
-    ["--emit-lqs", file, out] -> emitLqs file out
-    ["--emit-lq", file, out] -> emitLq file out
-    ["--validate", file] -> validateLqs file
-    [] -> die usage
-    [file] -> runLqs True file
+    ["run", file] -> runFile file
+    ["typecheck", file] -> typecheckFile file
+    ["emit-lqs", file, out] -> emitLqs file out
+    ["emit-lq", file, out] -> emitLq file out
+    ["validate", file] -> validateLqs file
     _ -> die usage
 
-runLqs :: Bool -> FilePath -> IO ()
-runLqs doTypeCheck file = do
+runFile :: FilePath -> IO ()
+runFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
   contents <- T.readFile file
-  case parseModuleFile file contents of
+  case parseAny file contents of
     Left err -> die err
     Right m  -> do
-      -- Type check before execution (if enabled)
-      if doTypeCheck
-        then do
-          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
-          case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
-            Right _env -> do _ <- runModuleMain projectRoot m; pure ()
-        else do _ <- runModuleMain projectRoot m; pure ()
-
-runLq :: Bool -> FilePath -> IO ()
-runLq doTypeCheck file = do
-  cwd <- getCurrentDirectory
-  let projectRoot = takeDirectory cwd
-  contents <- T.readFile file
-  case parseMExprFile file contents of
-    Left err -> die err
-    Right m  -> do
-      -- Type check before execution (if enabled)
-      if doTypeCheck
-        then do
-          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
-          case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
-            Right _env -> do _ <- runModuleMain projectRoot m; pure ()
-        else do _ <- runModuleMain projectRoot m; pure ()
+      typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
+      case typeResult of
+        Left tcErr -> die ("Type error: " ++ show tcErr)
+        Right _env -> do _ <- runModuleMain projectRoot m; pure ()
 
 usage :: String
 usage = unlines
   [ "locque-interpreter usage:"
-  , "  locque-interpreter [--run-lqs <file>]         (run with type checking)"
-  , "  locque-interpreter --run-lq <file>            (run with type checking)"
-  , "  locque-interpreter --skip-typecheck --run-lq <file>  (skip type checking)"
-  , "  locque-interpreter --typecheck <file>         (type check only, don't run)"
-  , "  locque-interpreter --emit-lqs <file> <out>"
-  , "  locque-interpreter --emit-lq <file> <out>"
-  , "  locque-interpreter --validate <file>          (validate S-expr module)"
+  , "  locque-interpreter run <file>                 (type check + run .lq/.lqs)"
+  , "  locque-interpreter typecheck <file>           (type check only)"
+  , "  locque-interpreter emit-lqs <in.lq> <out.lqs> (M-expr -> S-expr)"
+  , "  locque-interpreter emit-lq <in.lqs> <out.lq>  (S-expr -> M-expr)"
+  , "  locque-interpreter validate <file.lqs>        (paren/structural check)"
   , "  locque-interpreter --help"
-  , "Default: run ../examples/00_hello_world.lqs (with type checking)"
   ]
 
 validateLqs :: FilePath -> IO ()
@@ -95,12 +64,7 @@ typecheckFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
   contents <- T.readFile file
-  let parseResult = if takeExtension file == ".lq"
-                    then parseMExprFile file contents
-                    else do
-                      _ <- checkParens file contents
-                      parseModuleFile file contents
-  case parseResult of
+  case parseAny file contents of
     Left err -> die err
     Right m  -> do
       result <- TC.typeCheckModuleWithImports projectRoot contents m
@@ -109,6 +73,15 @@ typecheckFile file = do
         Right env  -> do
           putStrLn "✓ Type check passed"
           putStrLn ("  Definitions checked: " ++ show (Map.size env))
+
+parseAny :: FilePath -> T.Text -> Either String Module
+parseAny file contents =
+  case takeExtension file of
+    ".lq"  -> parseMExprFile file contents
+    ".lqs" -> do
+      _ <- checkParens file contents
+      parseModuleFile file contents
+    _      -> Left ("Unsupported file extension (expected .lq or .lqs): " ++ file)
 
 emitLqs :: FilePath -> FilePath -> IO ()
 emitLqs file out = do
