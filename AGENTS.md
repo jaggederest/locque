@@ -1,160 +1,41 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs (surface intent): `define (transparent|opaque) name as (value|computation) …`, `function x of-type A produce …`, `for-all`, `there-exists`, `inspect … with … end` (matching to be added), application is prefix/left-assoc, modules/imports are explicit.
-- Comments: M-expr uses `#` for line comments and `/* */` for block comments; S-expr uses `;` for line comments and `#| |#` for block comments.
+- Core constructs: `define (transparent|opaque) name as <value|computation>`, functions only via `function ... returns ... as|do ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B`, typed `match ... of-type ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
 
 Interpreter (Haskell, `interpreter/`)
-- AST: literals (Natural, String, Boolean), vars, apps, lambdas, defs (transparency/kind), values vs computations.
-- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Boolean); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string; match (lists/bools/pairs); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool.
+- AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, lambdas/functions, defs (transparency/kind), values vs computations.
+- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub nat; eq nat/string (Boolean); concat/length/split-on/join/trim strings; print/read-file/write-file; assert eq nat/string/bool; match (list/bool/pair); filter; fold (left); map (temp); append; pair/fst/snd/pair-to-list; drop-until; not; if-bool; many string/list utilities; shell; error. (To be aligned with new surface: `perform` without `io`, `match-prim`/`inspect` to be removed.)
 - Import resolution:
-  - Module names use `::` separator for namespacing (e.g., `Some::Module::Name`)
-  - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq`
-  - Examples: `prelude` → `lib/prelude.lq`, `test::prelude::basics` → `test/prelude/basics.lq`
-  - Qualifies names with module/alias, also inserts unqualified names
-- CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag to bypass type checking, `--typecheck <file>` (type check only), `--validate <file>` (parens + parse + structural validation), `--emit-lqs <file> <out>` (M-expr → S-expr), `--emit-lq <file> <out>` (S-expr → M-expr).
-- Smyth tool (standalone binary): `smyth run <file>` (type check + execute), `smyth test` (run all tests), `smyth test <file>` (run specific test). Installed at `~/.local/bin/smyth`.
-- Type checker: Bidirectional type checking with Hindley-Milner polymorphism, enforces CBPV split at type level, integrated into interpreter by default (use `--skip-typecheck` to disable for legacy code).
-- Validator module: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
+  - Module names use `::` separator (e.g., `Some::Module::Name`)
+  - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`)
+  - Qualifies names with module/alias and can open explicit names
+- CLI: `--run-lq <file>` (run M-expr with type checking), `--run-lqs <file>` (run S-expr with type checking), `--skip-typecheck` flag, `--typecheck <file>` (type check only), `--validate <file>`, `--emit-lqs <file> <out>`, `--emit-lq <file> <out>`.
+- Smyth tool: `smyth run <file>`, `smyth test` (all), `smyth test <file>` (one). Installed at `~/.local/bin/smyth`.
+- Type checker: currently Hindley-Milner with CBPV-aware `Comp` wrapper and type classes/families scaffolding; needs upgrade to the new dependent/universe grammar (explicit `Type0/1/2`, `for-all`/`there-exists`, `computation T`).
+- Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
-- Prelude: add/sub; nil/cons/head/tail/length/append/map/filter/fold/reverse (string-list flavor); not/if-bool/match; pair/fst/snd/pair-to-list; id/is-falsy; tt.
-- Assert: assert-eq-nat/string, assert-false.
-- IO: print/read-file/write-file.
-- String: concat/length/eq/split-on/join-with/trim/split-spaces (locque-defined).
-- List: drop-until.
-- Tools:
-  - Tokenizer (tokenize by spaces).
-  - Validator (validate-string via validate-prim).
-- Notes:
-  - We're aiming for minimal syntax surfaced in locque, but some primitives are currently defined in Haskell as scaffolding; these should be replaced with locque implementations over time.
-  - Work follows a test-driven loop: make a test fail, fix the code to pass, then refactor (no deleting tests to make them pass).
-  - Do not add new primitives without explicit permission/instruction. Keep existing tests intact; do not suppress warnings with annotations unless explicitly told to.
-  - Existing code/tests are good examples for extending functionality; prefer building on them rather than bypassing them.
-  - Parentheses are brittle: NEVER hand-balance or manually rewrite `.lqs` S-expressions; author canonical `.lq` M-expr sources and use the converter to produce `.lqs` only when needed for debugging/fixtures. Keep `.lqs` tests as generated mirrors of `.lq` where required.
-  - Use `gsed` (GNU sed) instead of `sed` on macOS for word-boundary support (`\b`). BSD sed lacks this feature.
+- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not/if-bool/match); pair ops; id/is-falsy; tt.
+- Assert: assert-eq-nat/string/bool, assert-false.
+- IO: print/read-file/write-file/shell.
+- String: concat/length/eq/split-on/join-with/trim/split-spaces.
+- Tools: tokenizer; validator (validate-string via validate-prim).
+- Note: primitives are Haskell scaffolding; aim to replace with locque implementations over time.
+
+Notes and working agreements
+- Single canonical surface (no arrows/lambdas/inspect/match-prim in new grammar); S-expr mirrors AST (keep using converter; do not handcraft `.lqs`).
+- Qualification uses `::` only; `open Alias exposing ... end` with explicit names only.
+- Effects are explicit: computations typed as `computation T`, bridged by `perform`; sequencing via `bind name from comp then ... end`.
+- Work is test-driven; do not delete tests to make them pass. No new primitives without explicit instruction. Do not suppress warnings unless told.
+- Parentheses are brittle; author `.lq` and convert; keep `.lqs` as generated mirrors when needed.
+- Use `gsed` (GNU sed) on macOS for `\b`.
 
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
-- Tests: organized in `test/features/` (13 feature tests) and `test/typecheck/` (6 type checker tests).
-- Run all tests: `smyth test` (from interpreter/ directory) - executes `test/main.lq` which imports all test modules.
-- Run specific test: `smyth test <file>` - runs single test file.
-- Legacy numbered tests (`00-39` feature, `40-49` validator, `50-59` conversion, `99-XX` typecheck) migrated to modular structure.
-- All tests include type annotations and run with type checking enabled by default.
+- Tests under `test/features/` and `test/typecheck/`; run all from `interpreter/` with `smyth test` (entry `test/main.lq`), or `smyth test <file>`.
+- All tests run with type checking enabled by default (legacy `--skip-typecheck` still available).
 
-## Match Primitive Semantics
-
-Locque provides three type-specific match primitives for pattern matching on different value types. Each primitive has a precise type signature that correctly represents its semantics in the Hindley-Milner type system.
-
-### Type-Specific Match Primitives
-
-**match-list**: Match on lists
-```
-∀a b. List a -> (() -> b) -> (a -> List a -> b) -> b
-```
-
-**match-bool**: Match on booleans
-```
-∀b. Boolean -> (() -> b) -> (() -> b) -> b
-```
-
-**match-pair**: Match on pairs
-```
-∀a b c. Pair a b -> (() -> c) -> (a -> b -> c) -> c
-```
-
-### Handler Arities by Type
-
-| Primitive | Value Type | First Handler | Second Handler |
-|-----------|------------|---------------|----------------|
-| `match-list` | `List a` | `() -> b` (empty list) | `a -> List a -> b` (head, tail) |
-| `match-bool` | `Boolean` | `() -> b` (false) | `() -> b` (true) |
-| `match-pair` | `Pair a b` | `() -> c` (unreachable) | `a -> b -> c` (first, second) |
-
-### Critical Syntax Rule: Zero-Parameter Lambdas
-
-**Zero-parameter lambdas MUST use paren form WITHOUT arrows**:
-- ✅ Correct: `lambda () body` (paren form, no arrow)
-- ❌ Wrong: `lambda _ -> body` (arrow form with one parameter)
-- ❌ Wrong: `lambda () -> body` (syntax error - paren form doesn't use arrows)
-
-**The distinction**:
-- Paren form: `lambda () body` parses `()` as zero identifiers (type: `() -> a`)
-- Arrow form: `lambda x -> body` parses `x` as one identifier (type: `a -> b`)
-
-All match handlers that take zero parameters must use the paren form because their type is `Unit -> b` (in Locque syntax: `() -> b`).
-
-### Examples
-
-**List matching**:
-```locque
-P.match-list my-list
-  (lambda () "list is empty")
-  (lambda h -> lambda t -> h)
-```
-
-**Boolean matching**:
-```locque
-P.match-bool my-bool
-  (lambda () "was false")
-  (lambda () "was true")
-```
-
-**Pair matching**:
-```locque
-P.match-pair my-pair
-  (lambda () "unreachable")
-  (lambda a -> lambda b -> a)
-```
-
-### Migration from Old `match`
-
-The old unified `match` primitive (`match-prim`) is kept for backward compatibility but has a broken type signature that cannot correctly represent all three matching semantics in Hindley-Milner. It will cause "occurs check" failures when type checking code that matches on lists.
-
-**Migration guide**:
-- Replace `P.match <list> ...` with `P.match-list <list> ...`
-- Replace `P.match <bool> ...` with `P.match-bool <bool> ...`
-- Replace `P.match <pair> ...` with `P.match-pair <pair> ...`
-
-**Note on `inspect` syntax**: The `inspect ... with ... end` syntax desugars to the old `match-prim` and will not type-check correctly for lists. Use explicit `P.match-list` calls instead. Future versions may add type-based dispatch or type classes to unify these back into a single polymorphic `match` function.
-
-### S-expr Equivalent
-
-```scheme
-; M-expr: lambda () body
-; S-expr: (lambda () body)
-
-; M-expr: lambda x -> body
-; S-expr: (lambda ((x Type)) body)
-
-; Example with match-list:
-(P.match-list xs
-  (lambda () "empty")
-  (lambda ((h a)) (lambda ((t (List a))) h)))
-```
-
-## M-expr ↔ S-expr Conversion
-
-**Haskell Reference Implementation:**
-- Canonical converter in `interpreter/src/Parser.hs`
-- Bidirectional: `.lq` (M-expr) ↔ `.lqs` (S-expr)
-- CLI: `--emit-lqs <in.lq> <out.lqs>` and `--emit-lq <in.lqs> <out.lq>`
-- Both formats parse to identical AST
-- Roundtrip conversions preserve semantics
-
-**Philosophy:**
-- NEVER hand-write `.lqs` S-expressions (except for debugging)
-- Author canonical `.lq` M-expr sources with type annotations
-- Use `--emit-lqs` to generate `.lqs` for debugging/fixtures
-- Haskell implementation is the reference; native Locque converter is future dogfooding
-
-**Type System Integration:**
-- Type checker runs by default on `--run-lq` and `--run-lqs`
-- Use `--skip-typecheck` flag for legacy code without type annotations
-- All new code should include `function x of-type T produce ...` annotations
-- Type errors caught before execution (fail fast)
-
-Outstanding issues / next steps
-- Add type annotations to all legacy tests (currently require `--skip-typecheck`)
-- Clean up Haskell warnings (unused imports/binds) when convenient
-- Consider native Locque converter as dogfooding exercise (future)
+Outstanding alignment work
+- Update parser/typechecker/evaluator to the new grammar: `function ... returns ... as|do ... end`, `let value ... end`, `bind name from ... then ... end`, unified `match ... of-type ...`, `perform` without `io`, `computation T`, `for-all`/`there-exists`, explicit universes `Type0/1/2`, `::` qualifiers only, drop `lambda`/`inspect`/`match-prim`.
+- Refresh docs/examples/tests to the new surface once the interpreter matches.

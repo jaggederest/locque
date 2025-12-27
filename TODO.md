@@ -2,243 +2,59 @@
 
 ## Immediate Priorities
 
-### 1. Test Runner (`smyth test`) - ✓ **COMPLETED**
-- [x] Modular test organization (test/features/, test/typecheck/)
-- [x] test/main.lq entry point for running all tests
-- [x] Type checking always runs before execution
-- [x] Clear pass/fail reporting
-- [x] Exit codes for CI/CD integration (0 = pass, 1 = fail)
-- [x] Project root discovery via Smythfile.lq
-- [ ] Golden file testing (snapshot comparison) - future enhancement
+### 1. Grammar Alignment (text-first, no arrows/symbols)
+- [ ] Parser: adopt `function … returns … as|do … end`, `let value … end`, `bind name from … then … end`, `perform` without `io`, unified `match … of-type …` cases, `computation T`, `for-all`/`there-exists`, explicit universes `Type0/1/2`, `::` qualifiers only, `open … exposing … end`.
+- [ ] Types/TypeChecker: switch to explicit universes and `for-all`/`there-exists`; replace arrow/Comp wrappers with `computation`; drop `lambda`/`inspect`/`match-prim` handling; enforce value vs computation split.
+- [ ] Evaluator: drop `match-prim` and `perform io`; align primitives with new types; keep `perform` as the only bridge.
+- [ ] Regenerate examples/tests/docs to new surface; converter emits S-expr with full `define`.
 
-### 2. Type Classes
-**Goal**: Unify match-list/bool/pair into polymorphic `match` via type classes
+### 2. Type Classes (after alignment)
+- [ ] Design class/instance/constraint syntax that fits the new grammar.
+- [ ] Implement parser/typechecker/instance resolution + dictionary pass.
+- [ ] Refactor stdlib/tests to use type classes (e.g., unified `match` sugar).
 
-- [ ] Design type class syntax and semantics
-- [ ] Implement type class declaration in parser
-- [ ] Add type class constraint solving to type checker
-- [ ] Implement instance resolution
-- [ ] Create `Match` type class with instances for List, Boolean, Pair
-- [ ] Refactor standard library to use type classes
-- [ ] Update tests and documentation
-
-**Benefits**: Will stress-test interpreter and grow stdlib organically
-
-### 3. Error Message Improvements - ✓ **PHASE 1-3 COMPLETED**
-**Philosophy**: Self-prompting for LLMs, concise for humans, optimize for token efficiency
-
-- [x] Add "Did you mean?" suggestions (fuzzy matching on identifiers, Levenshtein distance ≤ 2)
-- [x] Error infrastructure (SourceLoc, ErrorMsg modules)
-- [x] Enhanced TypeError with location tracking
-- [x] Runtime error fuzzy matching (Eval.hs)
-- [x] Thread source contents through type checker (infrastructure for context display)
-- [ ] Show code context (line with error highlighted) - infrastructure ready, needs parser location integration
-- [ ] Suggest fixes inline: "Try: `function x of-type String produce`"
-- [ ] Migration hints: "Use `match-list` instead of `match` for lists"
-- [x] Keep suggestions under 100 tokens per error
-- [ ] Color coding in terminal (red/yellow/green)
-- [ ] Error codes for programmatic handling
+### 3. Error Message Improvements
+- [x] Suggestions, SourceLoc/ErrorMsg infra, TypeError locations, runtime fuzzy matching, source threading
+- [ ] Show code context once parser locations updated
+- [ ] Inline fix hints; color; error codes
 
 ## Core Tooling (smyth)
-
-### Build Tool CLI
-- [x] `locque-interpreter --run-lq` (bootstrap)
-- [x] `smyth test` - Run all tests (test/main.lq)
-- [x] `smyth test <file>` - Run specific test file
-- [x] `smyth run <file>` - Type check + execute
-- [x] Standalone binary generation (`cabal install smyth` → `~/.local/bin/smyth`)
-- [ ] `smyth check <file>` - Type check only
-- [ ] `smyth repl` - Interactive REPL
-- [ ] `smyth validate <file>` - Syntax + structural validation
-- [ ] `smyth convert <file>` - M-expr ↔ S-expr bidirectional
-- [ ] `smyth fmt <file>` - Auto-formatter (canonical style)
-- [ ] `smyth doc` - Generate HTML documentation
-
-### REPL Improvements
-- [ ] Multiline input support
-- [ ] `:type <expr>` command to show inferred types
-- [ ] `:load <file>` to import definitions
-- [ ] `:reload` to refresh loaded files
-- [ ] `:help` for command reference
-- [ ] Persistent history across sessions
-- [ ] Tab completion for identifiers
-
-### LSP Server (Language Server Protocol)
-**HIGH VALUE for LLMs and editors**
-
-- [ ] Go to definition
-- [ ] Hover for type information
-- [ ] Inline type errors while editing
-- [ ] Rename refactoring (update all references)
-- [ ] Auto-completion (imports, functions, keywords)
-- [ ] Code actions (auto-fix common errors)
-- [ ] Document symbols (outline view)
+- [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`)
+- [ ] `smyth check <file>` (type check only)
+- [ ] `smyth repl` (aligned with new grammar)
+- [ ] `smyth validate <file>`; `smyth convert <file>`; `smyth fmt <file>`; `smyth doc`
 
 ## Language Features
-
-### Type System
-- [x] Bidirectional type checking for annotated lambdas
-- [x] Type-specific match primitives (match-list/bool/pair)
-- [x] Fresh variable generation (StateT FreshCounter)
-- [ ] Type classes and instances
+- [ ] Dependent types in checker (universes, Pi/Sigma) per new grammar
 - [ ] Exhaustiveness checking for pattern matching
-- [ ] Type holes (`?` for "fill this in later")
-- [ ] Better type inference (less annotation required)
-- [ ] Row polymorphism for records (future)
-- [ ] Dependent types (long-term endgame)
+- [ ] Type holes; better inference; rows/records (future)
 
-### Pattern Matching
-- [x] match-list, match-bool, match-pair primitives
-- [ ] Type class-based polymorphic match
-- [ ] Exhaustiveness warnings
-- [ ] Guard clauses in patterns
-- [ ] Nested pattern destructuring
-- [ ] As-patterns (`x@(cons h t)`)
+## Pattern Matching
+- [x] Type-specific primitives (current impl)
+- [ ] Unified `match` sugar over typed eliminators; exhaustiveness; guards; nested patterns; as-patterns
 
-### Standard Library
-- [x] Core: Prelude, List, String, IO, Assert
-- [x] List.slice
-- [ ] Result type for error handling (`Result e a`)
-- [ ] Option type for nullable values (`Option a`)
-- [ ] Either type for choice
-- [ ] More string operations (substring, replace, index-of)
-- [ ] More list operations (zip, partition, group-by)
-- [ ] File system (read-dir, walk-tree, file-info)
-- [ ] JSON parsing/serialization
-- [ ] Basic HTTP client (future)
+## Standard Library
+- [x] Core: Prelude, List, String, IO, Assert; List.slice
+- [ ] Result/Option/Either
+- [ ] More string/list ops; filesystem; JSON; HTTP (future)
 
 ## Self-Hosting (Dogfooding)
-
-**Hold until tooling is more polished**
-
-- [ ] M-expr → S-expr converter in Locque
-- [ ] Parser written in Locque
-- [ ] Type checker written in Locque
-- [ ] Validator written in Locque
-- [ ] smyth tool itself in Locque (ultimate goal)
+- [ ] M-expr ↔ S-expr converter in Locque
+- [ ] Parser/type checker/validator in Locque
+- [ ] smyth in Locque (long term)
 
 ## Documentation
-
-### Language Reference
-- [ ] Syntax specification (M-expr and S-expr)
-- [ ] Type system formal semantics
-- [ ] Pattern matching semantics
-- [ ] CBPV (values vs computations) explanation
-- [ ] Module system and imports
-- [ ] Primitive operations reference
-
-### Tutorials
-- [ ] "Hello World" - basics of values and computations
-- [ ] "Type Annotations" - navigating the type system
-- [ ] "Pattern Matching" - lists, bools, pairs
-- [ ] "Higher-Order Functions" - fold, map, filter
-- [ ] "Building Abstractions" - defining your own functions
-- [ ] "Type Classes" - polymorphism and interfaces (after implementation)
-- [ ] "Dependent Types" - the final frontier (long-term)
-
-### Migration Guides
-- [x] match → match-list/bool/pair (in AGENTS.md)
-- [ ] Adding type annotations to legacy code
-- [ ] Migrating to type classes (once implemented)
+- [ ] Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … as|do … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`)
+- [ ] Add type class migration guide once implemented
 
 ## Infrastructure
-
-### CI/CD
-- [ ] GitHub Actions workflow
-- [ ] Run all tests on every commit
-- [ ] Type check all library code
-- [ ] Build and cache dependencies
-- [ ] Automated releases (versioning)
-
-### Quality Assurance
-- [ ] Benchmark suite for performance tracking
-- [ ] Regression detection (performance and correctness)
-- [ ] Fuzzer for parser robustness
-- [ ] Fuzzer for type checker soundness
-- [ ] Code coverage tracking
-- [ ] Property-based testing for type checker
-
-### Package Ecosystem (Future)
-- [ ] Package manager design (`smyth add <package>`)
-- [ ] Lock files for reproducible builds
-- [ ] Central registry (like crates.io)
-- [ ] Semantic versioning enforcement
-- [ ] Transitive dependency resolution
-
-## Code Quality & Refactoring
-
-### Haskell Interpreter
-- [ ] Clean up unused imports/bindings (warnings)
-- [ ] Better separation of concerns (Parser/TypeChecker/Eval)
-- [ ] Add property-based tests (QuickCheck)
-- [ ] Performance profiling and optimization
-- [ ] Better error handling (fewer `error` calls, more Either/Maybe)
-
-### Technical Debt
-- [ ] Standardize file path handling (absolute vs relative)
-- [ ] Unify M-expr and S-expr parsing (shared AST)
-- [ ] Simplify primitive environment building
-- [ ] Better abstraction for import resolution
-- [ ] Document internal architecture decisions
+- [ ] CI: run tests/typecheck; releases
+- [ ] QA: fuzzers (parser/typechecker), benchmarks, coverage, property-based tests
+- [ ] Package ecosystem (future): manager, lockfile, registry, semver, resolution
 
 ## Completed ✓
-
-- [x] Fix #1: Inline annotated lambda type checking
-- [x] Fix #2: Type-specific match primitives
-- [x] Fix #3: Fresh variable generation (module scope pollution)
-- [x] Three new type checker tests (fold_inline, match, opaque_import)
-- [x] Updated AGENTS.md with match migration guide
-- [x] List.slice function
-- [x] Comment syntax (M-expr: `#` and `/* */`, S-expr: `;` and `#| |#`)
-- [x] Smythfile.lq project configuration
-- [x] smyth test runner (modular test organization, type checking, pass/fail reporting)
-- [x] Migrated all 19 tests to test/features/ and test/typecheck/
-- [x] test/main.lq unified test suite
-- [x] `smyth run <file>` command (type check + execute)
-- [x] Assertion counting (115 assertions across full test suite)
-- [x] Standalone binary (`~/.local/bin/smyth`)
-- [x] Error message improvements Phase 1-3:
-  - [x] SourceLoc module for location tracking
-  - [x] ErrorMsg module with Levenshtein fuzzy matching
-  - [x] Enhanced TypeError with location and environment context
-  - [x] Runtime error fuzzy matching in Eval.hs
-  - [x] Source contents threading through type checker
-
----
-
-## Next Session Goals
-
-Based on completed test runner, `smyth run`, assertion counting, and error message improvements, three main paths forward:
-
-### Option A: Type Classes (Major Feature)
-**Goal**: Unify match-list/bool/pair into polymorphic `match` via type classes
-
-**Why now**:
-- Would immediately improve ergonomics (single `match` instead of three)
-- Stress-tests type system with real-world use case
-- Foundation for future polymorphism needs
-- Natural next step after type system maturation
-
-**Effort**: High (touches parser, type checker, evaluator)
-
-### Option B: More `smyth` Commands (Tooling Expansion)
-**Goal**: Add `smyth check` (type check only), `smyth repl`, `smyth fmt`
-
-**Why now**:
-- Natural extension of test runner and run command work
-- Immediate utility for daily workflow
-- `smyth check` particularly useful for fast feedback
-- Infrastructure already exists for most commands
-
-**Effort**: Low-Medium (infrastructure already exists)
-
-### Option C: Standard Library Expansion
-**Goal**: Add Result/Option types, more list/string operations
-
-**Why now**:
-- Can be done in Locque itself (dogfooding)
-- Immediate practical value
-- Tests type system and tooling
-- Foundation for more complex features
-
-**Effort**: Low-Medium (mostly Locque code, some primitives)
+- Test runner (`smyth test`) and modular tests
+- `smyth run`; Smythfile.lq; standalone binary
+- Comment syntax
+- Error message improvements (phases 1-3)
+- Assertion counting across suite

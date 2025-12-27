@@ -4,9 +4,8 @@ Future design decisions for dependent types and advanced features.
 
 ## 1) Universes
 
-- Do we use explicit `Type0`, `Type1`, … with cumulativity? How do we prevent universe inconsistencies while keeping authoring straightforward?
-- Options: cumulative tower `Type0 : Type1 : Type2 …` (practical, safe) vs. type-in-type (simpler but inconsistent, probably avoid). Universe polymorphism with automatic level solving vs. manual annotations. Need a clear max rule for Π/Σ and inductives; decide whether to allow typical ambiguity or require explicit levels for clarity to LLMs.
-- Current leaning: cumulative tower with explicit levels (no type-in-type), allow universe polymorphism with explicit `Level` parameters, avoid typical ambiguity to keep surface unambiguous for LLMs.
+- Decision: explicit cumulative tower `Type0`, `Type1`, `Type2`, … (no type-in-type). Surface tokens stay numeric; no sugar.
+- Open: whether to add level polymorphism/solving later vs. keep levels explicit; max rules for Π/Σ/inductives remain to be spelled out; no typical ambiguity.
 
 ## 2) Inductive Types and Eliminators
 
@@ -25,6 +24,6 @@ The following decisions have been resolved and are documented in grammar.md and 
 2. **Definitional equality**: β/δ/ι with per-definition opacity markers - see philosophy.md and grammar.md
 3. **Totality vs partiality**: Total core with explicit effects in computations - see grammar.md Computations section
 4. **Namespaces**: One module per file, explicit imports, qualified names - see grammar.md Module Structure
-5. **Surface syntax mapping**: Complete 1:1 M-exp ↔ S-exp mapping - see grammar.md S-expression Mapping
+5. **Surface syntax mapping**: Complete 1:1 M-exp ↔ S-exp mapping - see grammar.md
 6. **Ergonomics for LLMs**: No implicit coercions, explicit casts/effects - see philosophy.md
 7. **Entrypoints**: `smyth run <file>` / `smyth test` CLI (see AGENTS.md for current implementation)

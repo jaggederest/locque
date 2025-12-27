@@ -1,356 +1,143 @@
-# Locque Grammar (Current Implementation)
+# Locque Grammar (consensus spec)
 
-This document describes the **current** implementation of Locque's M-expression syntax, not future/aspirational features.
+One canonical surface, no arrows or symbolic sugar. Qualification uses `::` only. Definitions are single-assignment; opacity lives on `define`, purity on the body form.
 
-## Lexical Conventions
+## Lexical and tokens
 
-### Identifiers
-- **Pattern**: `[A-Za-z_][A-Za-z0-9_-]*`
-- Examples: `add-nat`, `my-function`, `foo_bar`, `x`
-- Qualified names use `.` separator: `P.add-nat`, `String.concat`
+- Identifiers: `[A-Za-z_][A-Za-z0-9_-]*`
+- Qualified names: `Alias::name` (only `::`; `.` reserved for future records)
+- Module names: `[A-Za-z0-9_:/-]+` with `::` separators; `Group::Module` → `group/module.lq` (lowercased). Tests live under `Test::…` → `test/…`.
+- Literals:
+  - Naturals: digits with optional `_` separators (ignored): `0`, `42`, `1_000`
+  - Strings: `"..."` with escapes
+  - Booleans: `true`, `false`
+  - Unit: `tt`
+- Comments: M-expr `#` / `/* */`; S-expr `;` / `#| |#`
+- Application: left-associative; minimal parentheses for grouping only
 
-### Module Names
-- **Pattern**: `[A-Za-z0-9_:/-]+` starting with letter or underscore
-- Support `::` separator for namespacing: `Some::Module::Name`
-- Map to lowercase filenames with `/`: `Some::Module::Name` → `lib/some/module/name.lq`
-- Examples: `prelude`, `String`, `Tools::Validator`, `test::features::basics`
+## Module, import, open
 
-### Reserved Keywords
 ```
-module, contains, import, as, define, transparent, opaque,
-value, computation, function, of-type, produce,
-lambda, let, in, return, bind, then, perform, io, end, where
-```
+import Prelude
+import Tools::String as S
+open Prelude exposing map nil cons end
 
-### Comments
-- **M-expr**: `#` (line comment), `/* */` (block comment)
-- **S-expr**: `;` (line comment), `#| |#` (block comment)
-
-### Application
-- **Left-associative**: `f a b c` means `(((f a) b) c)`
-- **No precedence rules** beyond left-to-right application
-- Every construct starts with a keyword (no ambiguity)
-
----
-
-## Module Structure
-
-```ebnf
-File ::= Import* Module
-
-Import ::= "import" ModuleName ("as" ModuleName)?
-
-Module ::= "module" ModuleName "contains" Definition* "end"
-```
-
-**Examples:**
-```locque
-import prelude as P
-import string as S
-
-module my-module contains
-  define transparent main as computation
-    perform io (P.print "Hello")
+module my::module contains
+  ...
 end
 ```
 
-**Module resolution:**
-- `import prelude` → loads `lib/prelude.lq`
-- `import Some::Module` → loads `lib/some/module.lq`
-- `import test::features::basics` → loads `test/features/basics.lq`
-
----
+- Imports precede opens; opens precede the module.
+- `open Alias exposing name1 name2 ... end` (explicit list only; no wildcard).
 
 ## Definitions
 
-```ebnf
-Definition ::= "define" Transparency Identifier "as" DefKind Body
-
-Transparency ::= "transparent" | "opaque"
-
-DefKind ::= "value" | "computation"
-          | "typeclass" | "instance"  # Planned for type classes
-
-Body ::= Expr  # for value/computation
-       | TypeClassDef  # for typeclass (planned)
-       | InstanceDef   # for instance (planned)
+```
+define transparent <name> as <Value>
+define opaque       <name> as <Computation>
 ```
 
-**Current:**
-```locque
-# Value (pure, no effects)
-define transparent add-nat as value add-nat-prim
+- Opacity: `transparent` or `opaque` on the binding.
+- Body must be pure for value definitions, effectful for computation definitions.
+- Functions are values; effectful functions return `computation T`.
 
-# Computation (effectful)
-define transparent read-line as computation
-  perform io read-line-prim
+## Values
+
+```
+Value ::=
+    Identifier
+  | Literal
+  | Value Value                        -- application (left-assoc)
+  | Function                           -- pure or effectful intro
+  | let value x be Value in Value end  -- pure local
+  | match ...                          -- typed match (see below)
 ```
 
-**Planned (type classes):**
-```locque
-# Type class declaration
-define transparent Match as typeclass where
-  match of-type (a -> (() -> b) -> (a -> a -> b) -> b)
+### Function (only form)
 
-# Instance declaration
-define transparent Match-List as instance Match (List a) where
-  match produce lambda xs -> ...
+```
+function p1 T1 p2 T2 ... returns Type as ValueBody end    -- pure
+function p1 T1 p2 T2 ... returns computation Type do CompBody end  -- effectful
+function returns Type as|do Body end                      -- zero-arg
 ```
 
-**Transparency:**
-- `transparent` - can unfold during type checking (for optimization/reasoning)
-- `opaque` - abstract, never unfolds (encapsulation)
-
-**DefKind:**
-- `value` - pure term-level value
-- `computation` - effectful computation (CBPV split)
-- `typeclass` - overloading mechanism (planned)
-- `instance` - typeclass implementation (planned)
-
----
-
-## Expressions
-
-```ebnf
-Expr ::= Identifier                    # Variable
-       | Literal                       # Nat, String, Bool
-       | "(" Expr ")"                  # Grouping
-       | Expr Expr                     # Application (left-assoc)
-       | Lambda                        # Function
-       | "let" Identifier "=" Expr "in" Expr    # Let binding
-       | MatchExpr                     # Pattern matching
-
-Lambda ::= "lambda" LambdaParams "->" Expr
-         | "lambda" "()" Expr          # Zero-parameter (no arrow!)
-
-LambdaParams ::= Identifier            # Single param
-               | Identifier "->" LambdaParams  # Curried multi-param
-
-# Annotated lambda (for type checking)
-AnnotatedLambda ::= "function" Identifier+ "of-type" Type "produce" Expr
-
-Literal ::= Number | String | "true" | "false"
-
-MatchExpr ::= MatchPrimitive Expr Expr Expr
-
-MatchPrimitive ::= "match-list" | "match-bool" | "match-pair"
-```
-
-**Lambda examples:**
-```locque
-# Zero parameters (Unit -> a)
-lambda () "constant"
-
-# One parameter
-lambda x -> x
-
-# Curried (two parameters)
-lambda x -> lambda y -> x
-
-# Annotated (type-checked)
-function x of-type Nat produce x
-function x y of-type (-> Nat (-> Nat Nat)) produce add-nat x y
-```
-
-**CRITICAL: Zero-parameter lambdas use paren form WITHOUT arrow:**
-```locque
-✅ lambda () body         # Correct
-❌ lambda _ -> body      # Wrong (one parameter)
-❌ lambda () -> body     # Syntax error
-```
-
-**Let bindings:**
-```locque
-let x = 5 in
-let y = 10 in
-add-nat x y
-```
-
-**Pattern matching:**
-```locque
-# Match on list
-P.match-list my-list
-  (lambda () "empty")
-  (lambda h -> lambda t -> h)
-
-# Match on bool
-P.match-bool condition
-  (lambda () "false-branch")
-  (lambda () "true-branch")
-
-# Match on pair
-P.match-pair my-pair
-  (lambda () "unreachable")
-  (lambda a -> lambda b -> a)
-```
-
----
+- Parameters are `name Type`, space-separated.
+- `returns` separates params from result type.
+- Body keyword: `as` (pure value body) or `do` (computation body). This also signals purity.
 
 ## Computations
 
-```ebnf
-Comp ::= "return" Expr                                    # Pure value
-       | "bind" Identifier "<-" Comp "then" Comp         # Sequencing
-       | "perform" "io" Expr                             # IO effect
+```
+Computation ::=
+    return Value
+  | bind x from Computation then Computation end
+  | perform Value                 -- value of type computation T
 ```
 
-**Examples:**
-```locque
-# Return pure value
-return 42
+## Pattern matching (typed, unified `match`)
 
-# Sequence computations
-bind x <- perform io (read-file "input.txt") then
-bind _ <- perform io (print x) then
-return tt
+Scrutinee type must be known (annotate inline if ambiguous).
 
-# IO effect
-perform io (print "Hello, world!")
+```
+-- List
+match xs of-type List A
+  empty-case as <Value>
+  cons-case with h A t List A as <Value>
+end
+
+-- Boolean
+match flag of-type Boolean
+  false-case as <Value>
+  true-case  as <Value>
+end
+
+-- Pair
+match p of-type Pair A B
+  pair-case with a A b B as <Value>
+end
 ```
 
----
+Handlers use value bodies (pure); no lambdas.
 
 ## Types
 
-```ebnf
-Type ::= TypeAtom
-       | "(" Type ")"                              # Grouping
-       | Type "->" Type                            # Function (right-assoc)
-       | "(List" Type ")"                          # List
-       | "(Pair" Type Type ")"                     # Pair
-       | "(effect" Identifier ")" Type             # Effect annotation (planned)
+```
+Type ::=
+    TypeAtom
+  | for-all x as Type to Type          -- Pi (function type, dependent)
+  | there-exists x as Type in Type     -- Sigma (dependent pair)
+  | computation Type                   -- effectful result type
 
-TypeAtom ::= "Nat" | "String" | "Bool" | "Unit"
-           | Identifier                            # Type variable (lowercase)
-
-# Planned: constraint syntax for type classes
-ConstrainedType ::= Constraint "=>" Type          # e.g., "Show a => a -> String"
-Constraint ::= Identifier Identifier              # e.g., "Show a"
+TypeAtom ::=
+    Type0 | Type1 | Type2 | ...        -- universes (explicit levels)
+  | Natural | String | Boolean | Unit
+  | List Type
+  | Pair Type Type                     -- non-dependent pair sugar
+  | TypeVar                            -- lower-case identifier
+  | ( Type )                           -- grouping
 ```
 
-**Current types:**
-```locque
-Nat
-String
-Bool
-Unit
-(List Nat)
-(Pair String Bool)
-(-> Nat Nat)                    # Nat -> Nat
-(-> Nat (-> Nat Nat))           # Nat -> Nat -> Nat
-```
+- No arrow syntax; always the `for-all ... to ...` form (even non-dependent; use a throwaway name if unused).
+- Sigma is `there-exists x as A in B`; non-dependent pairs may use `Pair A B`.
+- Universes are explicit (`Type0`, `Type1`, `Type2`, …); cumulative; no bare `Type`.
+- Type application is word-based: `List Natural`, `Vector Natural n`, `Result Error a`.
 
-**Type variables** (in polymorphic signatures):
-```locque
-# Implicit forall
-a                               # Type variable
-(List a)                        # Polymorphic list
+## Effects
 
-# Explicit in type schemes (internal)
-∀a. List a -> Nat               # Represented internally
-```
+- `perform <value>` is the only value→computation bridge; effect kind comes from the callee’s type (no `io` token).
+- Effectful functions return `computation T` and use `do` bodies; pure functions return `T` with `as` bodies.
 
----
+## Removed / forbidden
 
-## S-expression Mapping
+- No `lambda`, no arrows (`->`), no `<-`.
+- No `inspect … with … end`, no `match-prim`.
+- No multi-binding `let` or tuple binding sugar.
+- No wildcard `open`; no qualification with `.`.
 
-M-expressions have a **1:1 mapping** to S-expressions for serialization.
+## Determinism guarantees
 
-### Definitions
-```
-M: define transparent foo as value <expr>
-S: (def transparent foo (value <expr>))
-```
-
-### Lambdas
-```
-M: lambda x -> body
-S: (lambda ((x Type)) body)     # Type inferred or annotated
-
-M: lambda () body
-S: (lambda () body)             # Zero parameters
-```
-
-### Application
-```
-M: f a b c
-S: (f a b c)                    # Left-associative application
-```
-
-### Let
-```
-M: let x = e1 in e2
-S: (let ((x e1)) e2)
-```
-
-### Computation
-```
-M: bind x <- c1 then c2
-S: (bind x c1 c2)
-
-M: perform io expr
-S: (perform io expr)
-
-M: return expr
-S: (return expr)
-```
-
-### Pattern Matching
-```
-M: P.match-list xs
-     (lambda () empty-case)
-     (lambda h -> lambda t -> cons-case)
-
-S: (P.match-list xs
-     (lambda () empty-case)
-     (lambda ((h a)) (lambda ((t (List a))) cons-case)))
-```
-
----
-
-## Symbol Philosophy
-
-**Structural symbols** (permitted):
-- `->` function type arrow
-- `()` grouping and zero-parameter lambdas
-- `.` qualified names (module.name)
-
-**Semantic operations use words**, not symbols:
-- `equals` not `=` (for equality)
-- `where` not `=` (for definitions in type classes)
-- `once` not `!` (for linear types, planned)
-- `(effect IO)` not `{IO}` (for effects, planned)
-
-**One symbol, one meaning** - no context-dependent overloading.
-
----
-
-## Determinism Guarantees
-
-1. **No implicit coercions** - all conversions explicit
-2. **No overloading** - single definition per name in scope (until type classes)
-3. **Explicit imports** - all names qualified unless imported
-4. **Left-associative application only** - no precedence ambiguity
-5. **Keyword-led constructs** - every form starts with a keyword
-6. **1:1 M-exp ↔ S-exp** - bijective mapping for all syntax
-
----
-
-## Extensibility Pattern
-
-All top-level introductions follow: `define <name> as <kind> <body>`
-
-**Current kinds:**
-- `value` - pure values
-- `computation` - effectful computations
-
-**Planned kinds:**
-- `typeclass` - overloading mechanism
-- `instance` - typeclass implementation
-- `data` - algebraic data types (future)
-- `family` - type-level functions (future)
-- `refinement` - subset types (future)
-
-Adding new language features = add new `<kind>` discriminator. No grammar restructuring needed.
-
-**Self-hosted parser** will be simple pattern matching on keyword after `as`.
+1. One canonical spelling per construct (no alternate sugars).
+2. Explicit universes and function binders; no implicit arrows.
+3. Strict CBPV split: values are pure; computations sequence effects.
+4. Qualification only via `::`; imports/opens explicit.
+5. 1:1 mapping to S-expressions (not shown here); S-expr uses the same AST with keywords.

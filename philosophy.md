@@ -2,9 +2,9 @@ LLM-first dependently typed language (working name TBD) guiding notes
 
 - Purpose: a language meant to be written and read by LLMs/agents, with English-like, verbose keywords and a predictable, canonical surface form. S-expressions are the canonical serialized/AST form; a matching M-expression surface provides readability without precedence traps.
 - Type discipline: pursue a strong, dependent type system (Π/Σ, universes, inductive types, normalization) to give maximal guarantees and make iterative generation/checking by LLMs easier.
-- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `has-type`, `for-all`, `do … then …`, `inspect … with`).
+- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … as|do … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type …`).
 - Assignment/definition: single, universal word (e.g., `define … as …`), with no hidden scoping rules or implicit capture. Flat namespace is the initial stance, but we may introduce modules/namespaces if collisions or reasoning issues emerge.
-- S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism.
+- S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism; one canonical spelling per construct.
 - Ergonomics for LLMs: keep whitespace/indentation cosmetic; ban implicit coercions; prefer explicit casts and effect boundaries. Provide canonical templates/patterns for completion and avoid ambiguous grammar.
 - Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform io …`, `promise …`) to keep type checking and normalization clear.
 - Opacity and extensionality: allow explicit per-definition opacity markers to control unfolding during conversion; keep definitional equality lean (βδι) and provide extensionality as propositional lemmas, with opt-in definitional η only where safe for performance/purity.
@@ -21,20 +21,17 @@ LLM-first dependently typed language (working name TBD) guiding notes
 
 **Guiding principle**: Prefer words to symbols. Each symbol should have exactly one meaning, never overloaded by context.
 
-**Structural symbols** (permitted - these build syntax, don't carry semantic meaning):
-- `->` for function types (arrow)
-- `()` for grouping and zero-parameter lambdas
-- `.` for qualified names (module qualification)
-- Parentheses for grouping type expressions
+**Structural symbols** (kept minimal):
+- Parentheses for grouping type/term expressions
+- `::` for qualification (module/name)
 
 **Semantic symbols** (avoid - use words instead):
 - NO `!` for linearity - use `once` keyword
 - NO `=` for equality/assignment/identity - use `equals`, `where`, `assign` as appropriate
 - NO `&` for conjunction/sharing - use `and`, `shared` as appropriate
-- NO `{...}` for effects - use `(effect IO)` or similar
+- NO symbolic arrows - use `for-all x as A to B`
+- NO `{...}` for effects - use `computation T` and `perform`
 - NO symbolic operators for type constraints - use words
-
-**The arrow exception**: `->` is grandfathered in because it's purely structural (builds function types) and universally recognized. It doesn't carry semantic meaning beyond "maps from A to B".
 
 **Examples of word-based design**:
 ```locque
@@ -63,7 +60,7 @@ define Positive as refinement Nat where
 
 ## Extensibility: The "define X as Y" Pattern
 
-**Core pattern**: All top-level introductions follow `define <name> as <kind> <body>` where `kind` is a discriminator keyword.
+**Core pattern**: All top-level introductions follow `define <name> as <body>` with transparency on the binding (`transparent|opaque`). Function introduction is single-form `function … returns … as|do … end`.
 
 **Current discriminators**:
 - `value` - term-level values

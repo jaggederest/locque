@@ -27,7 +27,7 @@ main = do
     ["--emit-lqs", file, out] -> emitLqs file out
     ["--emit-lq", file, out] -> emitLq file out
     ["--validate", file] -> validateLqs file
-    [] -> runLqs True "../examples/00_hello_world.lqs"
+    [] -> die usage
     [file] -> runLqs True file
     _ -> die usage
 

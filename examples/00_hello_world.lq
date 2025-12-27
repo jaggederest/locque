@@ -1,7 +1,0 @@
-module Hello contains
-  define transparent message as value "Hello, locque!"
-
-  define transparent main as computation
-    bind ignored <- perform io (print message) then
-    return tt
-end
