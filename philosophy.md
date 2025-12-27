@@ -2,11 +2,11 @@ LLM-first dependently typed language (working name TBD) guiding notes
 
 - Purpose: a language meant to be written and read by LLMs/agents, with English-like, verbose keywords and a predictable, canonical surface form. S-expressions are the canonical serialized/AST form; a matching M-expression surface provides readability without precedence traps.
 - Type discipline: pursue a strong, dependent type system (Π/Σ, universes, inductive types, normalization) to give maximal guarantees and make iterative generation/checking by LLMs easier.
-- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … as|do … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type …`).
-- Assignment/definition: single, universal word (e.g., `define … as …`), with no hidden scoping rules or implicit capture. Flat namespace is the initial stance, but we may introduce modules/namespaces if collisions or reasoning issues emerge.
+- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … value|compute … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type …`).
+- Assignment/definition: single, universal word with explicit transparency and body kind (e.g., `define transparent name as value …` / `define opaque name as computation …`), with no hidden scoping rules or implicit capture. Namespaces are explicit modules with `::` qualification and file mapping.
 - S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism; one canonical spelling per construct.
 - Ergonomics for LLMs: keep whitespace/indentation cosmetic; ban implicit coercions; prefer explicit casts and effect boundaries. Provide canonical templates/patterns for completion and avoid ambiguous grammar.
-- Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform io …`, `promise …`) to keep type checking and normalization clear.
+- Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform …`) to keep type checking and normalization clear.
 - Opacity and extensionality: allow explicit per-definition opacity markers to control unfolding during conversion; keep definitional equality lean (βδι) and provide extensionality as propositional lemmas, with opt-in definitional η only where safe for performance/purity.
 - Value semantics: defaults are immutable; variables are single-assignment; strings and collections are persistent/immutable. Any mutation lives in explicit computation constructs (e.g., a future `ref`/`set` effect), preserving predictability for LLMs and type checking.
 - Reference implementation: Core language features (parser, type checker, evaluator) implemented in Haskell for correctness, performance, and bootstrapping. These define canonical behavior.
@@ -37,15 +37,22 @@ LLM-first dependently typed language (working name TBD) guiding notes
 ```locque
 # Linear types: use 'once' keyword
 define send as value
-  function socket of-type (once Socket) produce ...
+  function socket (once Socket) returns computation Unit compute
+    ...
+  end
 
-# Effects: use 'effect' keyword
+# Effects: use explicit computation types and perform
 define read-file as value
-  function path of-type String produce (effect IO) String
+  function path String returns computation String compute
+    perform read-file-prim path
+  end
 
 # Refinement types: explicit 'refinement' and 'constraint' keywords
-define Positive as refinement Nat where
-  constraint (lambda x -> x > 0)
+define Positive as refinement Natural where
+  constraint (function x Natural returns Boolean value
+    greater-than-nat x 0
+  end)
+end
 ```
 
 **Rationale**:
@@ -60,7 +67,7 @@ define Positive as refinement Nat where
 
 ## Extensibility: The "define X as Y" Pattern
 
-**Core pattern**: All top-level introductions follow `define <name> as <body>` with transparency on the binding (`transparent|opaque`). Function introduction is single-form `function … returns … as|do … end`.
+**Core pattern**: All top-level introductions follow `define <name> as value|computation|...` with transparency on the binding (`transparent|opaque`). Function introduction is single-form `function … returns … value|compute … end`.
 
 **Current discriminators**:
 - `value` - term-level values
@@ -90,25 +97,41 @@ define Positive as refinement Nat where
 ```locque
 # Type class (overloading)
 define Match as typeclass where
-  match of-type (a -> (() -> b) -> (a -> a -> b) -> b)
+  match of-type (for-all a as Type0 to
+    for-all b as Type0 to
+      for-all _ as Unit to
+        for-all _ as a to
+          for-all _ as a to
+            b)
+end
 
 # Instance (typeclass implementation)
 define Match-List as instance Match (List a) where
-  match produce lambda xs -> ...
+  match returns for-all _ as List a to b value
+    ...
+  end
+end
 
 # GADT (when we add user-defined types)
-define Expr as data (a of-type Type) where
-  LitNat of-type (Nat -> Expr Nat)
-  Add of-type (Expr Nat -> Expr Nat -> Expr Nat)
+define Expr as data (a of-type Type0) where
+  LitNat of-type (for-all _ as Natural to Expr Natural)
+  Add of-type (for-all _ as Expr Natural to
+    for-all _ as Expr Natural to
+      Expr Natural)
+end
 
 # Type family (type-level computation)
-define Length as family (List a -> Nat) where
+define Length as family (for-all _ as List a to Natural) where
   Length Nil equals Zero
   Length (Cons x xs) equals Succ (Length xs)
+end
 
 # Refinement type (constrained subset)
-define NonZero as refinement Nat where
-  constraint (lambda n -> n > 0)
+define NonZero as refinement Natural where
+  constraint (function n Natural returns Boolean value
+    greater-than-nat n 0
+  end)
+end
 ```
 
 This pattern remains consistent regardless of how sophisticated the type system becomes.

@@ -6,7 +6,7 @@
 - Parser (M/S):
   - [x] Removed legacy forms (`lambda`, legacy `let … in`, `inspect`/`case`, `do … then …`, `perform io`).
   - [x] Added `let value … be … in … end`, `bind name from … then … [end]`, `perform` (single expr).
-  - [ ] Add `function … returns … as|do … end` fully (no reliance on ELam), unified `match … of-type …` cases, `open … exposing … end`.
+  - [ ] Add `function … returns … value|compute … end` fully (no reliance on ELam), unified `match … of-type …` cases, `open … exposing … end`.
   - [ ] Switch type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
 - Types/TypeChecker:
   - [ ] Replace `TFun`/`TComp` with Pi (`for-all`) and computation wrapper; add Sigma (`there-exists`); explicit universes.
@@ -56,7 +56,7 @@
 - [ ] smyth in Locque (long term)
 
 ## Documentation
-- [ ] Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … as|do … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`)
+- [ ] Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`)
 - [ ] Add type class migration guide once implemented
 
 ## Infrastructure

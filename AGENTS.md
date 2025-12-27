@@ -1,7 +1,7 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs: `define (transparent|opaque) name as <value|computation>`, functions only via `function ... returns ... as|do ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B`, typed `match ... of-type ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
+- Core constructs: `define (transparent|opaque) name as <value|computation>`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B`, typed `match ... of-type ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
 
 Interpreter (Haskell, `interpreter/`)
 - AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, lambdas/functions, defs (transparency/kind), values vs computations.
@@ -37,5 +37,5 @@ Examples/tests
 - All tests run with type checking enabled by default (legacy `--skip-typecheck` still available).
 
 Outstanding alignment work
-- Update parser/typechecker/evaluator to the new grammar: `function ... returns ... as|do ... end`, `let value ... end`, `bind name from ... then ... end`, unified `match ... of-type ...`, `perform` without `io`, `computation T`, `for-all`/`there-exists`, explicit universes `Type0/1/2`, `::` qualifiers only, drop `lambda`/`inspect`/`match-prim`.
+- Update parser/typechecker/evaluator to the new grammar: `function ... returns ... value|compute ... end`, `let value ... end`, `bind name from ... then ... end`, unified `match ... of-type ...`, `perform` without `io`, `computation T`, `for-all`/`there-exists`, explicit universes `Type0/1/2`, `::` qualifiers only, drop `lambda`/`inspect`/`match-prim`.
 - Refresh docs/examples/tests to the new surface once the interpreter matches.
