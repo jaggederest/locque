@@ -7,7 +7,10 @@ module test::prelude::match contains
   define transparent bool-match as compute
     sequence
       (A::assert-eq-string
-        (P::if-bool String (P::not false) "true-branch" "false-branch")
+        (match (P::not false) of-type Boolean as ignored returns String
+          false-case as "false-branch"
+          true-case as "true-branch"
+        end)
         "true-branch")
     end
   end

@@ -8,7 +8,10 @@ module test::typecheck::fold_inline contains
     function item String xs (List String) returns Boolean value
       P::fold String Boolean
         (function acc Boolean x String returns Boolean value
-          P::if-bool Boolean acc true (S::eq item x)
+          match acc of-type Boolean as ignored returns Boolean
+            false-case as S::eq item x
+            true-case as true
+          end
         end)
         false
         xs

@@ -9,8 +9,13 @@ module comparison contains
 
   define transparent between as
     function low Natural high Natural val Natural returns Boolean value
-      P::if-bool Boolean (ge-nat val low)
-        (P::if-bool Boolean (le-nat val high) true false)
-        false
+      match (ge-nat val low) of-type Boolean as ignored returns Boolean
+        false-case as false
+        true-case as
+          match (le-nat val high) of-type Boolean as ignored returns Boolean
+            false-case as false
+            true-case as true
+          end
+      end
     end
 end

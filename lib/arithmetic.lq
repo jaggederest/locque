@@ -10,17 +10,26 @@ module arithmetic contains
 
   define transparent min as
     function a Natural b Natural returns Natural value
-      P::if-bool Natural (C::lt-nat a b) a b
+      match (C::lt-nat a b) of-type Boolean as ignored returns Natural
+        false-case as b
+        true-case as a
+      end
     end
 
   define transparent max as
     function a Natural b Natural returns Natural value
-      P::if-bool Natural (C::gt-nat a b) a b
+      match (C::gt-nat a b) of-type Boolean as ignored returns Natural
+        false-case as b
+        true-case as a
+      end
     end
 
   define transparent abs-diff as
     function a Natural b Natural returns Natural value
-      P::if-bool Natural (C::gt-nat a b) (sub-nat a b) (sub-nat b a)
+      match (C::gt-nat a b) of-type Boolean as ignored returns Natural
+        false-case as sub-nat b a
+        true-case as sub-nat a b
+      end
     end
 
   define transparent clamp as

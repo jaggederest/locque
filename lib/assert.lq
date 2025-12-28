@@ -3,9 +3,46 @@ import comparison as C
 import string as S
 
 module assert contains
-  define transparent assert-eq-nat as assert-eq-nat-prim
-  define transparent assert-eq-string as assert-eq-string-prim
-  define transparent assert-eq-bool as assert-eq-bool-prim
+  define transparent assert-hit as assert-hit-prim
+
+  define transparent assert-eq-nat as
+    function x Natural y Natural returns computation Unit value
+      compute
+        perform
+          match (C::eq-nat x y) of-type Boolean as ignored returns (computation Unit)
+            false-case as error-prim (computation Unit) "assert-eq-nat failed"
+            true-case as assert-hit
+          end
+      end
+    end
+  define transparent assert-eq-string as
+    function x String y String returns computation Unit value
+      compute
+        perform
+          match (S::eq x y) of-type Boolean as ignored returns (computation Unit)
+            false-case as error-prim (computation Unit) "assert-eq-string failed"
+            true-case as assert-hit
+          end
+      end
+    end
+  define transparent assert-eq-bool as
+    function x Boolean y Boolean returns computation Unit value
+      compute
+        perform
+          match x of-type Boolean as ignored returns (computation Unit)
+            false-case as
+              match y of-type Boolean as ignored returns (computation Unit)
+                false-case as assert-hit
+                true-case as error-prim (computation Unit) "assert-eq-bool failed"
+              end
+            true-case as
+              match y of-type Boolean as ignored returns (computation Unit)
+                false-case as error-prim (computation Unit) "assert-eq-bool failed"
+                true-case as assert-hit
+              end
+          end
+      end
+    end
 
   define transparent Equality as typeclass A where
     eq of-type for-all x as A to for-all y as A to Boolean
@@ -21,7 +58,10 @@ module assert contains
 
   define transparent Equality-Boolean as instance Equality Boolean where
     eq as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x y (P::not y)
+      match x of-type Boolean as ignored returns Boolean
+        false-case as P::not y
+        true-case as y
+      end
     end
   end
 
@@ -33,7 +73,13 @@ module assert contains
     end
 
   define transparent assert-false as
-    function msg String cond Boolean returns Unit value
-      P::if-bool Unit cond (error-prim Unit msg) tt
+    function msg String cond Boolean returns computation Unit value
+      compute
+        perform
+          match cond of-type Boolean as ignored returns (computation Unit)
+            false-case as assert-hit
+            true-case as error-prim (computation Unit) msg
+          end
+      end
     end
 end

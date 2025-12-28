@@ -1,0 +1,23 @@
+import assert as A
+import path as Path
+
+module test::path::basics contains
+  define transparent main as compute
+    sequence
+      (A::assert-eq String (Path::join "a" "b") "a/b")
+      (A::assert-eq String (Path::join "/a" "b") "/a/b")
+      (A::assert-eq String (Path::join "/a/" "b") "/a/b")
+      (A::assert-eq String (Path::join "/a" "/b") "/b")
+      (A::assert-eq String (Path::dirname "a/b/c.txt") "a/b")
+      (A::assert-eq String (Path::dirname "/a") "/")
+      (A::assert-eq String (Path::basename "/a/b/c.txt") "c.txt")
+      (A::assert-eq String (Path::basename "/") "/")
+      (A::assert-eq String (Path::ext "a/b/c.txt") "txt")
+      (A::assert-eq String (Path::ext "a/b/.bashrc") "")
+      (A::assert-eq String (Path::ext "a/b/Makefile") "")
+      (A::assert-eq String (Path::ext "a/b/archive.tar.gz") "gz")
+      (A::assert-eq Boolean (Path::is-absolute "/tmp") true)
+      (A::assert-eq Boolean (Path::is-absolute "tmp") false)
+    end
+  end
+end

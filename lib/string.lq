@@ -3,16 +3,13 @@ import comparison as C
 
 module string contains
   define transparent concat as concat-string-prim
-  define transparent length as length-string-prim
   define transparent eq as eq-string-prim
-  define transparent split-on as split-on-prim
-  define transparent join-with as join-with-prim
-  define transparent trim as trim-prim
-  define transparent substring as substring-prim
-  define transparent string-contains as contains-prim
-  define transparent string-starts-with as starts-with-prim
-  define transparent string-ends-with as ends-with-prim
-  define transparent string-index-of as index-of-prim
+
+  define transparent length as
+    function s String returns Natural value
+      P::length-list String (string-to-list-prim s)
+    end
+
   define transparent Character as
     there-exists c as String in
       equal Natural (length c) 1
@@ -33,9 +30,27 @@ module string contains
       unpack c as s ignored in s end
     end
 
+  define transparent char-eq as
+    function a Character b Character returns Boolean value
+      eq (character-string a) (character-string b)
+    end
+
   define transparent to-list as
     function s String returns List Character value
       P::map String Character character (string-to-list-prim s)
+    end
+
+  define transparent join-with as
+    function sep String xs (List String) returns String value
+      match xs of-type (List String) as ignored returns String
+        empty-case as ""
+        cons-case with h String t (List String) as
+          match t of-type (List String) as ignored returns String
+            empty-case as h
+            cons-case with ignored String tail (List String) as
+              concat (concat h sep) (recur sep t)
+          end
+      end
     end
 
   define transparent from-list as
@@ -43,9 +58,250 @@ module string contains
       join-with "" (P::map Character String character-string xs)
     end
 
+  define transparent list-take as
+    function n Natural xs (List Character) returns (List Character) value
+      match xs of-type (List Character) as ignored returns (List Character)
+        empty-case as P::nil Character
+        cons-case with h Character t (List Character) as
+          match (C::eq-nat n 0) of-type Boolean as ignored returns (List Character)
+            false-case as P::cons Character h (recur (P::sub-nat n 1) t)
+            true-case as P::nil Character
+          end
+      end
+    end
+
+  define transparent list-drop as
+    function n Natural xs (List Character) returns (List Character) value
+      match xs of-type (List Character) as ignored returns (List Character)
+        empty-case as P::nil Character
+        cons-case with h Character t (List Character) as
+          match (C::eq-nat n 0) of-type Boolean as ignored returns (List Character)
+            false-case as recur (P::sub-nat n 1) t
+            true-case as P::cons Character h t
+          end
+      end
+    end
+
+  define transparent list-reverse as
+    function xs (List Character) returns (List Character) value
+      P::fold Character (List Character)
+        (function acc (List Character) x Character returns (List Character) value
+          P::cons Character x acc
+        end)
+        (P::nil Character)
+        xs
+    end
+
+  define transparent reverse-segments as
+    function xs (List (List Character)) returns (List (List Character)) value
+      P::fold (List Character) (List (List Character))
+        (function acc (List (List Character)) x (List Character) returns (List (List Character)) value
+          P::cons (List Character) x acc
+        end)
+        (P::nil (List Character))
+        xs
+    end
+
+  define transparent drop-while-char as
+    function predicate (for-all x as Character to Boolean) xs (List Character) returns (List Character) value
+      match xs of-type (List Character) as ignored returns (List Character)
+        empty-case as P::nil Character
+        cons-case with h Character t (List Character) as
+          match (predicate h) of-type Boolean as ignored returns (List Character)
+            false-case as P::cons Character h t
+            true-case as recur predicate t
+          end
+      end
+    end
+
+  define transparent starts-with-chars as
+    function needle (List Character) haystack (List Character) returns Boolean value
+      match needle of-type (List Character) as ignored returns Boolean
+        empty-case as true
+        cons-case with n Character nt (List Character) as
+          match haystack of-type (List Character) as ignored returns Boolean
+            empty-case as false
+            cons-case with h Character ht (List Character) as
+              match (char-eq n h) of-type Boolean as ignored returns Boolean
+                false-case as false
+                true-case as recur nt ht
+              end
+          end
+      end
+    end
+
+  define transparent list-eq-chars as
+    function xs (List Character) ys (List Character) returns Boolean value
+      match xs of-type (List Character) as ignored returns Boolean
+        empty-case as
+          match ys of-type (List Character) as ignored returns Boolean
+            empty-case as true
+            cons-case with ignored Character ignored-tail (List Character) as false
+          end
+        cons-case with x Character xt (List Character) as
+          match ys of-type (List Character) as ignored returns Boolean
+            empty-case as false
+            cons-case with y Character yt (List Character) as
+              match (char-eq x y) of-type Boolean as ignored returns Boolean
+                false-case as false
+                true-case as recur xt yt
+              end
+          end
+      end
+    end
+
+  define transparent index-of-chars as
+    function haystack (List Character) needle (List Character) offset Natural returns Natural value
+      match (starts-with-chars needle haystack) of-type Boolean as ignored returns Natural
+        true-case as offset
+        false-case as
+          match haystack of-type (List Character) as ignored returns Natural
+            empty-case as offset
+            cons-case with ignored Character t (List Character) as
+              recur t needle (P::add-nat offset 1)
+          end
+      end
+    end
+
+  define transparent string-index-of as
+    function needle String haystack String returns Natural value
+      index-of-chars (to-list haystack) (to-list needle) 0
+    end
+
+  define transparent string-starts-with as
+    function prefix String s String returns Boolean value
+      starts-with-chars (to-list prefix) (to-list s)
+    end
+
+  define transparent string-ends-with as
+    function suffix String s String returns Boolean value
+      let value suffix-chars be to-list suffix in
+        let value s-chars be to-list s in
+          let value suffix-length be P::length-list Character suffix-chars in
+            let value s-length be P::length-list Character s-chars in
+              match (C::lt-nat s-length suffix-length) of-type Boolean as ignored returns Boolean
+                true-case as false
+                false-case as
+                  list-eq-chars (list-drop (P::sub-nat s-length suffix-length) s-chars) suffix-chars
+              end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent string-contains as
+    function needle String haystack String returns Boolean value
+      match (C::eq-nat (length needle) 0) of-type Boolean as ignored returns Boolean
+        true-case as true
+        false-case as C::lt-nat (string-index-of needle haystack) (length haystack)
+      end
+    end
+
+  define transparent substring as
+    function start Natural len Natural s String returns String value
+      from-list (list-take len (list-drop start (to-list s)))
+    end
+
+  define transparent split-on-chars as
+    function chars (List Character)
+             delim (List Character)
+             delim-length Natural
+             skip Natural
+             current (List Character)
+             segments (List (List Character))
+    returns (List (List Character)) value
+      match chars of-type (List Character) as ignored returns (List (List Character))
+        empty-case as P::cons (List Character) (list-reverse current) segments
+        cons-case with h Character t (List Character) as
+          match (C::eq-nat skip 0) of-type Boolean as ignored returns (List (List Character))
+            true-case as
+              match (starts-with-chars delim chars) of-type Boolean as ignored returns (List (List Character))
+                true-case as
+                  let value next-segments be P::cons (List Character) (list-reverse current) segments in
+                    let value new-skip be P::sub-nat delim-length 1 in
+                      recur t delim delim-length new-skip (P::nil Character) next-segments
+                    end
+                  end
+                false-case as
+                  recur t delim delim-length 0 (P::cons Character h current) segments
+              end
+            false-case as
+              recur t delim delim-length (P::sub-nat skip 1) current segments
+          end
+      end
+    end
+
+  define transparent split-on as
+    function delim String s String returns List String value
+      match (C::eq-nat (length delim) 0) of-type Boolean as ignored returns (List String)
+        true-case as error-prim (List String) "split-on expects a non-empty delimiter"
+        false-case as
+          let value delim-chars be to-list delim in
+            let value delim-length be P::length-list Character delim-chars in
+              let value segments-rev be
+                split-on-chars (to-list s) delim-chars delim-length 0
+                  (P::nil Character) (P::nil (List Character))
+              in
+                let value segments be reverse-segments segments-rev in
+                  P::map (List Character) String from-list segments
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent char-is-space as
+    function c Character returns Boolean value
+      let value s be character-string c in
+        match (eq s " ") of-type Boolean as ignored returns Boolean
+          true-case as true
+          false-case as
+            match (eq s "\n") of-type Boolean as ignored returns Boolean
+              true-case as true
+              false-case as
+                match (eq s "\t") of-type Boolean as ignored returns Boolean
+                  true-case as true
+                  false-case as
+                    match (eq s "\r") of-type Boolean as ignored returns Boolean
+                      true-case as true
+                      false-case as false
+                    end
+                end
+            end
+        end
+      end
+    end
+
+  define transparent trim as
+    function s String returns String value
+      let value chars be to-list s in
+        let value trimmed-front be drop-while-char char-is-space chars in
+          let value reversed be list-reverse trimmed-front in
+            let value trimmed-back be drop-while-char char-is-space reversed in
+              from-list (list-reverse trimmed-back)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent nth-char as
+    function index Natural xs (List Character) returns Character value
+      match xs of-type (List Character) as ignored returns Character
+        empty-case as error-prim Character "char-at expects index in bounds"
+        cons-case with h Character t (List Character) as
+          match (C::eq-nat index 0) of-type Boolean as ignored returns Character
+            false-case as recur (P::sub-nat index 1) t
+            true-case as h
+          end
+      end
+    end
+
   define transparent char-at as
     function index Natural s String returns Character value
-      character (char-at-prim index s)
+      nth-char index (to-list s)
     end
 
   define transparent head as
@@ -79,9 +335,10 @@ module string contains
       match xs of-type (List Character) as ignored returns (List Character)
         empty-case as P::cons Character x (P::nil Character)
         cons-case with h Character t (List Character) as
-          P::if-bool (List Character) (cmp x h)
-            (P::cons Character x (P::cons Character h t))
-            (P::cons Character h (recur cmp x t))
+          match (cmp x h) of-type Boolean as ignored returns (List Character)
+            false-case as P::cons Character h (recur cmp x t)
+            true-case as P::cons Character x (P::cons Character h t)
+          end
       end
     end
 
@@ -124,7 +381,7 @@ module string contains
 
   define transparent reverse as
     function s String returns String value
-      reverse-string-prim s
+      from-list (list-reverse (to-list s))
     end
 
   define transparent lines as

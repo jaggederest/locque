@@ -337,9 +337,19 @@ module test::prelude::basics contains
 
   define transparent check-if-bool as compute
     sequence
-      (A::assert-eq String (P::if-bool String true "yes" "no") "yes")
+      (A::assert-eq String
+        (match true of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
       (A::assert-eq Boolean (P::not false) true)
-      (A::assert-eq String (P::if-bool String false "yes" "no") "no")
+      (A::assert-eq String
+        (match false of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "no")
       (A::assert-eq Boolean (P::is-falsy false) true)
       (A::assert-eq Boolean (P::is-falsy true) false)
     end

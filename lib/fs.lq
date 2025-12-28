@@ -1,0 +1,108 @@
+import io as IO
+import prelude as P
+import string as S
+
+module fs contains
+  define transparent read-file as IO::read-file
+  define transparent write-file as IO::write-file
+  define transparent append-file as append-file-prim
+  define transparent copy-file as copy-file-prim
+  define transparent copy-tree as copy-tree-prim
+  define transparent rename-path as rename-path-prim
+  define transparent list-dir as P::list-dir
+  define transparent current-directory as P::current-directory
+
+  define transparent path-exists as path-exists-prim
+  define transparent is-directory as is-directory-prim
+  define transparent is-file as is-file-prim
+  define transparent make-directory as make-directory-prim
+  define transparent remove-file as remove-file-prim
+  define transparent remove-directory as remove-directory-prim
+
+  define transparent walk as walk-prim
+  define transparent walk-path as
+    function entry (Pair String Boolean) returns String value
+      match entry of-type (Pair String Boolean) as ignored returns String
+        pair-case with path String isdir Boolean as path
+      end
+    end
+  define transparent walk-is-directory as
+    function entry (Pair String Boolean) returns Boolean value
+      match entry of-type (Pair String Boolean) as ignored returns Boolean
+        pair-case with path String isdir Boolean as isdir
+      end
+    end
+
+  define transparent stat as stat-prim
+  define transparent stat-type as
+    function info (Pair String (Pair Natural Natural)) returns String value
+      match info of-type (Pair String (Pair Natural Natural)) as ignored returns String
+        pair-case with kind String rest (Pair Natural Natural) as kind
+      end
+    end
+  define transparent stat-size as
+    function info (Pair String (Pair Natural Natural)) returns Natural value
+      match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
+        pair-case with kind String rest (Pair Natural Natural) as
+          match rest of-type (Pair Natural Natural) as ignored returns Natural
+            pair-case with size Natural mtime Natural as size
+          end
+      end
+    end
+  define transparent stat-mtime as
+    function info (Pair String (Pair Natural Natural)) returns Natural value
+      match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
+        pair-case with kind String rest (Pair Natural Natural) as
+          match rest of-type (Pair Natural Natural) as ignored returns Natural
+            pair-case with size Natural mtime Natural as mtime
+          end
+      end
+    end
+
+  define transparent read-lines as
+    function path String returns computation (List String) value
+      compute
+        bind contents from perform (read-file path) then
+          return (S::split-on "\n" contents)
+        end
+      end
+    end
+
+  define transparent write-lines as
+    function path String lines (List String) returns computation Unit value
+      compute
+        perform (write-file path (S::join-with "\n" lines))
+      end
+    end
+
+  define transparent append-lines as
+    function path String lines (List String) returns computation Unit value
+      let value suffix be S::join-with "\n" lines in
+        compute
+          perform
+            (match (S::is-empty suffix) of-type Boolean as ignored returns (computation Unit)
+              true-case as compute return tt end
+              false-case as
+                compute
+                  bind exists from perform (path-exists path) then
+                    perform
+                      (match exists of-type Boolean as ignored returns (computation Unit)
+                        false-case as write-file path suffix
+                        true-case as
+                          compute
+                            bind contents from perform (read-file path) then
+                              perform
+                                (match (S::is-empty contents) of-type Boolean as ignored returns (computation Unit)
+                                  true-case as append-file path suffix
+                                  false-case as append-file path (S::concat "\n" suffix)
+                                end)
+                            end
+                          end
+                      end)
+                  end
+                end
+            end)
+        end
+      end
+    end
+end

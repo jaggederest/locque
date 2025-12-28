@@ -1,10 +1,10 @@
 # Migrated from ../99_typecheck_opaque_import.lq
 
-import prelude as P
+import list as L
 
 module test::typecheck::opaque_import contains
-  define opaque my-take as take-prim
-  define opaque my-drop as drop-prim
+  define opaque my-take as L::take
+  define opaque my-drop as L::drop
 
   define transparent my-slice as
     function A Type0 start Natural len Natural xs (List A) returns List A value

@@ -1,6 +1,7 @@
 # Main test entry point
 # Runs all library rollups
 
+import test::project as test_project
 import test::prelude as test_prelude
 import test::arithmetic as test_arithmetic
 import test::list as test_list
@@ -9,6 +10,8 @@ import test::assert as test_assert
 import test::comparison as test_comparison
 import test::string as test_string
 import test::io as test_io
+import test::fs as test_fs
+import test::path as test_path
 import test::shell as test_shell
 import test::testimport as test_testimport
 import test::typeclass as test_typeclass
@@ -21,6 +24,7 @@ import test::new_syntax_test as test_new_syntax_test
 module test::main contains
   define transparent main as compute
     sequence
+      test_project::main
       test_prelude::main
       test_arithmetic::main
       test_list::main
@@ -29,6 +33,8 @@ module test::main contains
       test_comparison::main
       test_string::main
       test_io::main
+      test_fs::main
+      test_path::main
       test_shell::main
       test_testimport::main
       test_typeclass::main

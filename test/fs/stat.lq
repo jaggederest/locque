@@ -1,0 +1,51 @@
+import assert as A
+import comparison as C
+import fs as FS
+import io as IO
+import string as S
+
+module test::fs::stat contains
+  define transparent base-dir as "test/tmp/fs_stat"
+
+  define transparent path as
+    function suffix String returns String value
+      S::concat base-dir suffix
+    end
+
+  define transparent setup as compute
+    sequence
+      (FS::remove-directory base-dir)
+      (FS::make-directory base-dir)
+      (IO::write-file (path "/data.txt") "stat")
+      (FS::make-directory (path "/dir"))
+    end
+  end
+
+  define transparent check-file as compute
+    bind info from perform (FS::stat (path "/data.txt")) then
+      sequence
+        (A::assert-eq String (FS::stat-type info) "file")
+        (A::assert-eq Natural (FS::stat-size info) 4)
+        (A::assert-eq Boolean (C::gt-nat (FS::stat-mtime info) 0) true)
+      end
+    end
+  end
+
+  define transparent check-dir as compute
+    bind info from perform (FS::stat (path "/dir")) then
+      sequence
+        (A::assert-eq String (FS::stat-type info) "directory")
+        (A::assert-eq Natural (FS::stat-size info) 0)
+        (A::assert-eq Boolean (C::gt-nat (FS::stat-mtime info) 0) true)
+      end
+    end
+  end
+
+  define transparent main as compute
+    sequence
+      setup
+      check-file
+      check-dir
+    end
+  end
+end

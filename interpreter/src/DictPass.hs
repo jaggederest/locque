@@ -216,22 +216,24 @@ applyFnOpens importEnvs opens =
           Nothing -> env
 
 localInfoToEnvs :: LocalInfo -> DictEnvs
-localInfoToEnvs (LocalInfo classes fns insts) =
+localInfoToEnvs info =
   DictEnvs
-    { envClasses = classes
-    , envFns = fns
+    { envClasses = localClasses info
+    , envFns = localFns info
     , envInstances = Map.fromListWith (++)
         [ (instClassName inst, [inst])
-        | inst <- Map.elems insts
+        | inst <- Map.elems (localInstances info)
         ]
     }
 
 qualifyLocalInfo :: Text -> LocalInfo -> DictEnvs
-qualifyLocalInfo alias (LocalInfo classes fns insts) =
-  let localClassNames = Set.fromList (Map.keys classes)
-      classes' = Map.mapKeys (qualifyName alias) classes
-      fns' = Map.mapKeys (qualifyName alias) (Map.map (qualifyFnSig alias localClassNames) fns)
-      insts' = Map.map (qualifyInstance alias localClassNames) insts
+qualifyLocalInfo alias info =
+  let localClassNames = Set.fromList (Map.keys (localClasses info))
+      classes' = Map.mapKeys (qualifyName alias) (localClasses info)
+      fns' =
+        Map.mapKeys (qualifyName alias)
+          (Map.map (qualifyFnSig alias localClassNames) (localFns info))
+      insts' = Map.map (qualifyInstance alias localClassNames) (localInstances info)
       instEnv = Map.fromListWith (++)
         [ (instClassName inst, [inst])
         | inst <- Map.elems insts'
@@ -595,6 +597,7 @@ freshName used base
   | Set.notMember base used = (base, Set.insert base used)
   | otherwise = findFresh 1
   where
+    findFresh :: Int -> (Text, Set.Set Text)
     findFresh n =
       let candidate = base <> "_" <> T.pack (show n)
       in if Set.member candidate used

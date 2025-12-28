@@ -1,0 +1,129 @@
+import comparison as C
+import list as L
+import prelude as P
+import string as S
+
+module path contains
+  define transparent is-absolute as
+    function path String returns Boolean value
+      S::string-starts-with "/" path
+    end
+
+  define transparent drop-leading-empty as
+    function xs (List String) returns (List String) value
+      match xs of-type (List String) as ignored returns (List String)
+        empty-case as P::nil String
+        cons-case with h String t (List String) as
+          match (S::eq h "") of-type Boolean as ignored returns (List String)
+            true-case as recur t
+            false-case as xs
+          end
+      end
+    end
+
+  define transparent drop-trailing-empty as
+    function xs (List String) returns (List String) value
+      L::reverse String (drop-leading-empty (L::reverse String xs))
+    end
+
+  define transparent segments as
+    function path String returns (List String) value
+      drop-trailing-empty (S::split-on "/" path)
+    end
+
+  define transparent join-segments as
+    function has-root Boolean segs (List String) returns String value
+      let value cleaned be drop-leading-empty segs in
+        let value joined be S::join-with "/" cleaned in
+          match has-root of-type Boolean as ignored returns String
+            false-case as joined
+            true-case as
+              match (S::eq joined "") of-type Boolean as ignored returns String
+                true-case as "/"
+                false-case as S::concat "/" joined
+              end
+          end
+        end
+      end
+    end
+
+  define transparent join as
+    function base String child String returns String value
+      match (S::eq base "") of-type Boolean as ignored returns String
+        true-case as child
+        false-case as
+          match (S::eq child "") of-type Boolean as ignored returns String
+            true-case as base
+            false-case as
+              match (is-absolute child) of-type Boolean as ignored returns String
+                true-case as child
+                false-case as
+                  match (S::string-ends-with "/" base) of-type Boolean as ignored returns String
+                    true-case as S::concat base child
+                    false-case as S::concat base (S::concat "/" child)
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent basename as
+    function path String returns String value
+      match (S::eq path "/") of-type Boolean as ignored returns String
+        true-case as "/"
+        false-case as
+          let value segs be segments path in
+            match segs of-type (List String) as ignored returns String
+              empty-case as ""
+              cons-case with h String t (List String) as L::last String segs
+            end
+          end
+      end
+    end
+
+  define transparent dirname as
+    function path String returns String value
+      match (S::eq path "/") of-type Boolean as ignored returns String
+        true-case as "/"
+        false-case as
+          let value segs be segments path in
+            match segs of-type (List String) as ignored returns String
+              empty-case as ""
+              cons-case with h String t (List String) as
+                join-segments (is-absolute path) (L::init String segs)
+            end
+          end
+      end
+    end
+
+  define transparent ext as
+    function path String returns String value
+      let value base be basename path in
+        let value len be S::length base in
+          match (C::eq-nat len 0) of-type Boolean as ignored returns String
+            true-case as ""
+            false-case as
+              let value rev be S::reverse base in
+                let value rev-index be S::string-index-of "." rev in
+                  match (C::eq-nat rev-index len) of-type Boolean as ignored returns String
+                    true-case as ""
+                    false-case as
+                      let value len-minus-one be P::sub-nat len 1 in
+                        let value dot-index be P::sub-nat len-minus-one rev-index in
+                          match (C::eq-nat dot-index 0) of-type Boolean as ignored returns String
+                            true-case as ""
+                            false-case as
+                              let value start be P::sub-nat len rev-index in
+                                S::substring start rev-index base
+                              end
+                          end
+                        end
+                      end
+                  end
+                end
+              end
+          end
+        end
+      end
+    end
+end

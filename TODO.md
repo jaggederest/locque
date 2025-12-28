@@ -45,6 +45,7 @@
 
 ## Core Tooling (smyth)
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`)
+- [x] Locque-side lib/test parity check (test::project)
 - [ ] `smyth check <file>` (type check only)
 - [ ] `smyth repl` (aligned with new grammar)
 - [ ] `smyth validate <file>`; `smyth convert <file>`; `smyth fmt <file>`; `smyth doc`
@@ -66,8 +67,10 @@
 
 ## Standard Library
 - [x] Core: Prelude, List, String, IO, Assert; List.slice
+- [x] Filesystem primitives + fs module (helpers, walk, stat)
+- [x] Path utilities (join/dirname/basename/ext/is-absolute)
 - [ ] Result/Option/Either
-- [ ] More string/list ops; filesystem; JSON; HTTP (future)
+- [ ] More string/list ops; JSON; HTTP (future)
 
 ## Self-Hosting (Dogfooding)
 - [ ] M-expr ↔ S-expr converter in Locque

@@ -1,0 +1,80 @@
+# Project checks for lib/test parity
+
+import assert as A
+import fs as FS
+import list as L
+import prelude as P
+import string as S
+
+module test::project contains
+  define transparent is-lib-entry as
+    function entry (Pair String Boolean) returns Boolean value
+      match (FS::walk-is-directory entry) of-type Boolean as ignored returns Boolean
+        true-case as false
+        false-case as S::string-ends-with ".lq" (FS::walk-path entry)
+      end
+    end
+
+  define transparent lib-file-paths as
+    function entries (List (Pair String Boolean)) returns (List String) value
+      let value files be P::filter (Pair String Boolean) is-lib-entry entries in
+        P::map (Pair String Boolean) String FS::walk-path files
+      end
+    end
+
+  define transparent drop-first-segment as
+    function path String returns String value
+      let value segments be S::split-on "/" path in
+        let value rest be P::tail String segments in
+          S::join-with "/" rest
+        end
+      end
+    end
+
+  define transparent lib-to-test as
+    function lib-path String returns String value
+      S::concat "test/" (drop-first-segment lib-path)
+    end
+
+  define transparent missing-message as
+    function missing (List String) returns String value
+      S::concat "Missing test file(s) for lib modules: "
+        (S::join-with ", " missing)
+    end
+
+  define transparent missing-tests as
+    function lib-paths (List String) returns computation (List String) value
+      match lib-paths of-type (List String) as ignored returns computation (List String)
+        empty-case as compute return (P::nil String) end
+        cons-case with h String t (List String) as
+          let value test-path be lib-to-test h in
+            compute
+              bind exists from perform (FS::path-exists test-path) then
+                bind rest from perform (recur t) then
+                  perform
+                    (match exists of-type Boolean as ignored returns (computation (List String))
+                      true-case as compute return rest end
+                      false-case as compute return (P::cons String test-path rest) end
+                    end)
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent check-lib-tests as compute
+    bind entries from perform (FS::walk "lib") then
+      bind missing from perform (missing-tests (lib-file-paths entries)) then
+        perform (A::assert-false (missing-message missing)
+          (P::not (L::is-empty String missing)))
+      end
+    end
+  end
+
+  define transparent main as compute
+    sequence
+      check-lib-tests
+    end
+  end
+end

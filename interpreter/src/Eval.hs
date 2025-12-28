@@ -5,14 +5,28 @@ module Eval
 
 import           AST
 import           Control.Exception (catch, IOException)
-import           Control.Monad (foldM, filterM)
 import           Data.IORef
 import           Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>), takeExtension)
-import           System.Directory (getCurrentDirectory, listDirectory)
+import           System.Directory
+  ( copyFile
+  , createDirectoryIfMissing
+  , doesDirectoryExist
+  , doesFileExist
+  , doesPathExist
+  , getCurrentDirectory
+  , getFileSize
+  , getModificationTime
+  , listDirectory
+  , removeDirectoryRecursive
+  , removeFile
+  , renameDirectory
+  , renameFile
+  )
+import           Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import qualified Data.Text.IO as TIO
 import           System.Environment (getArgs)
 import           System.IO.Unsafe (unsafePerformIO)
@@ -92,13 +106,8 @@ primEnv = Map.fromList
   , (T.pack "decide-eq-pair-prim", BVal (VPrim primDecideEqPair))
   , (T.pack "decide-eq-list-prim", BVal (VPrim primDecideEqList))
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
-  , (T.pack "length-string-prim", BVal (VPrim primLengthString))
-  , (T.pack "split-on-prim", BVal (VPrim primSplitOn))
-  , (T.pack "join-with-prim", BVal (VPrim primJoinWith))
-  , (T.pack "trim-prim", BVal (VPrim primTrim))
-  , (T.pack "filter-prim", BVal (VPrim primFilter))
-  , (T.pack "fold-prim", BVal (VPrim primFold))
   , (T.pack "print-prim", BVal (VPrim primPrint))
+  , (T.pack "assert-hit-prim", BVal (VComp primAssertHit))
   , (T.pack "get-line-prim", BVal (VComp primGetLine))
   , (T.pack "cli-args-prim", BVal (VComp primCliArgs))
   , (T.pack "current-directory-prim", BVal (VComp primCurrentDirectory))
@@ -106,20 +115,24 @@ primEnv = Map.fromList
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
   , (T.pack "shell-prim", BVal (VPrim primShell))
   , (T.pack "list-dir-prim", BVal (VPrim primListDir))
+  , (T.pack "path-exists-prim", BVal (VPrim primPathExists))
+  , (T.pack "is-directory-prim", BVal (VPrim primIsDirectory))
+  , (T.pack "is-file-prim", BVal (VPrim primIsFile))
+  , (T.pack "make-directory-prim", BVal (VPrim primMakeDirectory))
+  , (T.pack "remove-file-prim", BVal (VPrim primRemoveFile))
+  , (T.pack "remove-directory-prim", BVal (VPrim primRemoveDirectory))
+  , (T.pack "append-file-prim", BVal (VPrim primAppendFile))
+  , (T.pack "copy-file-prim", BVal (VPrim primCopyFile))
+  , (T.pack "copy-tree-prim", BVal (VPrim primCopyTree))
+  , (T.pack "rename-path-prim", BVal (VPrim primRenamePath))
+  , (T.pack "walk-prim", BVal (VPrim primWalk))
+  , (T.pack "stat-prim", BVal (VPrim primStat))
   , (T.pack "print", BVal (VPrim primPrint))
-  , (T.pack "assert-eq-nat-prim", BVal (VPrim primAssertEqNat))
-  , (T.pack "assert-eq-string-prim", BVal (VPrim primAssertEqString))
   , (T.pack "tt-prim", BVal VUnit)
   , (T.pack "tt", BVal VUnit)
   , (T.pack "nil-prim", BVal (VPrim primNil))
   , (T.pack "cons-prim", BVal (VPrim primCons))
-  , (T.pack "length-list-prim", BVal (VPrim primLengthList))
-  , (T.pack "append-prim", BVal (VPrim primAppend))
-  , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
-  , (T.pack "not-prim", BVal (VPrim primNot))
-  , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
   , (T.pack "pair-prim", BVal (VPrim primPair))
-  , (T.pack "pair-to-list-prim", BVal (VPrim primPairToList))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
   -- Comparison operators
   , (T.pack "lt-nat-prim", BVal (VPrim (primCompareNat (<))))
@@ -131,28 +144,13 @@ primEnv = Map.fromList
   , (T.pack "div-nat-prim", BVal (VPrim primDivNat))
   , (T.pack "mod-nat-prim", BVal (VPrim primModNat))
   -- List operations
-  , (T.pack "nth-prim", BVal (VPrim primNth))
-  , (T.pack "take-prim", BVal (VPrim primTake))
-  , (T.pack "drop-prim", BVal (VPrim primDrop))
   , (T.pack "natural-to-peano-prim", BVal (VPrim primNaturalToPeano))
   -- String operations
-  , (T.pack "substring-prim", BVal (VPrim primSubstring))
-  , (T.pack "char-at-prim", BVal (VPrim primCharAt))
-  , (T.pack "contains-prim", BVal (VPrim primContains))
-  , (T.pack "starts-with-prim", BVal (VPrim primStartsWith))
-  , (T.pack "ends-with-prim", BVal (VPrim primEndsWith))
-  , (T.pack "index-of-prim", BVal (VPrim primIndexOf))
-  , (T.pack "reverse-string-prim", BVal (VPrim primReverseString))
   , (T.pack "string-to-list-prim", BVal (VPrim primStringToList))
-  -- List operations (additional)
-  , (T.pack "last-prim", BVal (VPrim primLast))
-  , (T.pack "init-prim", BVal (VPrim primInit))
   -- Error handling
   , (T.pack "error-prim", BVal (VPrim primError))
   -- Display/conversion
   , (T.pack "nat-to-string-prim", BVal (VPrim primNatToString))
-  -- Boolean assertions
-  , (T.pack "assert-eq-bool-prim", BVal (VPrim primAssertEqBool))
   ]
 
 primAdd :: [Value] -> IO Value
@@ -247,39 +245,6 @@ primConcatString vals = do
   ss <- mapM expectString vals
   pure $ VString (mconcat ss)
 
-primSplitOn :: [Value] -> IO Value
-primSplitOn [VString delim, VString s] =
-  pure $ VList (map VString (T.splitOn delim s))
-primSplitOn _ = error "split-on-prim expects (delimiter, string)"
-
-primJoinWith :: [Value] -> IO Value
-primJoinWith [VString sep, VList strs] = do
-  parts <- mapM expectString strs
-  pure $ VString (T.intercalate sep parts)
-primJoinWith _ = error "join-with-prim expects (separator, list-of-strings)"
-
-primTrim :: [Value] -> IO Value
-primTrim [VString s] = pure $ VString (T.strip s)
-primTrim _ = error "trim-prim expects 1 string"
-
-primFilter :: [Value] -> IO Value
-primFilter [ty, fn, VList xs] = do
-  expectTypeArg ty
-  kept <- filterM (\v -> do
-                      res <- apply fn [v]
-                      pure (isTruthy res)) xs
-  pure $ VList kept
-primFilter _ = error "filter-prim expects (Type, predicate, list)"
-
-primFold :: [Value] -> IO Value
-primFold [tyA, tyB, fn, z, VList xs] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  foldM step z xs
-  where
-    step acc v = apply fn [acc, v]
-primFold _ = error "fold-prim expects (Type, Type, fn, init, list)"
-
 primNil :: [Value] -> IO Value
 primNil [ty] = do
   expectTypeArg ty
@@ -292,12 +257,6 @@ primPair [tyA, tyB, a, b] = do
   expectTypeArg tyB
   pure $ VPair a b
 primPair _ = error "pair-prim expects (Type, Type, a, b)"
-
-primPairToList :: [Value] -> IO Value
-primPairToList [tyA, VPair a b] = do
-  expectTypeArg tyA
-  pure $ VList [a, b]
-primPairToList _ = error "pair-to-list-prim expects (Type, pair)"
 
 primValidate :: [Value] -> IO Value
 primValidate [VString s] = do
@@ -312,11 +271,6 @@ primValidate [VString s] = do
         Right _ -> pure (VBoolean True)
 primValidate _ = error "validate-prim expects 1 string"
 
-primLengthString :: [Value] -> IO Value
-primLengthString [a] = do
-  s <- expectString a
-  pure $ VNatural (fromIntegral (T.length s))
-primLengthString _ = error "length-string-prim expects 1 arg"
 
 primPrint :: [Value] -> IO Value
 primPrint [v] = do
@@ -325,6 +279,11 @@ primPrint [v] = do
         other     -> TIO.putStrLn (T.pack (show other))
   pure (VComp (action >> pure VUnit))
 primPrint _ = error "print-prim expects 1 arg"
+
+primAssertHit :: IO Value
+primAssertHit = do
+  modifyIORef' assertionCounter (+1)
+  pure VUnit
 
 primGetLine :: IO Value
 primGetLine = do
@@ -358,6 +317,165 @@ primListDir [VString path] =
     pure (VList (map (VString . T.pack) entries))
 primListDir _ = error "list-dir-prim expects 1 string arg"
 
+primPathExists :: [Value] -> IO Value
+primPathExists [VString path] =
+  pure $ VComp $ do
+    ok <- doesPathExist (T.unpack path)
+    pure (VBoolean ok)
+primPathExists _ = error "path-exists-prim expects 1 string arg"
+
+primIsDirectory :: [Value] -> IO Value
+primIsDirectory [VString path] =
+  pure $ VComp $ do
+    ok <- doesDirectoryExist (T.unpack path)
+    pure (VBoolean ok)
+primIsDirectory _ = error "is-directory-prim expects 1 string arg"
+
+primIsFile :: [Value] -> IO Value
+primIsFile [VString path] =
+  pure $ VComp $ do
+    ok <- doesFileExist (T.unpack path)
+    pure (VBoolean ok)
+primIsFile _ = error "is-file-prim expects 1 string arg"
+
+primMakeDirectory :: [Value] -> IO Value
+primMakeDirectory [VString path] =
+  pure $ VComp $ do
+    createDirectoryIfMissing True (T.unpack path)
+    pure VUnit
+primMakeDirectory _ = error "make-directory-prim expects 1 string arg"
+
+primRemoveFile :: [Value] -> IO Value
+primRemoveFile [VString path] =
+  pure $ VComp $ do
+    let path' = T.unpack path
+    isDir <- doesDirectoryExist path'
+    if isDir
+      then error "remove-file-prim expects a file path"
+      else do
+        exists <- doesFileExist path'
+        if exists then removeFile path' else pure ()
+        pure VUnit
+primRemoveFile _ = error "remove-file-prim expects 1 string arg"
+
+primRemoveDirectory :: [Value] -> IO Value
+primRemoveDirectory [VString path] =
+  pure $ VComp $ do
+    let path' = T.unpack path
+    isDir <- doesDirectoryExist path'
+    if isDir
+      then removeDirectoryRecursive path' >> pure VUnit
+      else do
+        isFile <- doesFileExist path'
+        if isFile
+          then error "remove-directory-prim expects a directory path"
+          else pure VUnit
+primRemoveDirectory _ = error "remove-directory-prim expects 1 string arg"
+
+primAppendFile :: [Value] -> IO Value
+primAppendFile [VString path, VString contents] =
+  pure (VComp (TIO.appendFile (T.unpack path) contents >> pure VUnit))
+primAppendFile _ = error "append-file-prim expects (path, contents)"
+
+primCopyFile :: [Value] -> IO Value
+primCopyFile [VString src, VString dest] =
+  pure $ VComp $ do
+    let srcPath = T.unpack src
+        destPath = T.unpack dest
+    isDir <- doesDirectoryExist srcPath
+    if isDir
+      then error "copy-file-prim expects a file source"
+      else copyFile srcPath destPath >> pure VUnit
+primCopyFile _ = error "copy-file-prim expects (source, destination)"
+
+primRenamePath :: [Value] -> IO Value
+primRenamePath [VString src, VString dest] =
+  pure $ VComp $ do
+    let srcPath = T.unpack src
+        destPath = T.unpack dest
+    isDir <- doesDirectoryExist srcPath
+    if isDir
+      then renameDirectory srcPath destPath >> pure VUnit
+      else do
+        isFile <- doesFileExist srcPath
+        if isFile
+          then renameFile srcPath destPath >> pure VUnit
+          else error "rename-path-prim expects an existing path"
+primRenamePath _ = error "rename-path-prim expects (source, destination)"
+
+copyTree :: FilePath -> FilePath -> IO ()
+copyTree src dest = do
+  isDir <- doesDirectoryExist src
+  isFile <- doesFileExist src
+  if isDir
+    then do
+      createDirectoryIfMissing True dest
+      entries <- listDirectory src
+      let fullPaths = map (src </>) entries
+          destPaths = map (dest </>) entries
+      mapM_ (uncurry copyTree) (zip fullPaths destPaths)
+    else if isFile
+      then copyFile src dest
+      else error "copy-tree-prim expects an existing path"
+
+primCopyTree :: [Value] -> IO Value
+primCopyTree [VString src, VString dest] =
+  pure $ VComp $ do
+    copyTree (T.unpack src) (T.unpack dest)
+    pure VUnit
+primCopyTree _ = error "copy-tree-prim expects (source, destination)"
+
+walkFrom :: FilePath -> IO [(FilePath, Bool)]
+walkFrom dir = do
+  entries <- listDirectory dir
+  let fullPaths = map (dir </>) entries
+  parts <- mapM walkPath fullPaths
+  pure (concat parts)
+  where
+    walkPath path = do
+      isDir <- doesDirectoryExist path
+      if isDir
+        then do
+          rest <- walkFrom path
+          pure ((path, True) : rest)
+        else do
+          isFile <- doesFileExist path
+          if isFile
+            then pure [(path, False)]
+            else pure []
+
+primWalk :: [Value] -> IO Value
+primWalk [VString path] =
+  pure $ VComp $ do
+    let root = T.unpack path
+    isDir <- doesDirectoryExist root
+    isFile <- doesFileExist root
+    entries <- if isDir
+      then walkFrom root
+      else if isFile
+        then pure [(root, False)]
+        else error "walk-prim expects an existing path"
+    let toValue (p, isDirEntry) =
+          VPair (VString (T.pack p)) (VBoolean isDirEntry)
+    pure (VList (map toValue entries))
+primWalk _ = error "walk-prim expects 1 string arg"
+
+primStat :: [Value] -> IO Value
+primStat [VString path] =
+  pure $ VComp $ do
+    let path' = T.unpack path
+    isDir <- doesDirectoryExist path'
+    isFile <- doesFileExist path'
+    if not (isDir || isFile)
+      then error "stat-prim expects an existing path"
+      else do
+        mtime <- getModificationTime path'
+        let mtimeNat = floor (utcTimeToPOSIXSeconds mtime)
+        size <- if isFile then getFileSize path' else pure 0
+        let kind = if isDir then T.pack "directory" else T.pack "file"
+        pure $ VPair (VString kind) (VPair (VNatural size) (VNatural mtimeNat))
+primStat _ = error "stat-prim expects 1 string arg"
+
 primShell :: [Value] -> IO Value
 primShell [VString cmd] = do
   pure (VComp (do
@@ -365,53 +483,11 @@ primShell [VString cmd] = do
     pure $ VString (T.pack (stdout ++ stderr))))
 primShell _ = error "shell-prim expects 1 string arg (command)"
 
-primAssertEqNat :: [Value] -> IO Value
-primAssertEqNat [a,b] = do
-  a' <- expectNat a
-  b' <- expectNat b
-  if a' == b'
-    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
-    else pure (VComp (error $ "assert-eq-nat failed: " ++ show a' ++ " /= " ++ show b'))
-primAssertEqNat _ = error "assert-eq-nat expects 2 args"
-
-primAssertEqString :: [Value] -> IO Value
-primAssertEqString [a,b] = do
-  a' <- expectString a
-  b' <- expectString b
-  if a' == b'
-    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
-    else pure (VComp (error $ "assert-eq-string failed: " ++ show a' ++ " /= " ++ show b'))
-primAssertEqString _ = error "assert-eq-string expects 2 args"
-
 primCons :: [Value] -> IO Value
 primCons [ty, h, VList t] = do
   expectTypeArg ty
   pure $ VList (h:t)
 primCons _ = error "cons-prim expects (Type, head, list)"
-
-primLengthList :: [Value] -> IO Value
-primLengthList [ty, VList xs] = do
-  expectTypeArg ty
-  pure $ VNatural (fromIntegral (length xs))
-primLengthList _ = error "length-list-prim expects (Type, list)"
-
-primAppend :: [Value] -> IO Value
-primAppend [ty, VList xs, VList ys] = do
-  expectTypeArg ty
-  pure $ VList (xs ++ ys)
-primAppend _ = error "append-prim expects (Type, list, list)"
-
-primMap :: [Value] -> IO Value
-primMap [tyA, tyB, fn, VList xs] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  VList <$> mapM (\v -> apply fn [v]) xs
-primMap _ = error "map-prim expects (Type, Type, fn, list)"
-
-primNot :: [Value] -> IO Value
-primNot [VBoolean b] = pure $ VBoolean (not b)
-primNot [v] = pure $ VBoolean (not (isTruthy v))
-primNot _ = error "not-prim expects 1 arg"
 
 primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
 primCompareNat op [a, b] = do
@@ -447,98 +523,15 @@ primModNat _ = error "mod-nat-prim expects 2 args"
 
 -- List operations
 
-primNth :: [Value] -> IO Value
-primNth [ty, VNatural idx, VList xs] = do
-  expectTypeArg ty
-  let i = fromInteger idx
-  if i < 0 || i >= length xs
-    then error $ "nth-prim: index " ++ show idx ++ " out of bounds for list of length " ++ show (length xs)
-    else pure $ xs !! i
-primNth _ = error "nth-prim expects (Type, index, list)"
-
-primTake :: [Value] -> IO Value
-primTake [ty, VNatural n, VList xs] = do
-  expectTypeArg ty
-  let count = fromInteger n
-  pure $ VList (take count xs)
-primTake _ = error "take-prim expects (Type, count, list)"
-
-primDrop :: [Value] -> IO Value
-primDrop [ty, VNatural n, VList xs] = do
-  expectTypeArg ty
-  let count = fromInteger n
-  pure $ VList (drop count xs)
-primDrop _ = error "drop-prim expects (Type, count, list)"
-
 primNaturalToPeano :: [Value] -> IO Value
 primNaturalToPeano [VNatural n] =
   pure $ VList (replicate (fromInteger n) VUnit)
 primNaturalToPeano _ = error "natural-to-peano-prim expects 1 nat arg"
 
--- String operations
-
-primSubstring :: [Value] -> IO Value
-primSubstring [VNatural start, VNatural len, VString s] = do
-  let startIdx = fromInteger start
-      lenVal = fromInteger len
-      result = T.take lenVal (T.drop startIdx s)
-  pure $ VString result
-primSubstring _ = error "substring-prim expects (start, length, string)"
-
-primCharAt :: [Value] -> IO Value
-primCharAt [VNatural idx, VString s] = do
-  let i = fromInteger idx
-  if i < 0 || i >= T.length s
-    then error $ "char-at-prim: index " ++ show idx ++ " out of bounds for string of length " ++ show (T.length s)
-    else pure $ VString (T.singleton (T.index s i))
-primCharAt _ = error "char-at-prim expects (index, string)"
-
-primContains :: [Value] -> IO Value
-primContains [VString needle, VString haystack] =
-  pure $ VBoolean (needle `T.isInfixOf` haystack)
-primContains _ = error "contains-prim expects (needle, haystack)"
-
-primStartsWith :: [Value] -> IO Value
-primStartsWith [VString prefix, VString s] =
-  pure $ VBoolean (prefix `T.isPrefixOf` s)
-primStartsWith _ = error "starts-with-prim expects (prefix, string)"
-
-primEndsWith :: [Value] -> IO Value
-primEndsWith [VString suffix, VString s] =
-  pure $ VBoolean (suffix `T.isSuffixOf` s)
-primEndsWith _ = error "ends-with-prim expects (suffix, string)"
-
-primIndexOf :: [Value] -> IO Value
-primIndexOf [VString needle, VString haystack] =
-  case T.breakOn needle haystack of
-    (before, after) | T.null after -> pure $ VNatural (fromIntegral (T.length haystack))
-                    | otherwise -> pure $ VNatural (fromIntegral (T.length before))
-primIndexOf _ = error "index-of-prim expects (needle, haystack)"
-
-primReverseString :: [Value] -> IO Value
-primReverseString [VString s] = pure $ VString (T.reverse s)
-primReverseString _ = error "reverse-string-prim expects 1 string arg"
-
 primStringToList :: [Value] -> IO Value
 primStringToList [VString s] =
   pure $ VList (map (VString . T.singleton) (T.unpack s))
 primStringToList _ = error "string-to-list-prim expects 1 string arg"
-
-primLast :: [Value] -> IO Value
-primLast [ty, VList xs] = do
-  expectTypeArg ty
-  if null xs
-    then pure (VList [])
-    else pure (last xs)
-primLast _ = error "last-prim expects (Type, list)"
-
-primInit :: [Value] -> IO Value
-primInit [ty, VList xs] = do
-  expectTypeArg ty
-  if null xs
-    then pure (VList [])
-    else pure (VList (init xs))
-primInit _ = error "init-prim expects (Type, list)"
 
 primError :: [Value] -> IO Value
 primError [ty, VString msg] = do
@@ -549,13 +542,6 @@ primError _ = error "error-prim expects (Type, string)"
 primNatToString :: [Value] -> IO Value
 primNatToString [VNatural n] = pure $ VString (T.pack (show n))
 primNatToString _ = error "nat-to-string-prim expects 1 Natural arg"
-
-primAssertEqBool :: [Value] -> IO Value
-primAssertEqBool [VBoolean a, VBoolean b] = do
-  if a == b
-    then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
-    else pure (VComp (error $ "assert-eq-bool failed: " ++ show a ++ " /= " ++ show b))
-primAssertEqBool _ = error "assert-eq-bool-prim expects 2 Boolean args"
 
 isTypeValue :: Value -> Bool
 isTypeValue v = case v of
@@ -586,21 +572,6 @@ expectBool v           = error $ "expected Boolean, got " ++ show v
 expectString :: Value -> IO Text
 expectString (VString s) = pure s
 expectString v           = error $ "expected String, got " ++ show v
-
-primDropUntil :: [Value] -> IO Value
-primDropUntil [target, VList xs] = do
-  tgt <- expectString target
-  pure $ VList (dropWhile (\v -> case v of
-                            VString s -> s /= tgt
-                            _ -> True) xs)
-primDropUntil _ = pure (VList [])
-isTruthy :: Value -> Bool
-isTruthy VUnit = True
-isTruthy (VBoolean b) = b
-isTruthy (VString s) = not (T.null s)
-isTruthy (VNatural n) = n /= 0
-isTruthy (VList xs) = not (null xs)
-isTruthy _ = False
 
 -- Build environment from module definitions atop an existing env (imports/prims)
 -- Uses lazy evaluation to tie-the-knot: all definitions capture the final environment

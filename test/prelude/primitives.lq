@@ -21,11 +21,36 @@ module test::prelude::primitives contains
 
   define transparent test-comparison as compute
     sequence
-      (A::assert-eq-string (P::if-bool String (C::lt-nat 1 2) "yes" "no") "yes")
-      (A::assert-eq-string (P::if-bool String (C::gt-nat 2 1) "yes" "no") "yes")
-      (A::assert-eq-string (P::if-bool String (C::le-nat 2 2) "yes" "no") "yes")
-      (A::assert-eq-string (P::if-bool String (C::ge-nat 3 2) "yes" "no") "yes")
-      (A::assert-eq-string (P::if-bool String (C::eq-nat 5 5) "yes" "no") "yes")
+      (A::assert-eq-string
+        (match (C::lt-nat 1 2) of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
+      (A::assert-eq-string
+        (match (C::gt-nat 2 1) of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
+      (A::assert-eq-string
+        (match (C::le-nat 2 2) of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
+      (A::assert-eq-string
+        (match (C::ge-nat 3 2) of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
+      (A::assert-eq-string
+        (match (C::eq-nat 5 5) of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
+        "yes")
     end
   end
 
@@ -58,16 +83,28 @@ module test::prelude::primitives contains
       (A::assert-eq-string (S::character-string (S::char-at 1 "hello")) "e")
       (A::assert-eq-string (S::character-string (S::char-at 0 "hello")) "h")
       (A::assert-eq-string
-        (P::if-bool String (S::string-contains "ell" "hello") "yes" "no")
+        (match (S::string-contains "ell" "hello") of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
         "yes")
       (A::assert-eq-string
-        (P::if-bool String (S::string-contains "xyz" "hello") "yes" "no")
+        (match (S::string-contains "xyz" "hello") of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
         "no")
       (A::assert-eq-string
-        (P::if-bool String (S::string-starts-with "hel" "hello") "yes" "no")
+        (match (S::string-starts-with "hel" "hello") of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
         "yes")
       (A::assert-eq-string
-        (P::if-bool String (S::string-starts-with "llo" "hello") "yes" "no")
+        (match (S::string-starts-with "llo" "hello") of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
         "no")
     end
   end

@@ -17,7 +17,10 @@ module test::typeclass::order contains
 
   define transparent LessThan-Boolean as instance LessThan Boolean where
     lt as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x false y
+      match x of-type Boolean as ignored returns Boolean
+        false-case as y
+        true-case as false
+      end
     end
   end
 
@@ -34,7 +37,10 @@ module test::typeclass::order contains
 
   define transparent LessOrEqual-Boolean as instance LessOrEqual Boolean where
     le as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x y true
+      match x of-type Boolean as ignored returns Boolean
+        false-case as true
+        true-case as y
+      end
     end
   end
 
@@ -51,7 +57,10 @@ module test::typeclass::order contains
 
   define transparent GreaterThan-Boolean as instance GreaterThan Boolean where
     gt as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x (not-prim y) false
+      match x of-type Boolean as ignored returns Boolean
+        false-case as false
+        true-case as P::not y
+      end
     end
   end
 
@@ -68,7 +77,10 @@ module test::typeclass::order contains
 
   define transparent GreaterOrEqual-Boolean as instance GreaterOrEqual Boolean where
     ge as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x true (not-prim y)
+      match x of-type Boolean as ignored returns Boolean
+        false-case as P::not y
+        true-case as true
+      end
     end
   end
 

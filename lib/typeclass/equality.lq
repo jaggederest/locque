@@ -26,7 +26,10 @@ module typeclass::equality contains
   # Instance: Boolean
   define transparent Equality-Boolean as instance Equality Boolean where
     eq as function x Boolean y Boolean returns Boolean value
-      P::if-bool Boolean x y (P::not y)
+      match x of-type Boolean as ignored returns Boolean
+        false-case as P::not y
+        true-case as y
+      end
     end
   end
 

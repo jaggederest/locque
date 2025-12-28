@@ -1,0 +1,12 @@
+# Test rollup for Path module
+# Runs all tests in test/path/
+
+import test::path::basics as basics
+
+module test::path contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

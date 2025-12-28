@@ -17,17 +17,52 @@ module prelude contains
         cons-case with h A t (List A) as t
       end
     end
-  define transparent length-list as length-list-prim
-  define transparent append as append-prim
-  define transparent filter as filter-prim
-  define transparent fold as fold-prim
-  define transparent map as map-prim
-  define transparent not as not-prim
-  define transparent if-bool as
-    function A Type0 cond Boolean true-value A false-value A returns A value
-      match cond of-type Boolean as ignored returns A
-        false-case as false-value
-        true-case as true-value
+  define transparent not as
+    function x Boolean returns Boolean value
+      match x of-type Boolean as ignored returns Boolean
+        false-case as true
+        true-case as false
+      end
+    end
+  define transparent length-list as
+    function A Type0 xs (List A) returns Natural value
+      match xs of-type (List A) as ignored returns Natural
+        empty-case as 0
+        cons-case with h A t (List A) as add-nat 1 (recur A t)
+      end
+    end
+  define transparent append as
+    function A Type0 xs (List A) ys (List A) returns (List A) value
+      match xs of-type (List A) as ignored returns (List A)
+        empty-case as ys
+        cons-case with h A t (List A) as cons A h (recur A t ys)
+      end
+    end
+  define transparent filter as
+    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns (List A) value
+      match xs of-type (List A) as ignored returns (List A)
+        empty-case as nil A
+        cons-case with h A t (List A) as
+          let value rest be recur A predicate t in
+            match (predicate h) of-type Boolean as ignored returns (List A)
+              false-case as rest
+              true-case as cons A h rest
+            end
+          end
+      end
+    end
+  define transparent fold as
+    function A Type0 B Type0 f (for-all acc as B to for-all x as A to B) acc B xs (List A) returns B value
+      match xs of-type (List A) as ignored returns B
+        empty-case as acc
+        cons-case with h A t (List A) as recur A B f (f acc h) t
+      end
+    end
+  define transparent map as
+    function A Type0 B Type0 f (for-all x as A to B) xs (List A) returns (List B) value
+      match xs of-type (List A) as ignored returns (List B)
+        empty-case as nil B
+        cons-case with h A t (List A) as cons B (f h) (recur A B f t)
       end
     end
   define transparent pair as pair-prim
@@ -43,7 +78,12 @@ module prelude contains
         pair-case with a A b B as b
       end
     end
-  define transparent pair-to-list as pair-to-list-prim
+  define transparent pair-to-list as
+    function A Type0 p (Pair A A) returns (List A) value
+      match p of-type (Pair A A) as ignored returns (List A)
+        pair-case with a A b A as cons A a (cons A b (nil A))
+      end
+    end
   define transparent decide-eq-nat as decide-eq-nat-prim
   define transparent decide-eq-string as decide-eq-string-prim
   define transparent decide-eq-bool as decide-eq-bool-prim

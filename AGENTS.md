@@ -5,7 +5,7 @@ Project overview for agents
 
 Interpreter (Haskell, `interpreter/`)
 - AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, functions, defs (transparency/kind), values vs computations, dependent match with binder/returns, typeclasses/instances (DictPass).
-- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub/mul/div/mod nat; eq/lt/le/gt/ge nat; eq string; concat/length/split-on/join/trim/substring/contains/starts/ends/index/reverse strings; print/read-file/write-file/shell; assert eq nat/string/bool; match (list/bool/pair); filter; fold (left); map; append; pair/fst/snd/pair-to-list; drop-until; not; if-bool; many string/list utilities; error.
+- Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub/mul/div/mod nat; eq/lt/le/gt/ge nat; eq/concat string; string-to-list; nat-to-string; nil/cons/pair/natural-to-peano; decide-eq-(nat/string/bool/pair/list); print/read-file/write-file/append-file/copy-file/copy-tree/rename-path/remove-file/remove-directory/shell/get-line/cli-args/current-directory/list-dir/path-exists/is-directory/is-file/make-directory/walk/stat; validate; error; assert-hit.
 - Import resolution:
   - Module names use `::` separator (e.g., `Some::Module::Name`)
   - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`)
@@ -17,10 +17,12 @@ Interpreter (Haskell, `interpreter/`)
 - Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
-- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not/if-bool/match); pair ops; id/is-falsy; tt.
+- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; id/is-falsy; tt.
 - Assert: assert-eq-nat/string/bool, assert-false.
 - IO: print/read-file/write-file/shell.
-- String: concat/length/eq/split-on/join-with/trim/split-spaces.
+- String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/chars.
+- FS: read/write/append/copy/copy-tree/rename/list-dir/current-directory/path-exists/is-directory/is-file/make-directory/remove-file/remove-directory/walk/stat/lines helpers.
+- Path: join/dirname/basename/ext/is-absolute.
 - Tools: tokenizer; validator (validate-string via validate-prim).
 - Note: primitives are Haskell scaffolding; aim to replace with locque implementations over time.
 
