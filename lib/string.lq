@@ -9,11 +9,98 @@ module string contains
   define transparent join-with as join-with-prim
   define transparent trim as trim-prim
   define transparent substring as substring-prim
-  define transparent char-at as char-at-prim
   define transparent string-contains as contains-prim
   define transparent string-starts-with as starts-with-prim
   define transparent string-ends-with as ends-with-prim
   define transparent string-index-of as index-of-prim
+  define transparent Character as
+    there-exists c as String in
+      equal Natural (length c) 1
+
+  define transparent character as
+    function s String returns Character value
+      unpack (P::decide-eq-nat (length s) 1) as ok proof in
+        match ok of-type Boolean as ok returns Character
+          false-case as error-prim Character "Character expects length 1"
+          true-case as
+            pack c as String in equal Natural (length c) 1 with s proof end
+        end
+      end
+    end
+
+  define transparent character-string as
+    function c Character returns String value
+      unpack c as s ignored in s end
+    end
+
+  define transparent to-list as
+    function s String returns List Character value
+      P::map String Character character (string-to-list-prim s)
+    end
+
+  define transparent from-list as
+    function xs (List Character) returns String value
+      join-with "" (P::map Character String character-string xs)
+    end
+
+  define transparent char-at as
+    function index Natural s String returns Character value
+      character (char-at-prim index s)
+    end
+
+  define transparent head as
+    function s String returns Character value
+      P::head Character (to-list s)
+    end
+
+  define transparent tail as
+    function s String returns String value
+      from-list (P::tail Character (to-list s))
+    end
+
+  define transparent ascii-order as
+    " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+  define transparent char-order-index as
+    function c Character returns Natural value
+      string-index-of (character-string c) ascii-order
+    end
+
+  define transparent char-lt as
+    function a Character b Character returns Boolean value
+      C::lt-nat (char-order-index a) (char-order-index b)
+    end
+
+  define transparent insert-char-by as
+    function cmp (for-all x as Character to for-all y as Character to Boolean)
+             x Character
+             xs (List Character)
+    returns (List Character) value
+      match xs of-type (List Character) as ignored returns (List Character)
+        empty-case as P::cons Character x (P::nil Character)
+        cons-case with h Character t (List Character) as
+          P::if-bool (List Character) (cmp x h)
+            (P::cons Character x (P::cons Character h t))
+            (P::cons Character h (recur cmp x t))
+      end
+    end
+
+  define transparent sort-chars-by as
+    function cmp (for-all x as Character to for-all y as Character to Boolean)
+             xs (List Character)
+    returns (List Character) value
+      P::fold Character (List Character)
+        (function acc (List Character) x Character returns (List Character) value
+          insert-char-by cmp x acc
+        end)
+        (P::nil Character)
+        xs
+    end
+
+  define transparent sort as
+    function s String returns String value
+      from-list (sort-chars-by char-lt (to-list s))
+    end
 
   define transparent is-empty as
     function s String returns Boolean value

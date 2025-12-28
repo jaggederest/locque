@@ -1,0 +1,31 @@
+# Prelude tests for equality and rewrite
+
+module test::prelude::equality contains
+  define transparent SelfEq as
+    function x Natural returns Type0 value
+      equal Natural x x
+    end
+
+  define transparent refl-five as
+    reflexive Natural 5
+
+  define transparent check-refl-five as
+    of-type (refl-five) (equal Natural 5 5)
+
+  define transparent refl-var as
+    function x Natural returns equal Natural x x value
+      reflexive Natural x
+    end
+
+  define transparent ConstNat as
+    function n Natural returns Type0 value
+      Natural
+    end
+
+  define transparent check-rewrite as
+    of-type (rewrite ConstNat (reflexive Natural 5) as 5) Natural
+
+  define transparent main as compute
+    return tt
+  end
+end

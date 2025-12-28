@@ -4,44 +4,63 @@
 # is defined as a separate typeclass. When the parser is enhanced,
 # these can be unified into a single Arithmetic typeclass.
 #
-# NOTE: Multi-arg typeclass methods require explicit currying when called:
-#   Use (add 1) 2 instead of add 1 2
+# NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 
-module arithmetic contains
+module typeclass::arithmetic contains
   # Addition typeclass
-  define transparent Add as typeclass a where
-    add of-type (-> a (-> a a))
+  define transparent Add as typeclass A where
+    add of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Add-Natural as instance Add Natural where
-    add produce lambda x -> lambda y -> add-nat-prim x y
+    add as function x Natural y Natural returns Natural value
+      add-nat-prim x y
+    end
+  end
 
   # Subtraction typeclass (saturating for Natural)
-  define transparent Sub as typeclass a where
-    sub of-type (-> a (-> a a))
+  define transparent Sub as typeclass A where
+    sub of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Sub-Natural as instance Sub Natural where
-    sub produce lambda x -> lambda y -> sub-nat-prim x y
+    sub as function x Natural y Natural returns Natural value
+      sub-nat-prim x y
+    end
+  end
 
   # Multiplication typeclass
-  define transparent Mul as typeclass a where
-    mul of-type (-> a (-> a a))
+  define transparent Mul as typeclass A where
+    mul of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Mul-Natural as instance Mul Natural where
-    mul produce lambda x -> lambda y -> mul-nat-prim x y
+    mul as function x Natural y Natural returns Natural value
+      mul-nat-prim x y
+    end
+  end
 
   # Division typeclass
-  define transparent Div as typeclass a where
-    div of-type (-> a (-> a a))
+  define transparent Div as typeclass A where
+    div of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Div-Natural as instance Div Natural where
-    div produce lambda x -> lambda y -> div-nat-prim x y
+    div as function x Natural y Natural returns Natural value
+      div-nat-prim x y
+    end
+  end
 
   # Modulo typeclass
-  define transparent Mod as typeclass a where
-    mod of-type (-> a (-> a a))
+  define transparent Mod as typeclass A where
+    mod of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Mod-Natural as instance Mod Natural where
-    mod produce lambda x -> lambda y -> mod-nat-prim x y
+    mod as function x Natural y Natural returns Natural value
+      mod-nat-prim x y
+    end
+  end
 
   # NOTE: Currently only Natural has arithmetic instances.
   # Future types like Integer, Rational, Float would add their own instances.

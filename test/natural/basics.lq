@@ -1,0 +1,20 @@
+# Natural module basics
+
+import prelude as P
+import assert as A
+import natural as N
+
+open A exposing assert-eq Equality end
+
+module test::natural::basics contains
+  define transparent main as compute
+    sequence
+      (assert-eq Natural
+        (P::length-list Unit (N::to-peano 0))
+        0)
+      (assert-eq Natural
+        (P::length-list Unit (N::to-peano 3))
+        3)
+    end
+  end
+end

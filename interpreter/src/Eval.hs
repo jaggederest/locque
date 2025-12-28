@@ -12,7 +12,9 @@ import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>), takeExtension)
+import           System.Directory (getCurrentDirectory, listDirectory)
 import qualified Data.Text.IO as TIO
+import           System.Environment (getArgs)
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.Process (readCreateProcessWithExitCode, shell)
 import           Parser (parseModuleFile, parseMExprFile)
@@ -43,6 +45,7 @@ data Value
   | VTypeThereExists Text Expr Expr
   | VTypeComp Expr
   | VTypeLift Expr Int Int
+  | VTypeEqual Value Value Value
   | VTypeApp Value [Value]
   | VClosure Env [Text] FunctionBody
   | VPrim ([Value] -> IO Value)
@@ -63,6 +66,7 @@ instance Show Value where
   show (VTypeThereExists _ _ _) = "<there-exists>"
   show (VTypeComp _) = "<computation-type>"
   show (VTypeLift _ _ _) = "<lift-type>"
+  show (VTypeEqual _ _ _) = "<equal-type>"
   show (VTypeApp _ _) = "<type-app>"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
@@ -81,7 +85,12 @@ primEnv = Map.fromList
   , (T.pack "add-nat", BVal (VPrim primAdd))
   , (T.pack "sub-nat-prim", BVal (VPrim primSub))
   , (T.pack "eq-nat-prim", BVal (VPrim primEqNat))
+  , (T.pack "decide-eq-nat-prim", BVal (VPrim primDecideEqNat))
   , (T.pack "eq-string-prim", BVal (VPrim primEqString))
+  , (T.pack "decide-eq-string-prim", BVal (VPrim primDecideEqString))
+  , (T.pack "decide-eq-bool-prim", BVal (VPrim primDecideEqBool))
+  , (T.pack "decide-eq-pair-prim", BVal (VPrim primDecideEqPair))
+  , (T.pack "decide-eq-list-prim", BVal (VPrim primDecideEqList))
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
   , (T.pack "length-string-prim", BVal (VPrim primLengthString))
   , (T.pack "split-on-prim", BVal (VPrim primSplitOn))
@@ -90,9 +99,13 @@ primEnv = Map.fromList
   , (T.pack "filter-prim", BVal (VPrim primFilter))
   , (T.pack "fold-prim", BVal (VPrim primFold))
   , (T.pack "print-prim", BVal (VPrim primPrint))
+  , (T.pack "get-line-prim", BVal (VComp primGetLine))
+  , (T.pack "cli-args-prim", BVal (VComp primCliArgs))
+  , (T.pack "current-directory-prim", BVal (VComp primCurrentDirectory))
   , (T.pack "read-file-prim", BVal (VPrim primReadFile))
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
   , (T.pack "shell-prim", BVal (VPrim primShell))
+  , (T.pack "list-dir-prim", BVal (VPrim primListDir))
   , (T.pack "print", BVal (VPrim primPrint))
   , (T.pack "assert-eq-nat-prim", BVal (VPrim primAssertEqNat))
   , (T.pack "assert-eq-string-prim", BVal (VPrim primAssertEqString))
@@ -107,9 +120,6 @@ primEnv = Map.fromList
   , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
   , (T.pack "not-prim", BVal (VPrim primNot))
   , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
-  , (T.pack "match-list-prim", BVal (VPrim primMatchList))
-  , (T.pack "match-bool-prim", BVal (VPrim primMatchBool))
-  , (T.pack "match-pair-prim", BVal (VPrim primMatchPair))
   , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
   , (T.pack "pair-prim", BVal (VPrim primPair))
   , (T.pack "fst-prim", BVal (VPrim primFst))
@@ -129,6 +139,7 @@ primEnv = Map.fromList
   , (T.pack "nth-prim", BVal (VPrim primNth))
   , (T.pack "take-prim", BVal (VPrim primTake))
   , (T.pack "drop-prim", BVal (VPrim primDrop))
+  , (T.pack "natural-to-peano-prim", BVal (VPrim primNaturalToPeano))
   -- String operations
   , (T.pack "substring-prim", BVal (VPrim primSubstring))
   , (T.pack "char-at-prim", BVal (VPrim primCharAt))
@@ -137,6 +148,7 @@ primEnv = Map.fromList
   , (T.pack "ends-with-prim", BVal (VPrim primEndsWith))
   , (T.pack "index-of-prim", BVal (VPrim primIndexOf))
   , (T.pack "reverse-string-prim", BVal (VPrim primReverseString))
+  , (T.pack "string-to-list-prim", BVal (VPrim primStringToList))
   -- List operations (additional)
   , (T.pack "last-prim", BVal (VPrim primLast))
   , (T.pack "init-prim", BVal (VPrim primInit))
@@ -174,6 +186,67 @@ primEqString [a,b] = do
   pure $ VBoolean (a' == b')
 primEqString _ = error "eq-string-prim expects 2 args"
 
+notProofValue :: Value
+notProofValue =
+  VPrim $ \args -> case args of
+    [_] -> pure VUnit
+    _ -> error "not-proof expects 1 arg"
+
+decisionResult :: Bool -> Value
+decisionResult ok =
+  VPair (VBoolean ok) (if ok then VUnit else notProofValue)
+
+expectDecisionBool :: Value -> IO Bool
+expectDecisionBool v = case v of
+  VPair (VBoolean ok) _ -> pure ok
+  _ -> error "decidable result expects (Boolean, proof)"
+
+primDecideEqNat :: [Value] -> IO Value
+primDecideEqNat [a, b] = do
+  a' <- expectNat a
+  b' <- expectNat b
+  pure (decisionResult (a' == b'))
+primDecideEqNat _ = error "decide-eq-nat-prim expects 2 args"
+
+primDecideEqString :: [Value] -> IO Value
+primDecideEqString [a, b] = do
+  a' <- expectString a
+  b' <- expectString b
+  pure (decisionResult (a' == b'))
+primDecideEqString _ = error "decide-eq-string-prim expects 2 args"
+
+primDecideEqBool :: [Value] -> IO Value
+primDecideEqBool [a, b] = do
+  a' <- expectBool a
+  b' <- expectBool b
+  pure (decisionResult (a' == b'))
+primDecideEqBool _ = error "decide-eq-bool-prim expects 2 args"
+
+primDecideEqPair :: [Value] -> IO Value
+primDecideEqPair [tyA, tyB, eqA, eqB, VPair a1 b1, VPair a2 b2] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  okA <- expectDecisionBool =<< apply eqA [a1, a2]
+  if not okA
+    then pure (decisionResult False)
+    else do
+      okB <- expectDecisionBool =<< apply eqB [b1, b2]
+      pure (decisionResult okB)
+primDecideEqPair _ =
+  error "decide-eq-pair-prim expects (Type, Type, eqA, eqB, pair, pair)"
+
+primDecideEqList :: [Value] -> IO Value
+primDecideEqList [tyA, eqA, VList xs, VList ys] = do
+  expectTypeArg tyA
+  let go [] [] = pure True
+      go (x:xt) (y:yt) = do
+        ok <- expectDecisionBool =<< apply eqA [x, y]
+        if ok then go xt yt else pure False
+      go _ _ = pure False
+  ok <- go xs ys
+  pure (decisionResult ok)
+primDecideEqList _ =
+  error "decide-eq-list-prim expects (Type, eqA, list, list)"
 primConcatString :: [Value] -> IO Value
 primConcatString vals = do
   ss <- mapM expectString vals
@@ -217,37 +290,6 @@ primNil [ty] = do
   expectTypeArg ty
   pure (VList [])
 primNil _ = error "nil-prim expects (Type)"
-
-primMatchList :: [Value] -> IO Value
-primMatchList [tyA, tyB, VList [], c1, _c2] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  apply c1 [VUnit]
-primMatchList [tyA, tyB, VList (h:t), _c1, c2] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  apply c2 [h, VList t]
-primMatchList [_, _, v, _, _] = error $ "match-list-prim expects List, got " ++ show v
-primMatchList _ = error "match-list-prim expects (Type, Type, list, empty-handler, cons-handler)"
-
-primMatchBool :: [Value] -> IO Value
-primMatchBool [tyB, VBoolean False, c1, _c2] = do
-  expectTypeArg tyB
-  apply c1 [VUnit]
-primMatchBool [tyB, VBoolean True, _c1, c2] = do
-  expectTypeArg tyB
-  apply c2 [VUnit]
-primMatchBool [_, v, _, _] = error $ "match-bool-prim expects Bool, got " ++ show v
-primMatchBool _ = error "match-bool-prim expects (Type, Bool, false-handler, true-handler)"
-
-primMatchPair :: [Value] -> IO Value
-primMatchPair [tyA, tyB, tyC, VPair a b, _c1, c2] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  expectTypeArg tyC
-  apply c2 [a, b]
-primMatchPair [_, _, _, v, _, _] = error $ "match-pair-prim expects Pair, got " ++ show v
-primMatchPair _ = error "match-pair-prim expects (Type, Type, Type, pair, unreachable-handler, pair-handler)"
 
 primPair :: [Value] -> IO Value
 primPair [tyA, tyB, a, b] = do
@@ -303,6 +345,21 @@ primPrint [v] = do
   pure (VComp (action >> pure VUnit))
 primPrint _ = error "print-prim expects 1 arg"
 
+primGetLine :: IO Value
+primGetLine = do
+  line <- TIO.getLine
+  pure (VString (line <> T.pack "\n"))
+
+primCliArgs :: IO Value
+primCliArgs = do
+  args <- getArgs
+  pure (VList (map (VString . T.pack) args))
+
+primCurrentDirectory :: IO Value
+primCurrentDirectory = do
+  dir <- getCurrentDirectory
+  pure (VString (T.pack dir))
+
 primReadFile :: [Value] -> IO Value
 primReadFile [VString path] =
   pure (VComp (VString <$> TIO.readFile (T.unpack path)))
@@ -312,6 +369,13 @@ primWriteFile :: [Value] -> IO Value
 primWriteFile [VString path, VString contents] = do
   pure (VComp (TIO.writeFile (T.unpack path) contents >> pure VUnit))
 primWriteFile _ = error "write-file-prim expects (path, contents)"
+
+primListDir :: [Value] -> IO Value
+primListDir [VString path] =
+  pure $ VComp $ do
+    entries <- listDirectory (T.unpack path)
+    pure (VList (map (VString . T.pack) entries))
+primListDir _ = error "list-dir-prim expects 1 string arg"
 
 primShell :: [Value] -> IO Value
 primShell [VString cmd] = do
@@ -449,6 +513,11 @@ primDrop [ty, VNatural n, VList xs] = do
   pure $ VList (drop count xs)
 primDrop _ = error "drop-prim expects (Type, count, list)"
 
+primNaturalToPeano :: [Value] -> IO Value
+primNaturalToPeano [VNatural n] =
+  pure $ VList (replicate (fromInteger n) VUnit)
+primNaturalToPeano _ = error "natural-to-peano-prim expects 1 nat arg"
+
 -- String operations
 
 primSubstring :: [Value] -> IO Value
@@ -493,6 +562,11 @@ primReverseString :: [Value] -> IO Value
 primReverseString [VString s] = pure $ VString (T.reverse s)
 primReverseString _ = error "reverse-string-prim expects 1 string arg"
 
+primStringToList :: [Value] -> IO Value
+primStringToList [VString s] =
+  pure $ VList (map (VString . T.singleton) (T.unpack s))
+primStringToList _ = error "string-to-list-prim expects 1 string arg"
+
 primLast :: [Value] -> IO Value
 primLast [ty, VList xs] = do
   expectTypeArg ty
@@ -534,6 +608,7 @@ isTypeValue v = case v of
   VTypeThereExists _ _ _ -> True
   VTypeComp _ -> True
   VTypeLift _ _ _ -> True
+  VTypeEqual _ _ _ -> True
   VTypeApp _ _ -> True
   _ -> False
 
@@ -546,6 +621,10 @@ expectTypeArg v =
 expectNat :: Value -> IO Integer
 expectNat (VNatural n) = pure n
 expectNat v        = error $ "expected Nat, got " ++ show v
+
+expectBool :: Value -> IO Bool
+expectBool (VBoolean b) = pure b
+expectBool v           = error $ "expected Boolean, got " ++ show v
 
 expectString :: Value -> IO Text
 expectString (VString s) = pure s
@@ -612,6 +691,10 @@ evalExpr env expr = case expr of
   EForAll v dom cod -> pure (VTypeForAll v dom cod)
   EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
   ECompType t -> pure (VTypeComp t)
+  EEqual ty lhs rhs ->
+    VTypeEqual <$> evalExpr env ty <*> evalExpr env lhs <*> evalExpr env rhs
+  EReflexive _ _ -> pure VUnit
+  ERewrite _ _ body -> evalExpr env body
   ELift ty fromLevel toLevel -> pure (VTypeLift ty fromLevel toLevel)
   EUp _ _ _ body -> evalExpr env body
   EDown _ _ _ body -> evalExpr env body
@@ -627,7 +710,9 @@ evalExpr env expr = case expr of
         in evalExpr env' body
       _ -> error "unpack expects a packed value"
   EFunction params _constraints _retTy body ->
-    pure $ VClosure env (map paramName params) body
+    let recClosure = VClosure envWithRecur (map paramName params) body
+        envWithRecur = Map.insert (T.pack "recur") (BVal recClosure) env
+    in pure recClosure
   ELet name val body -> do
     val' <- evalExpr env val
     let env' = Map.insert name (BVal val') env

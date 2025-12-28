@@ -52,8 +52,8 @@ Opacity and unfolding
 Extensionality posture (propositional, not definitional)
 
 - Function extensionality as a lemma:
-  - M (schema): `define transparent fun-ext as for-all f as (for-all _ as A to B) to for-all g as (for-all _ as A to B) to for-all pf as (for-all x as A to Eq B (f x) (g x)) to Eq (for-all _ as A to B) f g`
-  - S: `(define transparent fun-ext (for-all (f (for-all (_ A) B)) (for-all (g (for-all (_ A) B)) (for-all (pf (for-all (x A) (Eq B (f x) (g x)))) (Eq (for-all (_ A) B) f g)))))`
+  - M (schema): `define transparent fun-ext as for-all f as (for-all ignored as A to B) to for-all g as (for-all ignored as A to B) to for-all pf as (for-all x as A to equal B (f x) (g x)) to equal (for-all ignored as A to B) f g`
+  - S: `(define transparent fun-ext (for-all (f (for-all (ignored A) B)) (for-all (g (for-all (ignored A) B)) (for-all (pf (for-all (x A) (equal B (f x) (g x)))) (equal (for-all (ignored A) B) f g)))))`
   - Use: proofs apply `fun-ext` explicitly; conversion does not rely on eta by default.
 
 Notes on surface cues
@@ -67,8 +67,8 @@ Universe choices and examples
 
 - Strict tower (explicit levels, non-cumulative; `Type0 : Type1 : Type2 ...`)
   - Example 1 (Type0 inhabitant, lives in Type1):
-    - M: `define transparent id0 as for-all A as Type0 to for-all _ as A to A`
-    - S: `(define transparent id0 (for-all (A Type0) (for-all (_ A) A)))`
+    - M: `define transparent id0 as for-all A as Type0 to for-all ignored as A to A`
+    - S: `(define transparent id0 (for-all (A Type0) (for-all (ignored A) A)))`
     - Type of `id0` is in `Type1` because it quantifies over `Type0`.
   - Example 2 (Type1 inhabitant using Type0 data):
     - M: `define transparent pair0 as for-all A as Type0 to for-all B as Type0 to Type0`
@@ -116,7 +116,7 @@ Pattern matching (current surface)
 Future inductives and recursors (not in current grammar)
 
 - Planned: explicit inductive definitions with recursors; pattern matching remains deterministic sugar over recursors.
-- Candidate core: Natural, Boolean, Unit, Empty, Eq, List, Pair, Either/Option, Vec/Fin.
+- Candidate core: Natural, Boolean, Unit, Empty, equal, List, Pair, Either/Option, Vec/Fin.
 - Positivity and termination: strict positivity and structural recursion; effects stay out of eliminators.
 
 Total values vs. effectful computations

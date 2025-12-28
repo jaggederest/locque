@@ -86,5 +86,13 @@ module SmythConfig contains
                                     (P::pair String String
                                       "test/typecheck/match_unexpected_case.lq"
                                       "Match error: unexpected true-case")
-                                    (P::nil (Pair String String)))))))))))))))))
+                                    (P::cons (Pair String String)
+                                      (P::pair String String
+                                        "test/typecheck/recursion_non_decreasing.lq"
+                                        "Recursion error: recur must use a structurally smaller argument")
+                                      (P::cons (Pair String String)
+                                        (P::pair String String
+                                          "test/typecheck/rewrite_non_equality.lq"
+                                          "Expected equality type")
+                                        (P::nil (Pair String String)))))))))))))))))))
 end

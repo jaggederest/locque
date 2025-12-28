@@ -2,61 +2,81 @@
 import assert as A
 import prelude as P
 
-module display_test contains
+module test::typeclass::display contains
   # Display typeclass definition
-  define transparent Display as typeclass a where
-    display of-type (-> a String)
+  define transparent Display as typeclass A where
+    display of-type for-all x as A to String
+  end
 
   # Instance: Natural
   define transparent Display-Natural as instance Display Natural where
-    display produce lambda n -> nat-to-string-prim n
+    display as function n Natural returns String value
+      nat-to-string-prim n
+    end
+  end
 
   # Instance: String (wraps in quotes)
   define transparent Display-String as instance Display String where
-    display produce lambda s -> concat-string-prim "\"" (concat-string-prim s "\"")
+    display as function s String returns String value
+      concat-string-prim "\"" (concat-string-prim s "\"")
+    end
+  end
 
   # Instance: Boolean
   define transparent Display-Boolean as instance Display Boolean where
-    display produce lambda b -> if-bool-prim b "true" "false"
+    display as function b Boolean returns String value
+      if-bool-prim String b "true" "false"
+    end
+  end
+
+  # Generic helper with constraint
+  define transparent display-value as
+    function A Type0 x A requires Display A returns String value
+      display x
+    end
 
   # Test Natural display
-  define transparent test-nat-zero as value display 0
-  define transparent test-nat-42 as value display 42
-  define transparent test-nat-large as value display 12345
+  define transparent test-nat-zero as display-value Natural 0
+  define transparent test-nat-42 as display-value Natural 42
+  define transparent test-nat-large as display-value Natural 12345
 
   # Test String display
-  define transparent test-str-empty as value display ""
-  define transparent test-str-hello as value display "hello"
+  define transparent test-str-empty as display-value String ""
+  define transparent test-str-hello as display-value String "hello"
 
   # Test Boolean display
-  define transparent test-bool-true as value display true
-  define transparent test-bool-false as value display false
+  define transparent test-bool-true as display-value Boolean true
+  define transparent test-bool-false as display-value Boolean false
 
   # Test with variables (ETyped)
-  define transparent test-nat-display-var as value
-    function n of-type Natural produce display n
+  define transparent test-nat-display-var as
+    function n Natural returns String value
+      display-value Natural n
+    end
 
-  define transparent test-str-display-var as value
-    function s of-type String produce display s
+  define transparent test-str-display-var as
+    function s String returns String value
+      display-value String s
+    end
 
-  define transparent test-bool-display-var as value
-    function b of-type Boolean produce display b
+  define transparent test-bool-display-var as
+    function b Boolean returns String value
+      display-value Boolean b
+    end
 
-  define transparent main as computation
-    # Natural display
-    bind A.assert-eq-string test-nat-zero "0" as _ then
-    bind A.assert-eq-string test-nat-42 "42" as _ then
-    bind A.assert-eq-string test-nat-large "12345" as _ then
-    # String display (wrapped in quotes)
-    bind A.assert-eq-string test-str-empty "\"\"" as _ then
-    bind A.assert-eq-string test-str-hello "\"hello\"" as _ then
-    # Boolean display
-    bind A.assert-eq-string test-bool-true "true" as _ then
-    bind A.assert-eq-string test-bool-false "false" as _ then
-    # Variable tests (ETyped)
-    bind A.assert-eq-string (test-nat-display-var 99) "99" as _ then
-    bind A.assert-eq-string (test-str-display-var "world") "\"world\"" as _ then
-    bind A.assert-eq-string (test-bool-display-var true) "true" as _ then
-    bind A.assert-eq-string (test-bool-display-var false) "false" as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      (A::assert-eq-string test-nat-zero "0")
+      (A::assert-eq-string test-nat-42 "42")
+      (A::assert-eq-string test-nat-large "12345")
+      (A::assert-eq-string test-str-empty "\"\"")
+      (A::assert-eq-string test-str-hello "\"hello\"")
+      (A::assert-eq-string test-bool-true "true")
+      (A::assert-eq-string test-bool-false "false")
+      (A::assert-eq-string (test-nat-display-var 99) "99")
+      (A::assert-eq-string (test-str-display-var "world") "\"world\"")
+      (A::assert-eq-string (test-bool-display-var true) "true")
+      (A::assert-eq-string (test-bool-display-var false) "false")
+    end
+  end
 end

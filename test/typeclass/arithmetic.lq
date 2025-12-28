@@ -1,94 +1,135 @@
 # Tests for Arithmetic typeclasses
-# NOTE: Multi-arg typeclass methods require explicit currying:
-#   Use (add 1) 2 instead of add 1 2
+# NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import assert as A
 import prelude as P
 
-module arithmetic_test contains
+module test::typeclass::arithmetic contains
   # Addition typeclass
-  define transparent Add as typeclass a where
-    add of-type (-> a (-> a a))
+  define transparent Add as typeclass A where
+    add of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Add-Natural as instance Add Natural where
-    add produce lambda x -> lambda y -> add-nat-prim x y
+    add as function x Natural y Natural returns Natural value
+      add-nat-prim x y
+    end
+  end
 
   # Subtraction typeclass
-  define transparent Sub as typeclass a where
-    sub of-type (-> a (-> a a))
+  define transparent Sub as typeclass A where
+    sub of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Sub-Natural as instance Sub Natural where
-    sub produce lambda x -> lambda y -> sub-nat-prim x y
+    sub as function x Natural y Natural returns Natural value
+      sub-nat-prim x y
+    end
+  end
 
   # Multiplication typeclass
-  define transparent Mul as typeclass a where
-    mul of-type (-> a (-> a a))
+  define transparent Mul as typeclass A where
+    mul of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Mul-Natural as instance Mul Natural where
-    mul produce lambda x -> lambda y -> mul-nat-prim x y
+    mul as function x Natural y Natural returns Natural value
+      mul-nat-prim x y
+    end
+  end
 
   # Division typeclass
-  define transparent Div as typeclass a where
-    div of-type (-> a (-> a a))
+  define transparent Div as typeclass A where
+    div of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Div-Natural as instance Div Natural where
-    div produce lambda x -> lambda y -> div-nat-prim x y
+    div as function x Natural y Natural returns Natural value
+      div-nat-prim x y
+    end
+  end
 
   # Modulo typeclass
-  define transparent Mod as typeclass a where
-    mod of-type (-> a (-> a a))
+  define transparent Mod as typeclass A where
+    mod of-type for-all x as A to for-all y as A to A
+  end
 
   define transparent Mod-Natural as instance Mod Natural where
-    mod produce lambda x -> lambda y -> mod-nat-prim x y
+    mod as function x Natural y Natural returns Natural value
+      mod-nat-prim x y
+    end
+  end
+
+  # Generic helpers with constraints
+  define transparent add-value as
+    function A Type0 x A y A requires Add A returns A value
+      add x y
+    end
+
+  define transparent sub-value as
+    function A Type0 x A y A requires Sub A returns A value
+      sub x y
+    end
+
+  define transparent mul-value as
+    function A Type0 x A y A requires Mul A returns A value
+      mul x y
+    end
+
+  define transparent div-value as
+    function A Type0 x A y A requires Div A returns A value
+      div x y
+    end
+
+  define transparent mod-value as
+    function A Type0 x A y A requires Mod A returns A value
+      mod x y
+    end
 
   # Test add
-  define transparent test-add-1 as value (add 2) 3
-  define transparent test-add-2 as value (add 0) 5
+  define transparent test-add-1 as add-value Natural 2 3
+  define transparent test-add-2 as add-value Natural 0 5
 
   # Test sub (saturating at 0)
-  define transparent test-sub-1 as value (sub 10) 3
-  define transparent test-sub-2 as value (sub 3) 10
+  define transparent test-sub-1 as sub-value Natural 10 3
+  define transparent test-sub-2 as sub-value Natural 3 10
 
   # Test mul
-  define transparent test-mul-1 as value (mul 4) 5
-  define transparent test-mul-2 as value (mul 7) 0
+  define transparent test-mul-1 as mul-value Natural 4 5
+  define transparent test-mul-2 as mul-value Natural 7 0
 
   # Test div
-  define transparent test-div-1 as value (div 20) 4
-  define transparent test-div-2 as value (div 17) 5
+  define transparent test-div-1 as div-value Natural 20 4
+  define transparent test-div-2 as div-value Natural 17 5
 
   # Test mod
-  define transparent test-mod-1 as value (mod 17) 5
-  define transparent test-mod-2 as value (mod 20) 4
+  define transparent test-mod-1 as mod-value Natural 17 5
+  define transparent test-mod-2 as mod-value Natural 20 4
 
   # Test with variables (ETyped)
-  define transparent test-add-var as value
-    function x of-type Natural produce
-      function y of-type Natural produce
-        (add x) y
+  define transparent test-add-var as
+    function x Natural y Natural returns Natural value
+      add-value Natural x y
+    end
 
-  define transparent test-mul-var as value
-    function x of-type Natural produce
-      function y of-type Natural produce
-        (mul x) y
+  define transparent test-mul-var as
+    function x Natural y Natural returns Natural value
+      mul-value Natural x y
+    end
 
-  define transparent main as computation
-    # add tests
-    bind A.assert-eq-nat test-add-1 5 as _ then
-    bind A.assert-eq-nat test-add-2 5 as _ then
-    # sub tests
-    bind A.assert-eq-nat test-sub-1 7 as _ then
-    bind A.assert-eq-nat test-sub-2 0 as _ then
-    # mul tests
-    bind A.assert-eq-nat test-mul-1 20 as _ then
-    bind A.assert-eq-nat test-mul-2 0 as _ then
-    # div tests
-    bind A.assert-eq-nat test-div-1 5 as _ then
-    bind A.assert-eq-nat test-div-2 3 as _ then
-    # mod tests
-    bind A.assert-eq-nat test-mod-1 2 as _ then
-    bind A.assert-eq-nat test-mod-2 0 as _ then
-    # variable tests
-    bind A.assert-eq-nat ((test-add-var 10) 20) 30 as _ then
-    bind A.assert-eq-nat ((test-mul-var 6) 7) 42 as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      (A::assert-eq-nat test-add-1 5)
+      (A::assert-eq-nat test-add-2 5)
+      (A::assert-eq-nat test-sub-1 7)
+      (A::assert-eq-nat test-sub-2 0)
+      (A::assert-eq-nat test-mul-1 20)
+      (A::assert-eq-nat test-mul-2 0)
+      (A::assert-eq-nat test-div-1 5)
+      (A::assert-eq-nat test-div-2 3)
+      (A::assert-eq-nat test-mod-1 2)
+      (A::assert-eq-nat test-mod-2 0)
+      (A::assert-eq-nat (test-add-var 10 20) 30)
+      (A::assert-eq-nat (test-mul-var 6 7) 42)
+    end
+  end
 end

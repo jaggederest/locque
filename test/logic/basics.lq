@@ -1,0 +1,74 @@
+# Logic module basics
+
+import assert as A
+import logic as L
+import prelude as P
+
+open A exposing assert-eq Equality end
+
+module test::logic::basics contains
+  define transparent decide-nat-true as
+    unpack (L::decide-eq-nat 5 5) as b ignored in b end
+
+  define transparent decide-nat-false as
+    unpack (L::decide-eq-nat 5 6) as b ignored in b end
+
+  define transparent decide-string-true as
+    unpack (L::decide-eq-string "hi" "hi") as b ignored in b end
+
+  define transparent decide-string-false as
+    unpack (L::decide-eq-string "hi" "bye") as b ignored in b end
+
+  define transparent decide-bool-true as
+    unpack (L::decide-eq-bool true true) as b ignored in b end
+
+  define transparent decide-bool-false as
+    unpack (L::decide-eq-bool true false) as b ignored in b end
+
+  define transparent decide-pair-true as
+    unpack
+      (P::decide-eq-pair Natural Boolean P::decide-eq-nat P::decide-eq-bool
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 1 true))
+      as b ignored in b end
+
+  define transparent decide-pair-false as
+    unpack
+      (P::decide-eq-pair Natural Boolean P::decide-eq-nat P::decide-eq-bool
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 2 true))
+      as b ignored in b end
+
+  define transparent decide-list-true as
+    unpack
+      (P::decide-eq-list Natural P::decide-eq-nat
+        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
+        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural))))
+      as b ignored in b end
+
+  define transparent decide-list-false as
+    unpack
+      (P::decide-eq-list Natural P::decide-eq-nat
+        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
+        (P::cons Natural 1 (P::cons Natural 3 (P::nil Natural))))
+      as b ignored in b end
+
+  define transparent test-decisions as compute
+    sequence
+      (assert-eq Boolean decide-nat-true true)
+      (assert-eq Boolean decide-nat-false false)
+      (assert-eq Boolean decide-string-true true)
+      (assert-eq Boolean decide-string-false false)
+      (assert-eq Boolean decide-bool-true true)
+      (assert-eq Boolean decide-bool-false false)
+      (assert-eq Boolean decide-pair-true true)
+      (assert-eq Boolean decide-pair-false false)
+      (assert-eq Boolean decide-list-true true)
+      (assert-eq Boolean decide-list-false false)
+    end
+  end
+
+  define transparent main as compute
+    perform test-decisions
+  end
+end

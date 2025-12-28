@@ -51,6 +51,8 @@
 
 ## Language Features
 - [ ] Dependent types in checker (universes, Pi/Sigma) per new grammar
+- [x] Equality types + transport (`equal`, `reflexive`, `rewrite`)
+- [x] Decidable equality / refinement tooling (e.g., Character length 1)
 - [x] Explicit universe lifting (`lift`/`up`/`down`) for strict universes
 - [x] there-exists intro/elim via `pack`/`unpack`
 - [x] Definitional equality: iota reduction for `match` and `unpack`

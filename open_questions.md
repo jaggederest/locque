@@ -11,7 +11,7 @@ Future design decisions for dependent types and advanced features.
 
 - What is the base set of inductives? Are eliminators exposed as explicit recursors or via pattern matching sugar? How do we encode strictly positive checks and recursion/termination?
 - Notes: minimal core (Boolean, Natural, Sigma/Π, sum, List) with explicit recursors; pattern matching as deterministic sugar over recursors to preserve 1:1 M/S mapping. Require strict positivity and structural (or well-founded) recursion to keep totality. Effects stay out of eliminators.
-- Consider adding early: `Unit` (⊤), `Empty` (⊥), identity/equality type, `Maybe`/`Option`, and size-indexed finites (`Fin n`) or vectors (`Vec A n`) once we pin down recursion/termination checks. Coinductives/streams can be deferred.
+- Consider adding early: `Unit` (⊤), `Empty` (⊥), `Maybe`/`Option`, and size-indexed finites (`Fin n`) or vectors (`Vec A n`) once we pin down recursion/termination checks. (The `equal` type is already in core.) Coinductives/streams can be deferred.
 - Bootstrap stance: prefer a minimal trusted core; define `Option/Maybe` via `Either+Unit`, `Fin` and `Vec` as indexed inductives, and other utilities in a Prelude, to keep the kernel small and LLM-facing sugar deterministic.
 
 ---

@@ -1,0 +1,20 @@
+# Test rollup for typeclass modules
+# Runs all tests in test/typeclass/
+
+import test::typeclass::equality as equality
+import test::typeclass::arithmetic as arithmetic
+import test::typeclass::default as default
+import test::typeclass::display as display
+import test::typeclass::order as order
+
+module test::typeclass contains
+  define transparent main as compute
+    sequence
+      equality::main
+      arithmetic::main
+      default::main
+      display::main
+      order::main
+    end
+  end
+end

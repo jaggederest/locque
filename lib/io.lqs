@@ -1,4 +1,0 @@
-(module IO
-  (def opaque print (value print-prim))
-  (def opaque read-file (value read-file-prim))
-  (def opaque write-file (value write-file-prim)))

@@ -1,0 +1,9 @@
+# Logic test rollup
+
+import test::logic::basics as basics
+
+module test::logic contains
+  define transparent main as compute
+    perform basics::main
+  end
+end

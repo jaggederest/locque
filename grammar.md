@@ -94,6 +94,8 @@ Value ::=
   | of-type ValueAtom Type             -- explicit annotation
   | up Type from TypeN to TypeM Value  -- term lift
   | down Type from TypeN to TypeM Value -- term unlift
+  | reflexive Type ValueAtom           -- equality intro
+  | rewrite ValueAtom ValueAtom as Value -- equality transport
   | pack x as Type in Type with ValueAtom Value end
   | unpack Value as x y in Value end
 
@@ -167,6 +169,7 @@ Type ::=
   | there-exists x as Type in Type     -- Sigma (dependent pair)
   | computation Type                   -- effectful result type
   | lift Type from TypeN to TypeM      -- universe lift (strict)
+  | equal Type ValueAtom ValueAtom     -- equality type
 
 TypeParam ::= TypeSimple | ( Type )    -- M-expr binders only
 
@@ -191,6 +194,8 @@ TypeSimple ::=
 - `TypeN : Type(N+1)`. Use `lift` to move a type across universes.
 - Type application is word-based: `List Natural`, `Vector Natural n`, `Result Error a`.
 - In M-expr binder positions, parenthesize non-atomic types: `x (List Natural)`, `x (Vector Natural n)`.
+- `equal A x y` is a type (in the same universe as `A`) asserting `x` and `y` are definitionally equal at `A`.
+- Type formation is not restricted: any value expression that checks as `Typek` is a valid type (e.g., `match` or `let` in types).
 
 ## Universe lifting (strict)
 
@@ -217,6 +222,21 @@ unpack p as x y in body end
   then returns `body`.
 - `w` is a value atom; parenthesize if it is an application.
 
+## Equality and transport
+
+```
+reflexive A x
+rewrite P p as t
+```
+
+- `reflexive A x : equal A x x`.
+- `rewrite` transports along equality:
+  - `P : for-all z as A to Typek`
+  - `p : equal A x y`
+  - `t : P x`
+  - result type is `P y`.
+- In M-expr, `P` and `p` are value atoms; parenthesize applications.
+
 ## Effects
 
 - `perform <value>` is the only value→computation bridge; effect kind comes from the callee’s type (no `io` token).
@@ -240,12 +260,14 @@ unpack p as x y in body end
 - S-expr uses `(of-type <expr> <Type>)` for explicit type annotations.
 - S-expr match shape is `(match (of-type <expr> <Type>) <binder> <Type> <cases...>)`.
 - S-expr sequence form is `(sequence <expr> <expr> ...)`.
+- S-expr equality/transport: `(equal <Type> <expr> <expr>)`, `(reflexive <Type> <expr>)`, `(rewrite <expr> <expr> <expr>)`.
 - S-expr binders are always parenthesized: `(x Type)`; M-expr requires parentheses only for non-atomic types.
 - S-expr may introduce additional keywords for desugared AST forms when the M-expr is ambiguous.
 - M-expr `of-type` accepts only a value atom; parenthesize applications: `of-type (f x) T`.
 - S-expr lift forms are `(lift <Type> TypeN TypeM)`, `(up <Type> TypeN TypeM <expr>)`, `(down <Type> TypeN TypeM <expr>)`.
 - S-expr pack/unpack forms are `(pack (x <Type>) <Type> <witness> <value>)`
   and `(unpack <expr> (x y) <body>)`.
+- M-expr `rewrite` is `rewrite P p as t`; S-expr is `(rewrite <expr> <expr> <expr>)`.
 
 ## Determinism guarantees
 

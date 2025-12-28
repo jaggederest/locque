@@ -27,7 +27,7 @@ LLM-first dependently typed language (working name TBD) guiding notes
 
 **Semantic symbols** (avoid - use words instead):
 - NO `!` for linearity - use `once` keyword
-- NO `=` for equality/assignment/identity - use `equals`, `where`, `assign` as appropriate
+- NO `=` for equality/assignment/identity - use `equal`, `where`, `assign` as appropriate
 - NO `&` for conjunction/sharing - use `and`, `shared` as appropriate
 - NO symbolic arrows - use `for-all x as A to B`
 - NO `{...}` for effects - use `computation T` and `perform`
@@ -47,12 +47,10 @@ define read-file as
     perform read-file-prim path
   end
 
-# Refinement types: explicit 'refinement' and 'constraint' keywords
-define Positive as refinement Natural where
-  constraint (function x Natural returns Boolean value
-    greater-than-nat x 0
-  end)
-end
+# Refinement types via dependent pairs and equality
+define Character as
+  there-exists c as String in
+    equal Natural (length c) 1
 ```
 
 **Rationale**:
@@ -70,13 +68,12 @@ end
 **Core pattern**: All top-level introductions follow `define <name> as <Value>|<discriminator>` with transparency on the binding (`transparent|opaque`). Term-level definitions are values by default; computation values use `compute ... end`. Function introduction is single-form `function … returns … value|compute … end`.
 
 **Current discriminators**:
-- `typeclass` - overloading mechanism (planned)
-- `instance` - typeclass implementation (planned)
+- `typeclass` - overloading mechanism
+- `instance` - typeclass implementation
 
-**Future discriminators** (as language evolves):
+**Future discriminators** (syntax TBD, not in current grammar):
 - `data` - algebraic data types (for when we add user-defined types)
 - `family` - type-level functions (type families)
-- `refinement` - subset types with constraints
 - `effect` - effect definitions
 - `protocol` - session types (if we add them)
 
@@ -91,44 +88,23 @@ end
 - **Parametric features** extend type syntax: higher-kinded types, existentials, rank-N polymorphism
 - Example: Higher-kinded typeclass still uses `define X as typeclass`, just with kind annotations
 
-**Examples of future extensions**:
+**Examples of current extensions**:
 ```locque
 # Type class (overloading)
 define Match as typeclass where
   match of-type (for-all a as Type0 to
     for-all b as Type0 to
-      for-all _ as Unit to
-        for-all _ as a to
-          for-all _ as a to
+      for-all ignored as Unit to
+        for-all ignored as a to
+          for-all ignored as a to
             b)
 end
 
 # Instance (typeclass implementation)
 define Match-List as instance Match (List a) where
-  match returns for-all _ as List a to b value
+  match returns for-all ignored as List a to b value
     ...
   end
-end
-
-# GADT (when we add user-defined types)
-define Expr as data (a of-type Type0) where
-  LitNat of-type (for-all _ as Natural to Expr Natural)
-  Add of-type (for-all _ as Expr Natural to
-    for-all _ as Expr Natural to
-      Expr Natural)
-end
-
-# Type family (type-level computation)
-define Length as family (for-all _ as List a to Natural) where
-  Length Nil equals Zero
-  Length (Cons x xs) equals Succ (Length xs)
-end
-
-# Refinement type (constrained subset)
-define NonZero as refinement Natural where
-  constraint (function n Natural returns Boolean value
-    greater-than-nat n 0
-  end)
 end
 ```
 

@@ -1,6 +1,0 @@
-(module Comparison
-  (def opaque lt-nat (value lt-nat-prim))
-  (def opaque le-nat (value le-nat-prim))
-  (def opaque gt-nat (value gt-nat-prim))
-  (def opaque ge-nat (value ge-nat-prim))
-  (def opaque eq-nat (value eq-nat-prim)))

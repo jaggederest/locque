@@ -53,6 +53,9 @@ data Expr
   | EForAll Text Expr Expr
   | EThereExists Text Expr Expr
   | ECompType Expr
+  | EEqual Expr Expr Expr
+  | EReflexive Expr Expr
+  | ERewrite Expr Expr Expr
   | EPack Text Expr Expr Expr Expr
   | EUnpack Expr Text Text Expr
   | ELift Expr Int Int

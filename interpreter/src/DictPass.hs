@@ -329,6 +329,12 @@ transformExpr ctx expr = case expr of
   EThereExists v dom cod ->
     EThereExists v (transformType dom) (transformType cod)
   ECompType t -> ECompType (transformType t)
+  EEqual ty lhs rhs ->
+    EEqual (transformType ty) (transformExpr ctx lhs) (transformExpr ctx rhs)
+  EReflexive ty term ->
+    EReflexive (transformType ty) (transformExpr ctx term)
+  ERewrite family proof body ->
+    ERewrite (transformExpr ctx family) (transformExpr ctx proof) (transformExpr ctx body)
   EPack v dom cod witness body ->
     EPack v (transformType dom) (transformType cod)
       (transformExpr ctx witness) (transformExpr ctx body)

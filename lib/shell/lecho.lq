@@ -1,0 +1,10 @@
+import io as IO
+
+module shell::lecho contains
+  define transparent lecho as
+    function s String returns computation String compute
+      bind ignored from perform (IO::print s) then
+        return s
+      end
+    end
+end

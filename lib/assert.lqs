@@ -1,8 +1,0 @@
-(module Assert
-  (def opaque assert-eq-nat (value assert-eq-nat-prim))
-  (def opaque assert-eq-string (value assert-eq-string-prim))
-  (def transparent assert-false
-    (value
-      (lambda ((msg String))
-        (lambda ((cond Bool))
-          (if-bool cond (error msg) P.tt))))))

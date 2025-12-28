@@ -173,6 +173,20 @@ fromExpr path (SList [])    = Left (path ++ ": empty expression list")
 fromExpr path (SList (SAtom "function" : parts)) = fromFunction path parts
 fromExpr path (SList (SAtom "typeclass" : parts)) = fromTypeclass path parts
 fromExpr path (SList (SAtom "instance" : parts)) = fromInstance path parts
+fromExpr path (SList [SAtom "equal", ty, lhs, rhs]) = do
+  ty' <- fromType path ty
+  lhs' <- fromExpr path lhs
+  rhs' <- fromExpr path rhs
+  pure (EEqual ty' lhs' rhs')
+fromExpr path (SList [SAtom "reflexive", ty, term]) = do
+  ty' <- fromType path ty
+  term' <- fromExpr path term
+  pure (EReflexive ty' term')
+fromExpr path (SList [SAtom "rewrite", family, proof, term]) = do
+  family' <- fromExpr path family
+  proof' <- fromExpr path proof
+  term' <- fromExpr path term
+  pure (ERewrite family' proof' term')
 fromExpr path (SList [SAtom "pack", SList [SAtom v, dom], cod, witness, body]) = do
   dom' <- fromType path dom
   cod' <- fromType path cod
@@ -309,6 +323,7 @@ fromOfType path other =
   Left (path ++ ": match scrutinee must be (of-type <expr> <Type>), found " ++ renderHead other)
 
 mkApp :: Expr -> [Expr] -> Expr
+mkApp f [] = f
 mkApp (EApp f existing) more = EApp f (existing ++ more)
 mkApp f more                 = EApp f more
 
@@ -374,6 +389,11 @@ fromType path se = case se of
     EForAll v <$> fromType path a <*> fromType path b
   SList [SAtom "there-exists", SList [SAtom v, a], b] ->
     EThereExists v <$> fromType path a <*> fromType path b
+  SList [SAtom "equal", ty, lhs, rhs] -> do
+    ty' <- fromType path ty
+    lhs' <- fromExpr path lhs
+    rhs' <- fromExpr path rhs
+    pure (EEqual ty' lhs' rhs')
   SList (f:args) -> do
     f' <- fromType path f
     args' <- mapM (fromType path) args
@@ -531,6 +551,12 @@ pValue =
     <|> pLiftValue
     <|> pUp
     <|> pDown
+    <|> pForAll
+    <|> pThereExists
+    <|> pComputation
+    <|> pRewrite
+    <|> pReflexive
+    <|> pEqual
     <|> pAnnot
     <|> pApp
 
@@ -634,6 +660,30 @@ pDown = M.try $ do
   body <- pValue
   pure (EDown ty fromLevel toLevel body)
 
+pEqual :: Parser Expr
+pEqual = M.try $ do
+  keyword "equal"
+  ty <- pTypeParam
+  lhs <- pValueAtom
+  rhs <- pValueAtom
+  pure (EEqual ty lhs rhs)
+
+pReflexive :: Parser Expr
+pReflexive = M.try $ do
+  keyword "reflexive"
+  ty <- pTypeParam
+  term <- pValueAtom
+  pure (EReflexive ty term)
+
+pRewrite :: Parser Expr
+pRewrite = M.try $ do
+  keyword "rewrite"
+  family <- pValueAtom
+  proof <- pValueAtom
+  keyword "as"
+  body <- pValue
+  pure (ERewrite family proof body)
+
 pAnnot :: Parser Expr
 pAnnot = M.try $ do
   keyword "of-type"
@@ -706,6 +756,7 @@ pApp = do
 pValueAtom :: Parser Expr
 pValueAtom =
       parens pValue
+  <|> (EVar "recur" <$ keyword "recur")
   <|> pLiteral
   <|> pUniverse
   <|> pTypeConst
@@ -728,7 +779,8 @@ pStringLit = lexeme $ do
 -- Type parsing
 
 pType :: Parser Expr
-pType = pForAll <|> pThereExists <|> pComputation <|> pLiftType <|> pTypeApp
+pType =
+  pForAll <|> pThereExists <|> pComputation <|> pLiftType <|> pEqual <|> pMatch <|> pTypeApp
 
 pTypeParam :: Parser Expr
 pTypeParam = parens pType <|> pTypeSimple
@@ -831,7 +883,9 @@ reservedWords =
   , "perform", "return", "sequence", "match", "of-type", "exposing", "end", "be", "in", "with"
   , "empty-case", "cons-case", "false-case", "true-case", "pair-case"
   , "for-all", "there-exists", "computation", "to", "lift", "up", "down", "pack", "unpack"
+  , "equal", "reflexive", "rewrite"
   , "typeclass", "instance", "where", "requires", "and"
+  , "recur"
   , "true", "false", "tt"
   , "Natural", "String", "Boolean", "Unit", "List", "Pair"
   ]
@@ -924,6 +978,12 @@ renderExpr expr = case expr of
   EThereExists v dom cod ->
     "(there-exists (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod <> ")"
   ECompType t -> "(computation " <> T.typeToSExpr t <> ")"
+  EEqual ty lhs rhs ->
+    "(equal " <> T.typeToSExpr ty <> " " <> renderExpr lhs <> " " <> renderExpr rhs <> ")"
+  EReflexive ty term ->
+    "(reflexive " <> T.typeToSExpr ty <> " " <> renderExpr term <> ")"
+  ERewrite family proof body ->
+    "(rewrite " <> renderExpr family <> " " <> renderExpr proof <> " " <> renderExpr body <> ")"
   EPack v dom cod witness body ->
     "(pack (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod
       <> " " <> renderExpr witness <> " " <> renderExpr body <> ")"
@@ -1063,6 +1123,12 @@ renderMExpr expr = case expr of
   EThereExists v dom cod ->
     "there-exists " <> v <> " as " <> T.prettyTypeAtom dom <> " in " <> T.prettyType cod
   ECompType t -> "computation " <> T.prettyTypeAtom t
+  EEqual ty lhs rhs ->
+    "equal " <> T.prettyTypeAtom ty <> " " <> renderMExpr lhs <> " " <> renderMExpr rhs
+  EReflexive ty term ->
+    "reflexive " <> T.prettyTypeAtom ty <> " " <> renderMExpr term
+  ERewrite family proof body ->
+    "rewrite " <> renderMExpr family <> " " <> renderMExpr proof <> " as " <> renderMExpr body
   EPack v dom cod witness body ->
     "pack " <> v <> " as " <> T.prettyTypeAtom dom <> " in " <> T.prettyType cod
       <> " with " <> renderMExpr witness <> " " <> renderMExpr body <> " end"

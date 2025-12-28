@@ -1,0 +1,22 @@
+module logic contains
+  define transparent False as
+    equal Boolean true false
+
+  define transparent Not as
+    function P Type0 returns Type0 value
+      for-all x as P to False
+    end
+
+  define transparent Decidable as
+    function P Type0 returns Type0 value
+      there-exists b as Boolean in
+        match b of-type Boolean as ignored returns Type0
+          false-case as Not P
+          true-case as P
+        end
+    end
+
+  define transparent decide-eq-nat as decide-eq-nat-prim
+  define transparent decide-eq-string as decide-eq-string-prim
+  define transparent decide-eq-bool as decide-eq-bool-prim
+end

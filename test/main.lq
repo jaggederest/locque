@@ -1,9 +1,18 @@
 # Main test entry point
-# Runs the prelude, arithmetic, and list rollups
+# Runs all library rollups
 
 import test::prelude as test_prelude
 import test::arithmetic as test_arithmetic
 import test::list as test_list
+import test::natural as test_natural
+import test::assert as test_assert
+import test::comparison as test_comparison
+import test::string as test_string
+import test::io as test_io
+import test::shell as test_shell
+import test::testimport as test_testimport
+import test::typeclass as test_typeclass
+import test::logic as test_logic
 
 module test::main contains
   define transparent main as compute
@@ -11,6 +20,15 @@ module test::main contains
       test_prelude::main
       test_arithmetic::main
       test_list::main
+      test_natural::main
+      test_assert::main
+      test_comparison::main
+      test_string::main
+      test_io::main
+      test_shell::main
+      test_testimport::main
+      test_typeclass::main
+      test_logic::main
     end
   end
 end

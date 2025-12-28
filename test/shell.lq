@@ -2,11 +2,19 @@
 # Runs all tests in test/shell/
 
 import test::shell::basic as basic
+import test::shell::lecho as lecho
+import test::shell::lcat as lcat
+import test::shell::lls as lls
 import test::shell::validate_error_messages as validate_error_messages
-import prelude as P
 
-module test_shell contains
-  define transparent main as computation
-    bind basic.main as _ then
-    perform io validate_error_messages.main
+module test::shell contains
+  define transparent main as compute
+    sequence
+      basic::main
+      lecho::main
+      lcat::main
+      lls::main
+      validate_error_messages::main
+    end
+  end
 end

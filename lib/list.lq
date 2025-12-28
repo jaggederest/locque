@@ -1,4 +1,5 @@
 import prelude as P
+import comparison as C
 import string as S
 
 module list contains
@@ -70,5 +71,78 @@ module list contains
   define transparent slice as
     function A Type0 start Natural len Natural xs (List A) returns List A value
       take A len (drop A start xs)
+    end
+
+  define transparent reverse as
+    function A Type0 xs (List A) returns List A value
+      P::fold A (List A)
+        (function acc (List A) x A returns List A value
+          P::cons A x acc
+        end)
+        (P::nil A)
+        xs
+    end
+
+  define transparent concat as
+    function A Type0 xs (List (List A)) returns List A value
+      P::fold (List A) (List A)
+        (function acc (List A) x (List A) returns List A value
+          P::append A acc x
+        end)
+        (P::nil A)
+        xs
+    end
+
+  define transparent insert-by as
+    function A Type0 cmp (for-all x as A to for-all y as A to Boolean) x A xs (List A) returns List A value
+      let value step be
+        function acc (Pair (List A) Boolean) y A returns (Pair (List A) Boolean) value
+          match acc of-type (Pair (List A) Boolean) as ignored returns (Pair (List A) Boolean)
+            pair-case with built (List A) inserted Boolean as
+              P::if-bool (Pair (List A) Boolean) inserted
+                (P::pair (List A) Boolean
+                  (P::append A built (P::cons A y (P::nil A)))
+                  inserted)
+                (P::if-bool (Pair (List A) Boolean) (cmp x y)
+                  (P::pair (List A) Boolean
+                    (P::append A built (P::cons A x (P::cons A y (P::nil A))))
+                    true)
+                  (P::pair (List A) Boolean
+                    (P::append A built (P::cons A y (P::nil A)))
+                    false))
+          end
+        end
+      in
+        let value initial be P::pair (List A) Boolean (P::nil A) false in
+          let value result be P::fold A (Pair (List A) Boolean) step initial xs in
+            match result of-type (Pair (List A) Boolean) as ignored returns (List A)
+              pair-case with built (List A) inserted Boolean as
+                P::if-bool (List A) inserted
+                  built
+                  (P::append A built (P::cons A x (P::nil A)))
+            end
+          end
+        end
+      end
+    end
+
+  define transparent sort-by as
+    function A Type0 cmp (for-all x as A to for-all y as A to Boolean) xs (List A) returns List A value
+      P::fold A (List A)
+        (function acc (List A) x A returns List A value
+          insert-by A cmp x acc
+        end)
+        (P::nil A)
+        xs
+    end
+
+  define transparent lt-string-length as
+    function a String b String returns Boolean value
+      C::lt-nat (S::length a) (S::length b)
+    end
+
+  define transparent sort-strings-by-length as
+    function xs (List String) returns List String value
+      sort-by String lt-string-length xs
     end
 end

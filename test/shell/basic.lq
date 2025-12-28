@@ -1,19 +1,21 @@
 # Test: Basic shell primitive functionality
 
 import shell as S
-import prelude as P
-import assert as A
 import string as Str
-import io as IO
+import assert as A
 
-module LShellBasic contains
+open A exposing assert-eq Equality end
 
-  define transparent test-echo as computation
-    bind perform io (S.shell "echo hello") as output then
-    bind perform io (A.assert-eq-string (Str.trim output) "hello") as _ then
-    return P.tt
+module test::shell::basic contains
+  define transparent test-echo as compute
+    bind output from perform (S::shell "echo hello") then
+      perform (assert-eq String (Str::trim output) "hello")
+    end
+  end
 
-  define transparent main as computation
-    perform io test-echo
-
+  define transparent main as compute
+    sequence
+      test-echo
+    end
+  end
 end

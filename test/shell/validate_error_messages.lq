@@ -1,32 +1,39 @@
 # Test: Validate error message fuzzy matching using shell
 # This test runs smyth with intentionally broken code and validates the error output
 
-import prelude as P
 import shell as S
 import string as Str
 import assert as A
-import io as IO
 
-module LValidateErrorMessages contains
+open A exposing assert-eq Equality end
 
-  # Test that unqualified name typos get suggestions
-  define transparent test-unqualified-fuzzy-match as computation
-    bind perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_unqualified.lq 2>&1") as output then
-    bind perform io (A.assert-eq-string
-      (P.if-bool (Str.string-contains "Did you mean: my-function?" output) "yes" "no")
-      "yes") as _ then
-    return P.tt
+module test::shell::validate_error_messages contains
+  define transparent test-unqualified-fuzzy-match as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_unqualified.lq 2>&1")
+    then
+      perform
+        (assert-eq Boolean
+          (Str::string-contains "Did you mean: my-function?" output)
+          true)
+    end
+  end
 
-  # Test that qualified name typos get suggestions
-  define transparent test-qualified-fuzzy-match as computation
-    bind perform io (S.shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_type.lq 2>&1") as output then
-    bind perform io (A.assert-eq-string
-      (P.if-bool (Str.string-contains "Did you mean: P.add-nat?" output) "yes" "no")
-      "yes") as _ then
-    return P.tt
+  define transparent test-qualified-fuzzy-match as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_type.lq 2>&1")
+    then
+      perform
+        (assert-eq Boolean
+          (Str::string-contains "Did you mean: P::add-nat?" output)
+          true)
+    end
+  end
 
-  define transparent main as computation
-    bind perform io test-unqualified-fuzzy-match as _ then
-    perform io test-qualified-fuzzy-match
-
+  define transparent main as compute
+    sequence
+      test-unqualified-fuzzy-match
+      test-qualified-fuzzy-match
+    end
+  end
 end

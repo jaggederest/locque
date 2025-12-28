@@ -1,0 +1,6 @@
+# rewrite should reject non-equality proofs
+
+module test::typecheck::rewrite_non_equality contains
+  define transparent bad as
+    rewrite (function x Natural returns Type0 value Natural end) 5 as 5
+end

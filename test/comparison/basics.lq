@@ -1,21 +1,29 @@
-# Migrated from ../09_comparison.lq
+# Comparison module smoke tests
 
-import prelude as P
-import assert as A
 import comparison as C
+import assert as A
 
-module LComparisonTests contains
+open A exposing assert-eq Equality end
 
-  define transparent test-between as computation
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 15) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 10) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 20) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 5) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 20 25) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (C.between 10 10 10) "yes" "no") "yes") as _ then
-    return P.tt
-
-  define transparent main as computation
-    bind test-between as _ then
-    return P.tt
+module test::comparison::basics contains
+  define transparent main as compute
+    sequence
+      (assert-eq Boolean (C::lt-nat 1 2) true)
+      (assert-eq Boolean (C::lt-nat 2 1) false)
+      (assert-eq Boolean (C::le-nat 2 2) true)
+      (assert-eq Boolean (C::le-nat 3 2) false)
+      (assert-eq Boolean (C::gt-nat 3 2) true)
+      (assert-eq Boolean (C::gt-nat 2 3) false)
+      (assert-eq Boolean (C::ge-nat 2 2) true)
+      (assert-eq Boolean (C::ge-nat 1 2) false)
+      (assert-eq Boolean (C::eq-nat 2 2) true)
+      (assert-eq Boolean (C::eq-nat 2 3) false)
+      (assert-eq Boolean (C::between 10 20 15) true)
+      (assert-eq Boolean (C::between 10 20 10) true)
+      (assert-eq Boolean (C::between 10 20 20) true)
+      (assert-eq Boolean (C::between 10 20 5) false)
+      (assert-eq Boolean (C::between 10 20 25) false)
+      (assert-eq Boolean (C::between 10 10 10) true)
+    end
+  end
 end

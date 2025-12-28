@@ -1,36 +1,50 @@
 # Equality typeclass - provides equality comparison for types
 #
-# NOTE: Multi-arg typeclass methods require explicit currying when called:
-#   Use (eq 42) 43 instead of eq 42 43
-#   This is a current limitation of the DictPass implementation.
+# NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import prelude as P
 
-module equality contains
+module typeclass::equality contains
   # Equality typeclass definition
-  define transparent Equality as typeclass a where
-    eq of-type (-> a (-> a Boolean))
+  define transparent Equality as typeclass A where
+    eq of-type for-all x as A to for-all y as A to Boolean
+  end
 
   # Instance: Natural
   define transparent Equality-Natural as instance Equality Natural where
-    eq produce lambda x -> lambda y -> eq-nat-prim x y
+    eq as function x Natural y Natural returns Boolean value
+      eq-nat-prim x y
+    end
+  end
 
   # Instance: String
   define transparent Equality-String as instance Equality String where
-    eq produce lambda x -> lambda y -> eq-string-prim x y
+    eq as function x String y String returns Boolean value
+      eq-string-prim x y
+    end
+  end
 
   # Instance: Boolean
   define transparent Equality-Boolean as instance Equality Boolean where
-    eq produce lambda x -> lambda y -> if-bool-prim x y (not-prim y)
+    eq as function x Boolean y Boolean returns Boolean value
+      P::if-bool Boolean x y (P::not y)
+    end
+  end
 
   # STUB: Equality for List
   # Requires instance constraints (not yet implemented in Locque)
   # When available, implement as:
-  #   define transparent Equality-List as instance Equality a => Equality (List a) where
-  #     eq produce lambda xs -> lambda ys -> ...element-wise comparison...
+  #   define transparent Equality-List as instance Equality A => Equality (List A) where
+  #     eq as function xs (List A) ys (List A) returns Boolean value
+  #       ...element-wise comparison...
+  #     end
+  #   end
 
   # STUB: Equality for Pair
   # Requires instance constraints (not yet implemented in Locque)
   # When available, implement as:
-  #   define transparent Equality-Pair as instance (Equality a, Equality b) => Equality (Pair a b) where
-  #     eq produce lambda p1 -> lambda p2 -> ...component-wise comparison...
+  #   define transparent Equality-Pair as instance (Equality A, Equality B) => Equality (Pair A B) where
+  #     eq as function p1 (Pair A B) p2 (Pair A B) returns Boolean value
+  #       ...component-wise comparison...
+  #     end
+  #   end
 end

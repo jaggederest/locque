@@ -14,6 +14,28 @@ module test::list::basics contains
   define transparent strs as
     P::cons String "a" (P::cons String "b" (P::cons String "c" (P::nil String)))
 
+  define transparent unsorted-strings as
+    P::cons String "bbb" (P::cons String "a" (P::cons String "cc" (P::nil String)))
+
+  define transparent unsorted-nats as
+    P::cons Natural 3 (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
+
+  define transparent list-of-lists as
+    P::cons (List Natural)
+      (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
+      (P::cons (List Natural)
+        (P::cons Natural 3 (P::nil Natural))
+        (P::nil (List Natural)))
+
+  define transparent sum as
+    function xs (List Natural) returns Natural value
+      match xs of-type (List Natural) as ignored returns Natural
+        empty-case as 0
+        cons-case with h Natural t (List Natural) as
+          P::add-nat h (recur t)
+      end
+    end
+
   define transparent test-basics as compute
     sequence
       (assert-eq Boolean (L::is-empty Natural nums) false)
@@ -62,6 +84,55 @@ module test::list::basics contains
         2)
       (assert-eq Natural
         (L::last Natural (L::slice Natural 1 2 nums))
+        3)
+      (assert-eq Natural (sum nums) 6)
+      (assert-eq Natural
+        (P::length-list Natural (L::reverse Natural nums))
+        3)
+      (assert-eq Natural
+        (P::head Natural (L::reverse Natural nums))
+        3)
+      (assert-eq Natural
+        (P::length-list Natural (L::concat Natural list-of-lists))
+        3)
+      (assert-eq Natural
+        (P::head Natural (L::concat Natural list-of-lists))
+        1)
+      (assert-eq Natural
+        (L::last Natural (L::concat Natural list-of-lists))
+        3)
+      (assert-eq String
+        (P::head String (L::sort-strings-by-length unsorted-strings))
+        "a")
+      (assert-eq String
+        (L::nth String 1 (L::sort-strings-by-length unsorted-strings))
+        "cc")
+      (assert-eq String
+        (L::last String (L::sort-strings-by-length unsorted-strings))
+        "bbb")
+      (assert-eq Natural
+        (P::head Natural
+          (L::sort-by Natural
+            (function a Natural b Natural returns Boolean value
+              C::lt-nat a b
+            end)
+            unsorted-nats))
+        1)
+      (assert-eq Natural
+        (L::nth Natural 1
+          (L::sort-by Natural
+            (function a Natural b Natural returns Boolean value
+              C::lt-nat a b
+            end)
+            unsorted-nats))
+        2)
+      (assert-eq Natural
+        (L::last Natural
+          (L::sort-by Natural
+            (function a Natural b Natural returns Boolean value
+              C::lt-nat a b
+            end)
+            unsorted-nats))
         3)
     end
   end

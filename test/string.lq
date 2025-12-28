@@ -2,9 +2,11 @@
 # Runs all tests in test/string/
 
 import test::string::utils as utils
-import prelude as P
 
-module test_string contains
-  define transparent main as computation
-    perform io utils.main
+module test::string contains
+  define transparent main as compute
+    sequence
+      utils::main
+    end
+  end
 end

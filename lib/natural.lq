@@ -1,0 +1,6 @@
+module natural contains
+  define transparent to-peano as
+    function n Natural returns List Unit value
+      natural-to-peano-prim n
+    end
+end

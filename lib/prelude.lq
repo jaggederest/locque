@@ -12,16 +12,22 @@ module prelude contains
   define transparent map as map-prim
   define transparent not as not-prim
   define transparent if-bool as if-bool-prim
-  define transparent match-list as match-list-prim
-  define transparent match-bool as match-bool-prim
-  define transparent match-pair as match-pair-prim
   define transparent pair as pair-prim
   define transparent fst as fst-prim
   define transparent snd as snd-prim
   define transparent pair-to-list as pair-to-list-prim
+  define transparent decide-eq-nat as decide-eq-nat-prim
+  define transparent decide-eq-string as decide-eq-string-prim
+  define transparent decide-eq-bool as decide-eq-bool-prim
+  define transparent decide-eq-pair as decide-eq-pair-prim
+  define transparent decide-eq-list as decide-eq-list-prim
+  define transparent get-line as get-line-prim
+  define transparent list-dir as list-dir-prim
+  define transparent cli-args as cli-args-prim
+  define transparent current-directory as current-directory-prim
 
   define transparent id as
-    function x String returns String value
+    function A Type0 x A returns A value
       x
     end
 
@@ -30,13 +36,4 @@ module prelude contains
       not x
     end
 
-  define transparent reverse as
-    function xs (List String) returns List String value
-      fold String (List String)
-        (function acc (List String) x String returns List String value
-          cons String x acc
-        end)
-        (nil String)
-        xs
-    end
 end

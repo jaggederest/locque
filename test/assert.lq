@@ -1,10 +1,17 @@
 # Test rollup for Assert module
-# Runs all tests in test/assert/
-# TODO: Add tests for assert module
 
-import prelude as P
+import assert as A
+open A exposing assert-eq Equality end
 
-module test_assert contains
-  define transparent main as computation
-    return P.tt
+module test::assert contains
+  define transparent main as compute
+    sequence
+      (A::assert-eq-nat 2 2)
+      (A::assert-eq-string "hello" "hello")
+      (A::assert-eq-bool true true)
+      (assert-eq Natural 42 42)
+      (assert-eq String "locque" "locque")
+      (assert-eq Boolean false false)
+    end
+  end
 end

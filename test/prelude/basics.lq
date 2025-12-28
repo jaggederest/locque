@@ -5,6 +5,7 @@ import assert as A
 import io as IO
 import string as S
 import comparison as C
+import list as L
 
 open A exposing assert-eq Equality end
 
@@ -317,7 +318,7 @@ module test::prelude::basics contains
   end
 
   define transparent check-prelude-id as compute
-    perform (A::assert-eq String (P::id "hi") "hi")
+    perform (A::assert-eq String (P::id String "hi") "hi")
   end
 
   define transparent check-string as compute
@@ -357,48 +358,35 @@ module test::prelude::basics contains
         (P::length-list Natural (P::tail Natural (P::cons Natural 9 (P::nil Natural))))
         0)
       (A::assert-eq String
-        (P::head String (P::reverse strs))
+        (P::head String (L::reverse String strs))
         "c")
     end
   end
 
-  define transparent check-prelude-match-prim as compute
+  define transparent check-prelude-match as compute
     sequence
       (A::assert-eq String
-        (P::match-list Natural String nums
-          (function u Unit returns String value
-            "empty"
-          end)
-          (function h Natural t (List Natural) returns String value
-            "nonempty"
-          end))
+        (match nums of-type (List Natural) as ignored returns String
+          empty-case as "empty"
+          cons-case with h Natural t (List Natural) as "nonempty"
+        end)
         "nonempty")
       (A::assert-eq String
-        (P::match-list Natural String empty-nums
-          (function u Unit returns String value
-            "empty"
-          end)
-          (function h Natural t (List Natural) returns String value
-            "nonempty"
-          end))
+        (match empty-nums of-type (List Natural) as ignored returns String
+          empty-case as "empty"
+          cons-case with h Natural t (List Natural) as "nonempty"
+        end)
         "empty")
       (A::assert-eq String
-        (P::match-bool String false
-          (function u Unit returns String value
-            "no"
-          end)
-          (function u Unit returns String value
-            "yes"
-          end))
+        (match false of-type Boolean as ignored returns String
+          false-case as "no"
+          true-case as "yes"
+        end)
         "no")
       (A::assert-eq String
-        (P::match-pair Natural String String sample-pair
-          (function u Unit returns String value
-            "never"
-          end)
-          (function a Natural b String returns String value
-            b
-          end))
+        (match sample-pair of-type (Pair Natural String) as ignored returns String
+          pair-case with a Natural b String as b
+        end)
         "three")
     end
   end
@@ -500,7 +488,7 @@ module test::prelude::basics contains
       check-string-more
       check-if-bool
       check-prelude-list-more
-      check-prelude-match-prim
+      check-prelude-match
       check-bind-match-list
       check-bind-match-shadow
       check-bind-match-comp

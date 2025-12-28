@@ -2,9 +2,11 @@
 # Runs all tests in test/comparison/
 
 import test::comparison::basics as basics
-import prelude as P
 
-module test_comparison contains
-  define transparent main as computation
-    perform io basics.main
+module test::comparison contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
 end

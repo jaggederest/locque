@@ -1,18 +1,22 @@
-# Migrated from ../01_file_io.lq
+# File IO smoke tests
 
 import io as IO
-import prelude as P
 import assert as A
 
-module LFileIO contains
+open A exposing assert-eq Equality end
 
-  define transparent roundtrip as computation
-    bind perform io (IO.write-file "test/tmp/test_tmp.txt" "abc") as _ then
-    bind perform io (IO.read-file "test/tmp/test_tmp.txt") as contents then
-    bind perform io (A.assert-eq-string contents "abc") as _ then
-    return P.tt
+module test::io::file_io contains
+  define transparent roundtrip as compute
+    bind ignored from perform (IO::write-file "test/tmp/test_tmp.txt" "abc") then
+      bind contents from perform (IO::read-file "test/tmp/test_tmp.txt") then
+        perform (assert-eq String contents "abc")
+      end
+    end
+  end
 
-  define transparent main as computation
-    bind roundtrip as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      roundtrip
+    end
+  end
 end

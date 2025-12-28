@@ -2,32 +2,48 @@
 #
 # Similar to Haskell's Show typeclass.
 
-module display contains
+module typeclass::display contains
   # Display typeclass definition
-  define transparent Display as typeclass a where
-    display of-type (-> a String)
+  define transparent Display as typeclass A where
+    display of-type for-all x as A to String
+  end
 
   # Instance: Natural
   define transparent Display-Natural as instance Display Natural where
-    display produce lambda n -> nat-to-string-prim n
+    display as function n Natural returns String value
+      nat-to-string-prim n
+    end
+  end
 
   # Instance: String (wraps in quotes)
   define transparent Display-String as instance Display String where
-    display produce lambda s -> concat-string-prim "\"" (concat-string-prim s "\"")
+    display as function s String returns String value
+      concat-string-prim "\"" (concat-string-prim s "\"")
+    end
+  end
 
   # Instance: Boolean
   define transparent Display-Boolean as instance Display Boolean where
-    display produce lambda b -> if-bool-prim b "true" "false"
+    display as function b Boolean returns String value
+      if-bool-prim String b "true" "false"
+    end
+  end
 
   # STUB: Display for List
   # Requires instance constraints (not yet implemented in Locque)
   # When available, implement as:
-  #   define transparent Display-List as instance Display a => Display (List a) where
-  #     display produce lambda xs -> ...join displayed elements...
+  #   define transparent Display-List as instance Display A => Display (List A) where
+  #     display as function xs (List A) returns String value
+  #       ...join displayed elements...
+  #     end
+  #   end
 
   # STUB: Display for Pair
   # Requires instance constraints (not yet implemented in Locque)
   # When available, implement as:
-  #   define transparent Display-Pair as instance (Display a, Display b) => Display (Pair a b) where
-  #     display produce lambda p -> ...display both elements...
+  #   define transparent Display-Pair as instance (Display A, Display B) => Display (Pair A B) where
+  #     display as function p (Pair A B) returns String value
+  #       ...display both elements...
+  #     end
+  #   end
 end

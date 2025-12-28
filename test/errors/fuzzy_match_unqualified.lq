@@ -3,19 +3,19 @@
 # Expected error: "Variable not in scope: my-functoin"
 # Expected suggestion: "Did you mean: my-function?"
 
-import prelude as P
-
-module LFuzzyMatchUnqualified contains
-
-  define transparent my-function as value
-    function x of-type Natural produce x
+module test::errors::fuzzy_match_unqualified contains
+  define transparent my-function as
+    function x Natural returns Natural value
+      x
+    end
 
   # Deliberately misspell my-function as my-functoin
-  define transparent test-typo as value
-    function x of-type Natural produce
+  define transparent test-typo as
+    function x Natural returns Natural value
       my-functoin x
+    end
 
-  define transparent main as computation
-    return test-typo 5
-
+  define transparent main as compute
+    return (test-typo 5)
+  end
 end

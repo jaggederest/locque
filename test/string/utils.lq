@@ -1,58 +1,48 @@
-# Migrated from ../11_string_utils.lq
+# String utilities smoke tests
 
 import prelude as P
 import assert as A
 import string as S
 
-module LStringUtilsTests contains
+open A exposing assert-eq Equality end
+open S exposing Character end
 
-  define transparent test-is-empty-whitespace as computation
-    bind perform io (A.assert-eq-string (P.if-bool (S.is-empty "") "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (S.is-empty "hello") "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "   ") "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (S.is-whitespace "hello") "yes" "no") "no") as _ then
-    return P.tt
-
-  define transparent test-ends-with-index-of as computation
-    bind perform io (A.assert-eq-string (P.if-bool (S.ends-with "lo" "hello") "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (S.ends-with "hi" "hello") "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-nat (S.index-of "ell" "hello") 1) as _ then
-    bind perform io (A.assert-eq-nat (S.index-of "xyz" "hello") 5) as _ then
-    return P.tt
-
-  define transparent test-reverse as computation
-    bind perform io (A.assert-eq-string (S.reverse "hello") "olleh") as _ then
-    bind perform io (A.assert-eq-string (S.reverse "a") "a") as _ then
-    bind perform io (A.assert-eq-string (S.reverse "") "") as _ then
-    return P.tt
-
-  define transparent test-lines-unlines as computation
-    bind S.lines "hello\nworld" as lines-result then
-    bind perform io (A.assert-eq-nat (P.length-list lines-result) 2) as _ then
-    bind perform io (A.assert-eq-string (S.unlines lines-result) "hello\nworld") as _ then
-    return P.tt
-
-  define transparent test-words-unwords as computation
-    bind S.words "hello world test" as words-result then
-    bind perform io (A.assert-eq-nat (P.length-list words-result) 3) as _ then
-    bind P.head words-result as first-word then
-    bind perform io (A.assert-eq-string first-word "hello") as _ then
-    bind S.unwords words-result as rejoined then
-    bind perform io (A.assert-eq-string rejoined "hello world test") as _ then
-    return P.tt
-
-  define transparent test-slice as computation
-    bind perform io (A.assert-eq-string (S.slice 0 3 "hello") "hel") as _ then
-    bind perform io (A.assert-eq-string (S.slice 2 3 "hello") "llo") as _ then
-    bind perform io (A.assert-eq-string (S.slice 1 2 "hello") "el") as _ then
-    return P.tt
-
-  define transparent main as computation
-    bind test-is-empty-whitespace as _ then
-    bind test-ends-with-index-of as _ then
-    bind test-reverse as _ then
-    bind test-lines-unlines as _ then
-    bind test-words-unwords as _ then
-    bind test-slice as _ then
-    return P.tt
+module test::string::utils contains
+  define transparent main as compute
+    sequence
+      (assert-eq Boolean (S::is-empty "") true)
+      (assert-eq Boolean (S::is-empty "hello") false)
+      (assert-eq Boolean (S::is-whitespace "   ") true)
+      (assert-eq Boolean (S::is-whitespace "hello") false)
+      (assert-eq Boolean (S::ends-with "lo" "hello") true)
+      (assert-eq Boolean (S::ends-with "hi" "hello") false)
+      (assert-eq Natural (S::index-of "ell" "hello") 1)
+      (assert-eq Natural (S::index-of "xyz" "hello") 5)
+      (assert-eq String (S::reverse "hello") "olleh")
+      (assert-eq String (S::reverse "a") "a")
+      (assert-eq String (S::reverse "") "")
+      (assert-eq Natural (P::length-list String (S::lines "hello\nworld")) 2)
+      (assert-eq String (S::unlines (S::lines "hello\nworld")) "hello\nworld")
+      (assert-eq Natural (P::length-list String (S::words "hello world test")) 3)
+      (assert-eq String (P::head String (S::words "hello world test")) "hello")
+      (assert-eq String (S::unwords (S::words "hello world test")) "hello world test")
+      (assert-eq String (S::slice 0 3 "hello") "hel")
+      (assert-eq String (S::slice 2 3 "hello") "llo")
+      (assert-eq String (S::slice 1 2 "hello") "el")
+      (assert-eq Natural
+        (P::length-list Character (S::to-list "hi"))
+        2)
+      (assert-eq String
+        (S::character-string (P::head Character (S::to-list "hi")))
+        "h")
+      (assert-eq String
+        (S::from-list
+          (P::cons Character (S::character "a")
+            (P::cons Character (S::character "b") (P::nil Character))))
+        "ab")
+      (assert-eq String (S::character-string (S::head "hi")) "h")
+      (assert-eq String (S::tail "hi") "i")
+      (assert-eq String (S::sort "dcba") "abcd")
+    end
+  end
 end

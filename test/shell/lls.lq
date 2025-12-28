@@ -1,0 +1,21 @@
+# Tests for lls
+
+import shell::lls as Lls
+import io as IO
+import string as Str
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::shell::lls contains
+  define transparent main as compute
+    bind ignored from perform (IO::write-file "test/tmp/lls_check.txt" "ok") then
+      bind files from perform (Lls::lls "test/tmp") then
+        perform
+          (assert-eq Boolean
+            (Str::string-contains "lls_check.txt" (Str::join-with "\n" files))
+            true)
+      end
+    end
+  end
+end

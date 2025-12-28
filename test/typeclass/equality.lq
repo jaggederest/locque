@@ -1,79 +1,97 @@
 # Tests for Equality typeclass
-# NOTE: Typeclass methods with multiple curried args require explicit currying:
-#   Use (eq 42) 43 instead of eq 42 43
+# NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import assert as A
 import prelude as P
 
-module equality_test contains
+module test::typeclass::equality contains
   # Define Equality typeclass
-  define transparent Equality as typeclass a where
-    eq of-type (-> a (-> a Boolean))
+  define transparent Equality as typeclass A where
+    eq of-type for-all x as A to for-all y as A to Boolean
+  end
 
   # Instance: Natural
   define transparent Equality-Natural as instance Equality Natural where
-    eq produce lambda x -> lambda y -> eq-nat-prim x y
+    eq as function x Natural y Natural returns Boolean value
+      eq-nat-prim x y
+    end
+  end
 
   # Instance: String
   define transparent Equality-String as instance Equality String where
-    eq produce lambda x -> lambda y -> eq-string-prim x y
+    eq as function x String y String returns Boolean value
+      eq-string-prim x y
+    end
+  end
 
   # Instance: Boolean
   define transparent Equality-Boolean as instance Equality Boolean where
-    eq produce lambda x -> lambda y -> if-bool-prim x y (not-prim y)
+    eq as function x Boolean y Boolean returns Boolean value
+      P::if-bool Boolean x y (P::not y)
+    end
+  end
+
+  # Generic equality with constraint
+  define transparent eq-value as
+    function A Type0 x A y A requires Equality A returns Boolean value
+      eq x y
+    end
 
   # Derived: not equal (for Natural)
-  define transparent neq as value
-    function x of-type Natural produce
-      function y of-type Natural produce
-        P.not ((eq x) y)
+  define transparent neq as
+    function x Natural y Natural returns Boolean value
+      P::not (eq-value Natural x y)
+    end
 
   # Test values for Natural equality
-  define transparent test-nat-eq-same as value (eq 42) 42
-  define transparent test-nat-eq-diff as value (eq 42) 43
+  define transparent test-nat-eq-same as eq-value Natural 42 42
+  define transparent test-nat-eq-diff as eq-value Natural 42 43
 
   # Test values for String equality
-  define transparent test-str-eq-same as value (eq "hello") "hello"
-  define transparent test-str-eq-diff as value (eq "hello") "world"
+  define transparent test-str-eq-same as eq-value String "hello" "hello"
+  define transparent test-str-eq-diff as eq-value String "hello" "world"
 
   # Test values for Boolean equality
-  define transparent test-bool-eq-tt as value (eq true) true
-  define transparent test-bool-eq-ff as value (eq false) false
-  define transparent test-bool-eq-tf as value (eq true) false
-  define transparent test-bool-eq-ft as value (eq false) true
+  define transparent test-bool-eq-tt as eq-value Boolean true true
+  define transparent test-bool-eq-ff as eq-value Boolean false false
+  define transparent test-bool-eq-tf as eq-value Boolean true false
+  define transparent test-bool-eq-ft as eq-value Boolean false true
 
-  # Test with variables (critical - uses ETyped)
-  define transparent test-nat-eq-var as value
-    function x of-type Natural produce (eq x) x
+  # Test with variables (ETyped)
+  define transparent test-nat-eq-var as
+    function x Natural returns Boolean value
+      eq-value Natural x x
+    end
 
-  define transparent test-str-eq-var as value
-    function s of-type String produce (eq s) s
+  define transparent test-str-eq-var as
+    function s String returns Boolean value
+      eq-value String s s
+    end
 
-  define transparent test-bool-eq-var as value
-    function b of-type Boolean produce (eq b) b
+  define transparent test-bool-eq-var as
+    function b Boolean returns Boolean value
+      eq-value Boolean b b
+    end
 
   # Test neq
-  define transparent test-neq-same as value (neq 5) 5
-  define transparent test-neq-diff as value (neq 5) 10
+  define transparent test-neq-same as neq 5 5
+  define transparent test-neq-diff as neq 5 10
 
-  define transparent main as computation
-    # Natural equality
-    bind A.assert-eq-bool test-nat-eq-same true as _ then
-    bind A.assert-eq-bool test-nat-eq-diff false as _ then
-    # String equality
-    bind A.assert-eq-bool test-str-eq-same true as _ then
-    bind A.assert-eq-bool test-str-eq-diff false as _ then
-    # Boolean equality
-    bind A.assert-eq-bool test-bool-eq-tt true as _ then
-    bind A.assert-eq-bool test-bool-eq-ff true as _ then
-    bind A.assert-eq-bool test-bool-eq-tf false as _ then
-    bind A.assert-eq-bool test-bool-eq-ft false as _ then
-    # Variable-based tests (ETyped)
-    bind A.assert-eq-bool (test-nat-eq-var 99) true as _ then
-    bind A.assert-eq-bool (test-str-eq-var "test") true as _ then
-    bind A.assert-eq-bool (test-bool-eq-var true) true as _ then
-    bind A.assert-eq-bool (test-bool-eq-var false) true as _ then
-    # neq tests
-    bind A.assert-eq-bool test-neq-same false as _ then
-    bind A.assert-eq-bool test-neq-diff true as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      (A::assert-eq-bool test-nat-eq-same true)
+      (A::assert-eq-bool test-nat-eq-diff false)
+      (A::assert-eq-bool test-str-eq-same true)
+      (A::assert-eq-bool test-str-eq-diff false)
+      (A::assert-eq-bool test-bool-eq-tt true)
+      (A::assert-eq-bool test-bool-eq-ff true)
+      (A::assert-eq-bool test-bool-eq-tf false)
+      (A::assert-eq-bool test-bool-eq-ft false)
+      (A::assert-eq-bool (test-nat-eq-var 99) true)
+      (A::assert-eq-bool (test-str-eq-var "test") true)
+      (A::assert-eq-bool (test-bool-eq-var true) true)
+      (A::assert-eq-bool (test-bool-eq-var false) true)
+      (A::assert-eq-bool test-neq-same false)
+      (A::assert-eq-bool test-neq-diff true)
+    end
+  end
 end

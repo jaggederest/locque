@@ -4,6 +4,7 @@ import test::prelude::basics as basics
 import test::prelude::lift as lift
 import test::prelude::exists as exists
 import test::prelude::iota as iota
+import test::prelude::equality as equality
 
 module test::prelude contains
   define transparent main as compute
@@ -12,6 +13,7 @@ module test::prelude contains
       lift::main
       exists::main
       iota::main
+      equality::main
     end
   end
 end

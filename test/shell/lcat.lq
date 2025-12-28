@@ -1,0 +1,17 @@
+# Tests for lcat
+
+import shell::lcat as Lcat
+import io as IO
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::shell::lcat contains
+  define transparent main as compute
+    bind ignored from perform (IO::write-file "test/tmp/lcat.txt" "lcat") then
+      bind out from perform (Lcat::lcat "test/tmp/lcat.txt") then
+        perform (assert-eq String out "lcat")
+      end
+    end
+  end
+end
