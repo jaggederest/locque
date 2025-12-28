@@ -1,73 +1,74 @@
 import prelude as P
-import comparison as C
 import string as S
 
 module list contains
-  define opaque drop-until as value drop-until-prim
-  define opaque nth as value nth-prim
-  define opaque take as value take-prim
-  define opaque drop as value drop-prim
-  define opaque list-last as value last-prim
-  define opaque list-init as value init-prim
+  define transparent drop-until as drop-until-prim
+  define transparent nth as nth-prim
+  define transparent take as take-prim
+  define transparent drop as drop-prim
+  define transparent list-last as last-prim
+  define transparent list-init as init-prim
 
-  define transparent is-empty as value
-    function xs of-type (List a) produce
-      P.match-list xs
-        (lambda -> true)
-        (lambda h -> lambda t -> false)
+  define transparent is-empty as
+    function A Type0 xs (List A) returns Boolean value
+      match xs of-type (List A) as ignored returns Boolean
+        empty-case as true
+        cons-case with h A t (List A) as false
+      end
+    end
 
-  define transparent length as value
-    function xs of-type (List a) produce
-      P.length-list xs
+  define transparent length as
+    function A Type0 xs (List A) returns Natural value
+      P::length-list A xs
+    end
 
-  define transparent last as value
-    function xs of-type (List a) produce
-      list-last xs
+  define transparent last as
+    function A Type0 xs (List A) returns A value
+      list-last A xs
+    end
 
-  define transparent first as value
-    function xs of-type (List a) produce
-      P.head xs
+  define transparent first as
+    function A Type0 xs (List A) returns A value
+      P::head A xs
+    end
 
-  define transparent init as value
-    function xs of-type (List a) produce
-      list-init xs
+  define transparent init as
+    function A Type0 xs (List A) returns List A value
+      list-init A xs
+    end
 
-  define transparent contains-string-fn as value
-    function item of-type String produce
-      function acc of-type Boolean produce
-        function x of-type String produce
-          P.if-bool acc true (S.eq item x)
+  define transparent contains-string-fn as
+    function item String acc Boolean x String returns Boolean value
+      P::if-bool Boolean acc true (S::eq item x)
+    end
 
-  define transparent contains-string as value
-    function item of-type String produce
-      function xs of-type (List String) produce
-        P.fold (contains-string-fn item) false xs
+  define transparent contains-string as
+    function item String xs (List String) returns Boolean value
+      P::fold String Boolean (contains-string-fn item) false xs
+    end
 
-  define transparent any-fn as value
-    function predicate of-type (-> a Boolean) produce
-      function acc of-type Boolean produce
-        function x of-type a produce
-          P.if-bool acc true (predicate x)
+  define transparent any-fn as
+    function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
+      P::if-bool Boolean acc true (predicate x)
+    end
 
-  define transparent any as value
-    function predicate of-type (-> a Boolean) produce
-      function xs of-type (List a) produce
-        P.fold (any-fn predicate) false xs
+  define transparent any as
+    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Boolean value
+      P::fold A Boolean (any-fn A predicate) false xs
+    end
 
-  define transparent all-fn as value
-    function predicate of-type (-> a Boolean) produce
-      function acc of-type Boolean produce
-        function x of-type a produce
-          P.if-bool acc (predicate x) false
+  define transparent all-fn as
+    function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
+      P::if-bool Boolean acc (predicate x) false
+    end
 
-  define transparent all as value
-    function predicate of-type (-> a Boolean) produce
-      function xs of-type (List a) produce
-        P.fold (all-fn predicate) true xs
+  define transparent all as
+    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Boolean value
+      P::fold A Boolean (all-fn A predicate) true xs
+    end
 
-  define transparent slice as value
-    function start of-type Natural produce
-      function len of-type Natural produce
-        function xs of-type (List a) produce
-          take len (drop start xs)
+  define transparent slice as
+    function A Type0 start Natural len Natural xs (List A) returns List A value
+      take A len (drop A start xs)
+    end
 end

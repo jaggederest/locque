@@ -1,0 +1,65 @@
+# Prelude tests for universe lifting
+
+import prelude as P
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::prelude::lift contains
+  define transparent lift-nat as
+    lift Natural from Type0 to Type1
+
+  define transparent check-lift-nat as
+    of-type (lift-nat) Type1
+
+  define transparent check-lift-same as
+    of-type (lift Natural from Type0 to Type0) Type0
+
+  define transparent lift-type0 as
+    lift Type0 from Type1 to Type2
+
+  define transparent check-lift-type0 as
+    of-type (lift-type0) Type2
+
+  define transparent lifted-five as
+    up Natural from Type0 to Type1 5
+
+  define transparent check-lifted-five-type as
+    of-type (lifted-five) (lift Natural from Type0 to Type1)
+
+  define transparent check-up-same as
+    of-type (up Natural from Type0 to Type0 7) Natural
+
+  define transparent check-down-same as
+    of-type (down Natural from Type0 to Type0 7) Natural
+
+  define transparent check-up-down as compute
+    perform (A::assert-eq Natural
+      (down Natural from Type0 to Type1 lifted-five)
+      5)
+  end
+
+  define transparent check-up-same-run as compute
+    perform (A::assert-eq Natural
+      (up Natural from Type0 to Type0 9)
+      9)
+  end
+
+  define transparent check-down-same-run as compute
+    perform (A::assert-eq Natural
+      (down Natural from Type0 to Type0 11)
+      11)
+  end
+
+  define transparent all-tests as compute
+    sequence
+      check-up-down
+      check-up-same-run
+      check-down-same-run
+    end
+  end
+
+  define transparent main as compute
+    perform all-tests
+  end
+end

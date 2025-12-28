@@ -2,9 +2,11 @@
 # Runs all tests in test/arithmetic/
 
 import test::arithmetic::basics as basics
-import prelude as P
 
-module test_arithmetic contains
-  define transparent main as computation
-    perform io basics.main
+module test::arithmetic contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
 end

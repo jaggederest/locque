@@ -1,0 +1,4 @@
+module test::typecheck::exists_pack_body_mismatch contains
+  define transparent bad as
+    pack x as Natural in Boolean with 3 5 end
+end

@@ -1,0 +1,39 @@
+# Prelude tests for iota reductions
+
+module test::prelude::iota contains
+  define transparent bool-branch-type as
+    match true of-type Boolean as ignored returns Type0
+      false-case as String
+      true-case as Natural
+    end
+
+  define transparent check-bool-branch-type as
+    of-type 0 bool-branch-type
+
+  define transparent list-branch-type as
+    match (cons-prim Natural 1 (nil-prim Natural)) of-type (List Natural) as ignored returns Type0
+      empty-case as String
+      cons-case with h Natural t (List Natural) as Natural
+    end
+
+  define transparent check-list-branch-type as
+    of-type 0 list-branch-type
+
+  define transparent pair-branch-type as
+    match (pair-prim Natural String 3 "hi") of-type (Pair Natural String) as ignored returns Type0
+      pair-case with a Natural b String as Natural
+    end
+
+  define transparent check-pair-branch-type as
+    of-type 0 pair-branch-type
+
+  define transparent unpack-branch-type as
+    unpack (pack x as Natural in Type0 with 1 Natural end) as x y in y end
+
+  define transparent check-unpack-branch-type as
+    of-type 0 unpack-branch-type
+
+  define transparent main as compute
+    return tt
+  end
+end

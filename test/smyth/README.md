@@ -12,7 +12,7 @@ Tests that `smyth run <file>` can execute a simple program successfully.
 smyth run test/smyth/run_basic.lq
 ```
 
-**Expected:** Exit code 0, no output
+**Expected:** Exit code 0, no error output
 
 ### `assertion_count.lq`
 Tests that the assertion counter correctly counts all assertions in a test file.
@@ -33,6 +33,8 @@ These tests are designed to be run manually as integration tests for the `smyth`
 3. **Assertion counting**: Correct count of assertions
 4. **Type checking**: Type checking runs before execution
 5. **Error reporting**: Errors are reported clearly
+
+Note: `smyth test` also enforces project invariants (lowercase test/lib paths and 1:1 lib/test mapping).
 
 ## Future Tests
 

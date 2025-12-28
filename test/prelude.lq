@@ -1,11 +1,17 @@
 # Test rollup for prelude basics only
 
 import test::prelude::basics as basics
+import test::prelude::lift as lift
+import test::prelude::exists as exists
+import test::prelude::iota as iota
 
 module test::prelude contains
   define transparent main as compute
-    bind ignored from perform basics::main then
-      return tt
+    sequence
+      basics::main
+      lift::main
+      exists::main
+      iota::main
     end
   end
 end

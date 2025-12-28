@@ -7,7 +7,7 @@ module TypeChecker
   , TypeEnv
   ) where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import Control.Monad.State
 import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
@@ -24,6 +24,27 @@ import SourceLoc
 import ErrorMsg
 import Utils (modNameToPath, qualifyName)
 
+data MatchKind
+  = CaseEmpty
+  | CaseCons
+  | CaseFalse
+  | CaseTrue
+  | CasePair
+  deriving (Eq, Ord)
+
+data ClassInfo = ClassInfo
+  { className    :: Text
+  , classParam   :: Text
+  , classMethods :: [(Text, Expr)]
+  } deriving (Show, Eq)
+
+data InstanceInfo = InstanceInfo
+  { instName    :: Text
+  , instClass   :: Text
+  , instType    :: Expr
+  , instMethods :: Map.Map Text Expr
+  } deriving (Show, Eq)
+
 -- | Type errors with context
 data TypeError
   = VarNotInScope SrcLoc Text TypeEnv
@@ -32,7 +53,10 @@ data TypeError
   | NotAFunction SrcLoc Expr
   | NotAComputation SrcLoc Expr
   | ExpectedType SrcLoc Expr
+  | InvalidLift SrcLoc Int Int
+  | ExpectedThereExists SrcLoc Expr
   | MatchCaseError SrcLoc Text
+  | TypeclassError SrcLoc Text
 
 instance Show TypeError where
   show (VarNotInScope loc var env) =
@@ -69,8 +93,23 @@ instance Show TypeError where
     let msg = ErrorMsg loc ("Expected a type, got: " <> prettyType ty) Nothing [] Nothing
     in T.unpack (formatError msg)
 
+  show (InvalidLift loc fromLevel toLevel) =
+    let msg = ErrorMsg loc
+          ("Invalid lift: from Type" <> T.pack (show fromLevel) <>
+           " to Type" <> T.pack (show toLevel) <> " (from must be <= to)")
+          Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (ExpectedThereExists loc ty) =
+    let msg = ErrorMsg loc ("Expected there-exists type, got: " <> prettyType ty) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
   show (MatchCaseError loc msgText) =
     let msg = ErrorMsg loc ("Match error: " <> msgText) Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (TypeclassError loc msgText) =
+    let msg = ErrorMsg loc ("Typeclass error: " <> msgText) Nothing [] Nothing
     in T.unpack (formatError msg)
 
 -- | Eq instance compares by error type (ignoring location for equality)
@@ -81,7 +120,10 @@ instance Eq TypeError where
   NotAFunction _ a == NotAFunction _ b = a == b
   NotAComputation _ a == NotAComputation _ b = a == b
   ExpectedType _ a == ExpectedType _ b = a == b
+  InvalidLift _ a b == InvalidLift _ c d = a == c && b == d
+  ExpectedThereExists _ a == ExpectedThereExists _ b = a == b
   MatchCaseError _ a == MatchCaseError _ b = a == b
+  TypeclassError _ a == TypeclassError _ b = a == b
   _ == _ = False
 
 type TypeEnv = Map.Map Text Expr
@@ -91,6 +133,8 @@ data TCEnv = TCEnv
   { tcTypes  :: TypeEnv
   , tcDefs   :: DefEnv
   , tcLocals :: Set.Set Text
+  , tcClasses :: Map.Map Text ClassInfo
+  , tcInstances :: Map.Map Text [InstanceInfo]
   }
 
 type TypeCheckM a = StateT Int (Either TypeError) a
@@ -140,8 +184,11 @@ tFun dom cod = EForAll "_" dom cod
 mkPi :: [Param] -> Expr -> Expr
 mkPi params ret = foldr (\(Param name ty) acc -> EForAll name ty acc) ret params
 
+classType :: Text -> Expr
+classType param = EForAll param (tType 0) (tType 0)
+
 emptyEnv :: TCEnv
-emptyEnv = TCEnv buildPrimitiveEnv Map.empty Set.empty
+emptyEnv = TCEnv buildPrimitiveEnv Map.empty Set.empty Map.empty Map.empty
 
 extendLocal :: TCEnv -> Text -> Expr -> TCEnv
 extendLocal env name ty =
@@ -155,11 +202,55 @@ extendGlobal env name ty tr body =
       , tcDefs = Map.insert name (tr, body) (tcDefs env)
       }
 
+extendClass :: TCEnv -> Text -> ClassInfo -> Expr -> TCEnv
+extendClass env name info classTy =
+  env { tcTypes = Map.insert name classTy (tcTypes env)
+      , tcClasses = Map.insert name info (tcClasses env)
+      }
+
+extendInstance :: TCEnv -> Text -> InstanceInfo -> Expr -> TCEnv
+extendInstance env name info instTy =
+  env { tcTypes = Map.insert name instTy (tcTypes env)
+      , tcInstances = Map.insertWith (++) (instClass info) [info] (tcInstances env)
+      }
+
 lookupVar :: SrcLoc -> TCEnv -> Text -> TypeCheckM Expr
 lookupVar loc env v =
   case Map.lookup v (tcTypes env) of
     Just ty -> pure ty
     Nothing -> lift (Left (VarNotInScope loc v (tcTypes env)))
+
+lookupClass :: SrcLoc -> TCEnv -> Text -> TypeCheckM ClassInfo
+lookupClass loc env name =
+  case Map.lookup name (tcClasses env) of
+    Just info -> pure info
+    Nothing -> lift (Left (TypeclassError loc ("Unknown typeclass: " <> name)))
+
+constraintMethods :: TCEnv -> [Constraint] -> TypeCheckM [(Text, Expr)]
+constraintMethods env constraints = foldM addConstraint [] constraints
+  where
+    addConstraint acc (Constraint clsName ty) = do
+      classInfo <- lookupClass noLoc env clsName
+      level <- inferUniverse env ty
+      when (level /= 0) $
+        lift (Left (TypeclassError noLoc "Constraint type must be in Type0"))
+      let param = classParam classInfo
+      methods' <- mapM (specializeMethod param ty acc) (classMethods classInfo)
+      pure (acc ++ methods')
+
+    specializeMethod param ty acc (methodName, methodTy) = do
+      when (methodName `elem` map fst acc) $
+        lift (Left (TypeclassError noLoc ("Ambiguous method name: " <> methodName)))
+      methodTy' <- subst param ty methodTy
+      pure (methodName, methodTy')
+
+ensureUniqueMethodNames :: [Text] -> TypeCheckM ()
+ensureUniqueMethodNames names =
+  case [n | (n, count) <- Map.toList counts, count > (1 :: Int)] of
+    (dup:_) -> lift (Left (TypeclassError noLoc ("Duplicate method name: " <> dup)))
+    [] -> pure ()
+  where
+    counts = Map.fromListWith (+) [(n, 1 :: Int) | n <- names]
 
 --------------------------------------------------------------------------------
 -- Free variables
@@ -178,28 +269,48 @@ freeVarsWithBound bound expr = case expr of
   EThereExists v dom cod ->
     freeVarsWithBound bound dom `Set.union` freeVarsWithBound (Set.insert v bound) cod
   ECompType t -> freeVarsWithBound bound t
+  EPack v dom cod witness body ->
+    freeVarsWithBound bound dom
+      `Set.union` freeVarsWithBound (Set.insert v bound) cod
+      `Set.union` freeVarsWithBound bound witness
+      `Set.union` freeVarsWithBound bound body
+  EUnpack packed x y body ->
+    freeVarsWithBound bound packed
+      `Set.union` freeVarsWithBound (Set.insert x (Set.insert y bound)) body
+  ELift ty _ _ -> freeVarsWithBound bound ty
+  EUp ty _ _ body ->
+    freeVarsWithBound bound ty `Set.union` freeVarsWithBound bound body
+  EDown ty _ _ body ->
+    freeVarsWithBound bound ty `Set.union` freeVarsWithBound bound body
   EApp f args ->
     Set.unions (freeVarsWithBound bound f : map (freeVarsWithBound bound) args)
-  EFunction params ret body ->
+  EFunction params constraints ret body ->
     let (bound', paramsFree) = foldl step (bound, Set.empty) params
         step (b, acc) (Param name ty) =
           let acc' = acc `Set.union` freeVarsWithBound b ty
           in (Set.insert name b, acc')
+        constraintsFree = Set.unions [freeVarsWithBound bound cTy | Constraint _ cTy <- constraints]
         retFree = freeVarsWithBound bound' ret
         bodyFree = freeVarsBody bound' body
-    in paramsFree `Set.union` retFree `Set.union` bodyFree
+    in paramsFree `Set.union` constraintsFree `Set.union` retFree `Set.union` bodyFree
   ELet name val body ->
     freeVarsWithBound bound val `Set.union` freeVarsWithBound (Set.insert name bound) body
   ECompute comp -> freeVarsComp bound comp
-  EMatch scrut scrutTy cases ->
+  EMatch scrut scrutTy scrutName retTy cases ->
     let scrutFree = freeVarsWithBound bound scrut
         tyFree = freeVarsWithBound bound scrutTy
-        casesFree = Set.unions (map (freeVarsCase bound) cases)
-    in scrutFree `Set.union` tyFree `Set.union` casesFree
+        retFree = freeVarsWithBound (Set.insert scrutName bound) retTy
+        casesFree = Set.unions (map (freeVarsCase (Set.insert scrutName bound)) cases)
+    in scrutFree `Set.union` tyFree `Set.union` retFree `Set.union` casesFree
   EAnnot e ty -> freeVarsWithBound bound e `Set.union` freeVarsWithBound bound ty
   ETyped e ty -> freeVarsWithBound bound e `Set.union` freeVarsWithBound bound ty
   EDict _ impls -> Set.unions [freeVarsWithBound bound e | (_, e) <- impls]
   EDictAccess e _ -> freeVarsWithBound bound e
+  ETypeClass param methods ->
+    Set.unions [freeVarsWithBound (Set.insert param bound) ty | (_, ty) <- methods]
+  EInstance _ instTy methods ->
+    freeVarsWithBound bound instTy `Set.union`
+      Set.unions [freeVarsWithBound bound e | (_, e) <- methods]
 
 freeVarsBody :: Set.Set Text -> FunctionBody -> Set.Set Text
 freeVarsBody bound body = case body of
@@ -261,10 +372,39 @@ subst name replacement expr = go Set.empty expr
             cod'' <- go (Set.insert v' bound) cod'
             pure (EThereExists v' dom' cod'')
       ECompType t -> ECompType <$> go bound t
+      EPack v dom cod witness body -> do
+        dom' <- go bound dom
+        if v == name
+          then do
+            witness' <- go bound witness
+            body' <- go bound body
+            pure (EPack v dom' cod witness' body')
+          else do
+            (v', cod') <- refreshBinder bound v cod
+            cod'' <- go (Set.insert v' bound) cod'
+            witness' <- go bound witness
+            body' <- go bound body
+            pure (EPack v' dom' cod'' witness' body')
+      EUnpack packed x y body -> do
+        packed' <- go bound packed
+        if x == name || y == name
+          then pure (EUnpack packed' x y body)
+          else do
+            (x', body1) <- refreshBinder bound x body
+            let bound' = Set.insert x' bound
+            (y', body2) <- refreshBinder bound' y body1
+            body' <- go (Set.insert y' bound') body2
+            pure (EUnpack packed' x' y' body')
+      ELift ty fromLevel toLevel ->
+        ELift <$> go bound ty <*> pure fromLevel <*> pure toLevel
+      EUp ty fromLevel toLevel body ->
+        EUp <$> go bound ty <*> pure fromLevel <*> pure toLevel <*> go bound body
+      EDown ty fromLevel toLevel body ->
+        EDown <$> go bound ty <*> pure fromLevel <*> pure toLevel <*> go bound body
       EApp f args -> EApp <$> go bound f <*> mapM (go bound) args
-      EFunction params ret body -> do
-        (params', ret', body') <- goParams bound params ret body
-        pure (EFunction params' ret' body')
+      EFunction params constraints ret body -> do
+        (params', constraints', ret', body') <- goParams bound params constraints ret body
+        pure (EFunction params' constraints' ret' body')
       ELet v val body -> do
         val' <- go bound val
         if v == name
@@ -274,17 +414,34 @@ subst name replacement expr = go Set.empty expr
             body'' <- go (Set.insert v' bound) body'
             pure (ELet v' val' body'')
       ECompute comp -> ECompute <$> goComp bound comp
-      EMatch scrut scrutTy cases -> do
+      EMatch scrut scrutTy scrutName retTy cases -> do
         scrut' <- go bound scrut
         scrutTy' <- go bound scrutTy
-        cases' <- mapM (goCase bound) cases
-        pure (EMatch scrut' scrutTy' cases')
+        if scrutName == name
+          then do
+            cases' <- mapM (goCase bound) cases
+            pure (EMatch scrut' scrutTy' scrutName retTy cases')
+          else do
+            (scrutName', retTy') <- refreshBinder bound scrutName retTy
+            cases' <- mapM (goCase (Set.insert scrutName' bound)) cases
+            pure (EMatch scrut' scrutTy' scrutName' retTy' cases')
       EAnnot e1 ty -> EAnnot <$> go bound e1 <*> go bound ty
       ETyped e1 ty -> ETyped <$> go bound e1 <*> go bound ty
       EDict cls impls -> do
         impls' <- mapM (\(n, e1) -> (n,) <$> go bound e1) impls
         pure (EDict cls impls')
       EDictAccess e1 method -> EDictAccess <$> go bound e1 <*> pure method
+      ETypeClass param methods -> do
+        if param == name
+          then pure (ETypeClass param methods)
+          else do
+            (param', methods') <- refreshClassBinder bound param methods
+            methods'' <- mapM (\(n, ty) -> (n,) <$> go (Set.insert param' bound) ty) methods'
+            pure (ETypeClass param' methods'')
+      EInstance cls instTy methods -> do
+        instTy' <- go bound instTy
+        methods' <- mapM (\(n, e1) -> (n,) <$> go bound e1) methods
+        pure (EInstance cls instTy' methods')
 
     refreshBinder bound v body =
       if v `Set.member` replacementFree
@@ -295,31 +452,67 @@ subst name replacement expr = go Set.empty expr
           pure (v', body')
         else pure (v, body)
 
-    goParams bound params ret body = case params of
+    refreshClassBinder bound param methods =
+      if param `Set.member` replacementFree
+        then do
+          let avoid = Set.unions
+                [ replacementFree
+                , Set.unions [freeVarsWithBound bound ty | (_, ty) <- methods]
+                , bound
+                ]
+          param' <- freshNameAvoid param avoid
+          methods' <- mapM (\(n, ty) -> (n,) <$> subst param (EVar param') ty) methods
+          pure (param', methods')
+        else pure (param, methods)
+
+    goParams bound params constraints ret body = case params of
       [] -> do
+        constraints' <- mapM (goConstraint bound) constraints
         ret' <- go bound ret
         body' <- goBody bound body
-        pure ([], ret', body')
+        pure ([], constraints', ret', body')
       (Param v ty) : rest -> do
         ty' <- go bound ty
         if v == name
-          then pure (Param v ty' : rest, ret, body)
+          then pure (Param v ty' : rest, constraints, ret, body)
           else do
-            (v', rest', ret', body') <- if v `Set.member` replacementFree
+            (v', rest', constraints', ret', body') <- if v `Set.member` replacementFree
               then do
-                let avoid = Set.unions [replacementFree, freeVars ret, freeVarsBody Set.empty body, bound]
+                let avoid = Set.unions
+                      [ replacementFree
+                      , freeVars ret
+                      , freeVarsBody Set.empty body
+                      , freeVarsParams bound rest
+                      , freeVarsConstraints bound constraints
+                      , bound
+                      ]
                 v' <- freshNameAvoid v avoid
                 rest' <- mapM (renameParam v v') rest
+                constraints' <- mapM (renameConstraint v v') constraints
                 ret' <- subst v (EVar v') ret
                 body' <- renameBody v v' body
-                pure (v', rest', ret', body')
-              else pure (v, rest, ret, body)
-            (restFinal, retFinal, bodyFinal) <- goParams (Set.insert v' bound) rest' ret' body'
-            pure (Param v' ty' : restFinal, retFinal, bodyFinal)
+                pure (v', rest', constraints', ret', body')
+              else pure (v, rest, constraints, ret, body)
+            (restFinal, constraintsFinal, retFinal, bodyFinal) <-
+              goParams (Set.insert v' bound) rest' constraints' ret' body'
+            pure (Param v' ty' : restFinal, constraintsFinal, retFinal, bodyFinal)
+
+    freeVarsParams bound params =
+      Set.unions [freeVarsWithBound bound (paramType p) | p <- params]
+
+    freeVarsConstraints bound constraints =
+      Set.unions [freeVarsWithBound bound ty | Constraint _ ty <- constraints]
 
     renameParam old newName (Param v ty)
       | v == old = Param v ty <$ pure ()
       | otherwise = Param v <$> subst old (EVar newName) ty
+
+    renameConstraint old newName (Constraint cls ty) =
+      Constraint cls <$> subst old (EVar newName) ty
+
+    goConstraint bound (Constraint cls ty) = do
+      ty' <- go bound ty
+      pure (Constraint cls ty')
 
     renameCompVar old newName comp = do
       renamed <- subst old (EVar newName) (ECompute comp)
@@ -397,30 +590,70 @@ normalize env expr = do
       pure (mkApp f' args')
     EForAll v dom cod -> do
       dom' <- normalize env dom
-      cod' <- normalize env cod
+      let env' = extendLocal env v dom'
+      cod' <- normalize env' cod
       pure (EForAll v dom' cod')
     EThereExists v dom cod -> do
       dom' <- normalize env dom
-      cod' <- normalize env cod
+      let env' = extendLocal env v dom'
+      cod' <- normalize env' cod
       pure (EThereExists v dom' cod')
     ECompType t -> ECompType <$> normalize env t
-    EFunction params ret body -> do
-      params' <- mapM (\(Param n ty) -> Param n <$> normalize env ty) params
-      ret' <- normalize env ret
+    EPack v dom cod witness body -> do
+      dom' <- normalize env dom
+      let env' = extendLocal env v dom'
+      cod' <- normalize env' cod
+      witness' <- normalize env witness
+      body' <- normalize env body
+      pure (EPack v dom' cod' witness' body')
+    EUnpack packed x y body -> do
+      packed' <- normalize env packed
+      let env' = extendLocal (extendLocal env x tUnit) y tUnit
+      body' <- normalize env' body
+      pure (EUnpack packed' x y body')
+    ELift ty fromLevel toLevel -> do
+      ty' <- normalize env ty
+      if fromLevel == toLevel
+        then pure ty'
+        else pure (ELift ty' fromLevel toLevel)
+    EUp ty fromLevel toLevel body -> do
+      ty' <- normalize env ty
+      body' <- normalize env body
+      if fromLevel == toLevel
+        then pure body'
+        else pure (EUp ty' fromLevel toLevel body')
+    EDown ty fromLevel toLevel body -> do
+      ty' <- normalize env ty
+      body' <- normalize env body
+      case body' of
+        EUp ty2 from2 to2 inner
+          | fromLevel == from2
+              && toLevel == to2
+              && alphaEq Map.empty ty' ty2 -> normalize env inner
+        _ ->
+          if fromLevel == toLevel
+            then pure body'
+            else pure (EDown ty' fromLevel toLevel body')
+    EFunction params constraints ret body -> do
+      (env', params') <- normalizeParams env params
+      constraints' <- mapM (\(Constraint cls ty) -> Constraint cls <$> normalize env' ty) constraints
+      ret' <- normalize env' ret
       body' <- case body of
-        FunctionValue e1 -> FunctionValue <$> normalize env e1
+        FunctionValue e1 -> FunctionValue <$> normalize env' e1
         FunctionCompute c1 -> pure (FunctionCompute c1)
-      pure (EFunction params' ret' body')
+      pure (EFunction params' constraints' ret' body')
     ELet v val body -> do
       body' <- subst v val body
       normalize env body'
     EAnnot e1 _ -> normalize env e1
     ETyped e1 _ -> normalize env e1
-    EMatch scrut scrutTy cases -> do
+    EMatch scrut scrutTy scrutName retTy cases -> do
       scrut' <- normalize env scrut
       scrutTy' <- normalize env scrutTy
-      cases' <- mapM (normalizeCase env) cases
-      pure (EMatch scrut' scrutTy' cases')
+      let env' = extendLocal env scrutName scrutTy'
+      retTy' <- normalize env' retTy
+      cases' <- mapM (normalizeCase env') cases
+      pure (EMatch scrut' scrutTy' scrutName retTy' cases')
     _ -> pure wh
 
 normalizeCase :: TCEnv -> MatchCase -> TypeCheckM MatchCase
@@ -428,10 +661,26 @@ normalizeCase env caseExpr = case caseExpr of
   MatchEmpty body -> MatchEmpty <$> normalize env body
   MatchFalse body -> MatchFalse <$> normalize env body
   MatchTrue body -> MatchTrue <$> normalize env body
-  MatchCons h hTy t tTy body ->
-    MatchCons h <$> normalize env hTy <*> pure t <*> normalize env tTy <*> normalize env body
-  MatchPair a aTy b bTy body ->
-    MatchPair a <$> normalize env aTy <*> pure b <*> normalize env bTy <*> normalize env body
+  MatchCons h hTy t tTy body -> do
+    hTy' <- normalize env hTy
+    tTy' <- normalize env tTy
+    let env' = extendLocal (extendLocal env h hTy') t tTy'
+    body' <- normalize env' body
+    pure (MatchCons h hTy' t tTy' body')
+  MatchPair a aTy b bTy body -> do
+    aTy' <- normalize env aTy
+    bTy' <- normalize env bTy
+    let env' = extendLocal (extendLocal env a aTy') b bTy'
+    body' <- normalize env' body
+    pure (MatchPair a aTy' b bTy' body')
+
+normalizeParams :: TCEnv -> [Param] -> TypeCheckM (TCEnv, [Param])
+normalizeParams env [] = pure (env, [])
+normalizeParams env (Param name ty : rest) = do
+  ty' <- normalize env ty
+  let env' = extendLocal env name ty'
+  (envFinal, rest') <- normalizeParams env' rest
+  pure (envFinal, Param name ty' : rest')
 
 whnf :: TCEnv -> Expr -> TypeCheckM Expr
 whnf env expr = case expr of
@@ -440,6 +689,49 @@ whnf env expr = case expr of
   ELet v val body -> do
     body' <- subst v val body
     whnf env body'
+  EUnpack packed x y body -> do
+    packed' <- whnf env packed
+    case packed' of
+      EPack _ _ _ witness packedBody -> do
+        body' <- subst x witness body
+        body'' <- subst y packedBody body'
+        whnf env body''
+      _ -> pure (EUnpack packed' x y body)
+  EMatch scrut scrutTy scrutName retTy cases -> do
+    scrut' <- whnf env scrut
+    let reduceWith body boundNames substs = do
+          body' <- if scrutName `elem` boundNames
+            then pure body
+            else subst scrutName scrut' body
+          body'' <- foldM (\acc (name, val) -> subst name val acc) body' substs
+          whnf env body''
+        noReduction = pure (EMatch scrut' scrutTy scrutName retTy cases)
+    case scrut' of
+      ELit (LBoolean False) ->
+        case [body | MatchFalse body <- cases] of
+          (body:_) -> reduceWith body [] []
+          [] -> noReduction
+      ELit (LBoolean True) ->
+        case [body | MatchTrue body <- cases] of
+          (body:_) -> reduceWith body [] []
+          [] -> noReduction
+      EApp (EVar "nil-prim") [_elemTy] ->
+        case [body | MatchEmpty body <- cases] of
+          (body:_) -> reduceWith body [] []
+          [] -> noReduction
+      EApp (EVar "cons-prim") [_elemTy, headExpr, tailExpr] ->
+        case [(h, t, body) | MatchCons h _ t _ body <- cases] of
+          ((h, t, body):_) -> reduceWith body [h, t] [(h, headExpr), (t, tailExpr)]
+          [] -> noReduction
+      EApp (EVar "pair-prim") [_aTy, _bTy, leftExpr, rightExpr] ->
+        case [(a, b, body) | MatchPair a _ b _ body <- cases] of
+          ((a, b, body):_) -> reduceWith body [a, b] [(a, leftExpr), (b, rightExpr)]
+          [] -> noReduction
+      _ -> noReduction
+  ELift ty fromLevel toLevel ->
+    if fromLevel == toLevel
+      then whnf env ty
+      else pure (ELift ty fromLevel toLevel)
   EVar v ->
     if v `Set.member` tcLocals env
       then pure expr
@@ -449,18 +741,29 @@ whnf env expr = case expr of
   EApp f args -> do
     f' <- whnf env f
     case f' of
-      EFunction params _ (FunctionValue body) ->
-        applyParams env params body args
+      EFunction params constraints ret (FunctionValue body) ->
+        applyParams params constraints ret body args
       _ -> pure (mkApp f' args)
   _ -> pure expr
 
-applyParams :: TCEnv -> [Param] -> Expr -> [Expr] -> TypeCheckM Expr
-applyParams _env [] body args = pure (mkApp body args)
-applyParams env (Param v _ : rest) body args = case args of
-  [] -> pure (EFunction (Param v tUnit : rest) tUnit (FunctionValue body))
+applyParams :: [Param] -> [Constraint] -> Expr -> Expr -> [Expr] -> TypeCheckM Expr
+applyParams [] _constraints _ret body args = pure (mkApp body args)
+applyParams (Param v ty : rest) constraints ret body args = case args of
+  [] -> pure (EFunction (Param v ty : rest) constraints ret (FunctionValue body))
   (a:as) -> do
     body' <- subst v a body
-    applyParams env rest body' as
+    rest' <- mapM (substParam v a) rest
+    constraints' <- mapM (substConstraint v a) constraints
+    ret' <- subst v a ret
+    applyParams rest' constraints' ret' body' as
+
+substParam :: Text -> Expr -> Param -> TypeCheckM Param
+substParam name replacement (Param v ty) =
+  Param v <$> subst name replacement ty
+
+substConstraint :: Text -> Expr -> Constraint -> TypeCheckM Constraint
+substConstraint name replacement (Constraint cls ty) =
+  Constraint cls <$> subst name replacement ty
 
 mkApp :: Expr -> [Expr] -> Expr
 mkApp (EApp f existing) more = EApp f (existing ++ more)
@@ -486,18 +789,37 @@ alphaEq env a b = case (a, b) of
   (EThereExists v1 d1 c1, EThereExists v2 d2 c2) ->
     alphaEq env d1 d2 && alphaEq (Map.insert v1 v2 env) c1 c2
   (ECompType t1, ECompType t2) -> alphaEq env t1 t2
+  (EPack v1 d1 c1 w1 b1, EPack v2 d2 c2 w2 b2) ->
+    alphaEq env d1 d2
+      && alphaEq (Map.insert v1 v2 env) c1 c2
+      && alphaEq env w1 w2
+      && alphaEq env b1 b2
+  (EUnpack p1 x1 y1 b1, EUnpack p2 x2 y2 b2) ->
+    alphaEq env p1 p2
+      && alphaEq (Map.insert y1 y2 (Map.insert x1 x2 env)) b1 b2
+  (ELift ty1 from1 to1, ELift ty2 from2 to2) ->
+    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2
+  (EUp ty1 from1 to1 body1, EUp ty2 from2 to2 body2) ->
+    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2 && alphaEq env body1 body2
+  (EDown ty1 from1 to1 body1, EDown ty2 from2 to2 body2) ->
+    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2 && alphaEq env body1 body2
   (EApp f1 a1, EApp f2 a2) ->
     length a1 == length a2 && alphaEq env f1 f2 && and (zipWith (alphaEq env) a1 a2)
-  (EFunction ps1 r1 b1, EFunction ps2 r2 b2) ->
+  (EFunction ps1 cs1 r1 b1, EFunction ps2 cs2 r2 b2) ->
     length ps1 == length ps2
+      && length cs1 == length cs2
       && let (env', paramsOk) = foldl step (env, True) (zip ps1 ps2)
              step (e, ok) (Param n1 t1, Param n2 t2) =
                (Map.insert n1 n2 e, ok && alphaEq e t1 t2)
-         in paramsOk && alphaEq env' r1 r2 && alphaEqBody env' b1 b2
+             constraintsOk = and (zipWith (alphaEqConstraint env') cs1 cs2)
+         in paramsOk && constraintsOk && alphaEq env' r1 r2 && alphaEqBody env' b1 b2
   (ELet v1 val1 body1, ELet v2 val2 body2) ->
     alphaEq env val1 val2 && alphaEq (Map.insert v1 v2 env) body1 body2
-  (EMatch s1 ty1 c1, EMatch s2 ty2 c2) ->
-    alphaEq env s1 s2 && alphaEq env ty1 ty2 && alphaEqCases env c1 c2
+  (EMatch s1 ty1 n1 r1 c1, EMatch s2 ty2 n2 r2 c2) ->
+    alphaEq env s1 s2
+      && alphaEq env ty1 ty2
+      && alphaEq (Map.insert n1 n2 env) r1 r2
+      && alphaEqCases (Map.insert n1 n2 env) c1 c2
   (EAnnot e1 t1, EAnnot e2 t2) ->
     alphaEq env e1 e2 && alphaEq env t1 t2
   (ETyped e1 t1, ETyped e2 t2) ->
@@ -506,7 +828,19 @@ alphaEq env a b = case (a, b) of
     n1 == n2 && and (zipWith (\(a1, e1) (a2, e2) -> a1 == a2 && alphaEq env e1 e2) i1 i2)
   (EDictAccess d1 m1, EDictAccess d2 m2) ->
     m1 == m2 && alphaEq env d1 d2
+  (ETypeClass p1 ms1, ETypeClass p2 ms2) ->
+    length ms1 == length ms2
+      && let env' = Map.insert p1 p2 env
+         in and (zipWith (\(n1, t1) (n2, t2) -> n1 == n2 && alphaEq env' t1 t2) ms1 ms2)
+  (EInstance c1 t1 ms1, EInstance c2 t2 ms2) ->
+    c1 == c2 && alphaEq env t1 t2
+      && length ms1 == length ms2
+      && and (zipWith (\(n1, e1) (n2, e2) -> n1 == n2 && alphaEq env e1 e2) ms1 ms2)
   _ -> False
+
+alphaEqConstraint :: Map.Map Text Text -> Constraint -> Constraint -> Bool
+alphaEqConstraint env (Constraint c1 t1) (Constraint c2 t2) =
+  c1 == c2 && alphaEq env t1 t2
 
 alphaEqBody :: Map.Map Text Text -> FunctionBody -> FunctionBody -> Bool
 alphaEqBody env b1 b2 = case (b1, b2) of
@@ -547,6 +881,16 @@ ensureConv env actual expected = do
   ok <- conv env actual expected
   if ok then pure () else lift (Left (TypeMismatch noLoc expected actual))
 
+ensureLiftLevels :: TCEnv -> Expr -> Int -> Int -> TypeCheckM ()
+ensureLiftLevels env ty fromLevel toLevel = do
+  actual <- inferUniverse env ty
+  if actual == fromLevel
+    then pure ()
+    else lift (Left (TypeMismatch noLoc (ETypeUniverse fromLevel) (ETypeUniverse actual)))
+  if fromLevel <= toLevel
+    then pure ()
+    else lift (Left (InvalidLift noLoc fromLevel toLevel))
+
 --------------------------------------------------------------------------------
 -- Type inference/checking
 
@@ -561,33 +905,66 @@ infer env expr = case expr of
   ETypeConst tc -> pure (typeOfTypeConst tc)
   ETypeUniverse n -> pure (ETypeUniverse (n + 1))
   EForAll v dom cod -> do
-    _ <- inferUniverse env dom
+    domLevel <- inferUniverse env dom
     let env' = extendLocal env v dom
-    _ <- inferUniverse env' cod
-    let level = max (universeLevel env dom) (universeLevel env' cod)
-    pure (ETypeUniverse level)
+    codLevel <- inferUniverse env' cod
+    pure (ETypeUniverse (max domLevel codLevel))
   EThereExists v dom cod -> do
+    domLevel <- inferUniverse env dom
+    let env' = extendLocal env v dom
+    codLevel <- inferUniverse env' cod
+    pure (ETypeUniverse (max domLevel codLevel))
+  ECompType t -> do
+    level <- inferUniverse env t
+    pure (ETypeUniverse level)
+  EPack v dom cod witness body -> do
     _ <- inferUniverse env dom
     let env' = extendLocal env v dom
     _ <- inferUniverse env' cod
-    let level = max (universeLevel env dom) (universeLevel env' cod)
-    pure (ETypeUniverse level)
-  ECompType t -> do
-    _ <- inferUniverse env t
-    pure (ETypeUniverse (universeLevel env t))
+    check env witness dom
+    codApplied <- subst v witness cod
+    check env body codApplied
+    pure (EThereExists v dom cod)
+  EUnpack packed x y body -> do
+    packedTy <- infer env packed
+    packedTyWhnf <- whnf env packedTy
+    case packedTyWhnf of
+      EThereExists v dom cod -> do
+        cod' <- subst v (EVar x) cod
+        let env' = extendLocal (extendLocal env x dom) y cod'
+        infer env' body
+      _ -> lift (Left (ExpectedThereExists noLoc packedTyWhnf))
+  ELift ty fromLevel toLevel -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    pure (ETypeUniverse toLevel)
+  EUp ty fromLevel toLevel body -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    check env body ty
+    pure (ELift ty fromLevel toLevel)
+  EDown ty fromLevel toLevel body -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    check env body (ELift ty fromLevel toLevel)
+    pure ty
   EApp f args -> do
     fTy <- infer env f
     foldM (applyArg env) fTy args
-  EFunction params ret body -> do
-    env' <- foldM (\e (Param n ty) -> do
-                    _ <- inferUniverse e ty
-                    pure (extendLocal e n ty)) env params
+  EFunction params constraints ret body -> do
+    envParams <- foldM (\e (Param n ty) -> do
+                          _ <- inferUniverse e ty
+                          pure (extendLocal e n ty)) env params
+    _ <- inferUniverse envParams ret
+    methods <- constraintMethods envParams constraints
+    let envWithMethods = foldl addMethod envParams methods
+        addMethod e (methodName, methodTy) =
+          if methodName `Set.member` tcLocals e
+            then e
+            else extendLocal e methodName methodTy
     case body of
-      FunctionValue e1 -> check env' e1 ret
+      FunctionValue e1 -> check envWithMethods e1 ret
       FunctionCompute c1 -> do
-        inner <- expectCompType env ret
-        compTy <- inferComp env' c1
-        ensureConv env' compTy inner
+        inner <- expectCompType envParams ret
+        compTy <- inferComp envWithMethods c1
+        ensureConv envWithMethods compTy inner
     pure (mkPi params ret)
   ELet name val body -> do
     valTy <- infer env val
@@ -595,11 +972,14 @@ infer env expr = case expr of
   ECompute comp -> do
     compTy <- inferComp env comp
     pure (ECompType compTy)
-  EMatch scrut scrutTy cases -> do
+  EMatch scrut scrutTy scrutName retTy cases -> do
     scrutInferred <- infer env scrut
     ensureConv env scrutInferred scrutTy
     _ <- inferUniverse env scrutTy
-    inferMatch env scrutTy cases
+    let envScrut = extendLocal env scrutName scrutTy
+    _ <- inferUniverse envScrut retTy
+    checkMatch envScrut scrutName retTy scrutTy cases
+    subst scrutName scrut retTy
   EAnnot e1 ty -> do
     _ <- inferUniverse env ty
     check env e1 ty
@@ -607,8 +987,39 @@ infer env expr = case expr of
   ETyped e1 ty -> do
     check env e1 ty
     pure ty
-  EDict _ _ -> lift (Left (MatchCaseError noLoc "dict nodes not supported"))
-  EDictAccess _ _ -> lift (Left (MatchCaseError noLoc "dict access nodes not supported"))
+  EDict _ _ -> lift (Left (TypeclassError noLoc "dict nodes not supported"))
+  EDictAccess _ _ -> lift (Left (TypeclassError noLoc "dict access nodes not supported"))
+  ETypeClass param methods -> do
+    ensureUniqueMethodNames (map fst methods)
+    let env' = extendLocal env param (tType 0)
+    mapM_ (\(_, ty) -> inferUniverse env' ty) methods
+    pure (classType param)
+  EInstance clsName instTy methods -> do
+    classInfo <- lookupClass noLoc env clsName
+    ensureUniqueMethodNames (map fst methods)
+    let knownNames = Map.keysSet (tcTypes env)
+        implicitVars = Set.toList (freeVars instTy `Set.difference` knownNames)
+        env' = foldl (\e v -> extendLocal e v (tType 0)) env implicitVars
+    instLevel <- inferUniverse env' instTy
+    when (instLevel /= 0) $
+      lift (Left (TypeclassError noLoc "Instance type must be in Type0"))
+    let classMethodNames = map fst (classMethods classInfo)
+        instMethodNames = map fst methods
+        missing = filter (`notElem` instMethodNames) classMethodNames
+        extras = filter (`notElem` classMethodNames) instMethodNames
+    when (not (null missing)) $
+      lift (Left (TypeclassError noLoc ("Instance missing methods: " <> T.intercalate ", " missing)))
+    when (not (null extras)) $
+      lift (Left (TypeclassError noLoc ("Instance has extra methods: " <> T.intercalate ", " extras)))
+    let methodMap = Map.fromList methods
+        param = classParam classInfo
+    mapM_ (\(methodName, methodTy) -> case Map.lookup methodName methodMap of
+              Nothing -> pure ()
+              Just impl -> do
+                expectedTy <- subst param instTy methodTy
+                check env' impl expectedTy
+          ) (classMethods classInfo)
+    pure (EApp (EVar (className classInfo)) [instTy])
 
 check :: TCEnv -> Expr -> Expr -> TypeCheckM ()
 check env expr expected = do
@@ -629,30 +1040,65 @@ inferComp env comp = case comp of
     _ <- inferComp env c1
     inferComp env c2
 
-inferMatch :: TCEnv -> Expr -> [MatchCase] -> TypeCheckM Expr
-inferMatch env scrutTy cases = do
+checkMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
+checkMatch env scrutName retTy scrutTy cases = do
   scrutTy' <- whnf env scrutTy
   case scrutTy' of
-    ETypeConst TCBoolean -> inferBoolMatch env cases
-    EApp (ETypeConst TCList) [elemTy] -> inferListMatch env elemTy cases
-    EApp (ETypeConst TCPair) [a, b] -> inferPairMatch env a b cases
+    ETypeConst TCBoolean -> do
+      ensureCaseSet [CaseFalse, CaseTrue] cases
+      checkBoolMatch env scrutName retTy cases
+    EApp (ETypeConst TCList) [elemTy] -> do
+      ensureCaseSet [CaseEmpty, CaseCons] cases
+      checkListMatch env scrutName retTy elemTy cases
+    EApp (ETypeConst TCPair) [a, b] -> do
+      ensureCaseSet [CasePair] cases
+      checkPairMatch env scrutName retTy a b cases
     _ -> lift (Left (MatchCaseError noLoc "unsupported scrutinee type"))
 
-inferBoolMatch :: TCEnv -> [MatchCase] -> TypeCheckM Expr
-inferBoolMatch env cases = do
+ensureCaseSet :: [MatchKind] -> [MatchCase] -> TypeCheckM ()
+ensureCaseSet allowed cases =
+  let kinds = map caseKind cases
+      allowedSet = Set.fromList allowed
+      extras = filter (`Set.notMember` allowedSet) kinds
+      counts = Map.fromListWith (+) [(k, 1 :: Int) | k <- kinds]
+      duplicates = Map.keys (Map.filter (>1) counts)
+  in case extras of
+    (k:_) -> lift (Left (MatchCaseError noLoc ("unexpected " <> caseKindName k)))
+    [] -> case duplicates of
+      (k:_) -> lift (Left (MatchCaseError noLoc ("duplicate " <> caseKindName k)))
+      [] -> pure ()
+
+caseKind :: MatchCase -> MatchKind
+caseKind caseExpr = case caseExpr of
+  MatchEmpty _ -> CaseEmpty
+  MatchCons _ _ _ _ _ -> CaseCons
+  MatchFalse _ -> CaseFalse
+  MatchTrue _ -> CaseTrue
+  MatchPair _ _ _ _ _ -> CasePair
+
+caseKindName :: MatchKind -> Text
+caseKindName kind = case kind of
+  CaseEmpty -> "empty-case"
+  CaseCons -> "cons-case"
+  CaseFalse -> "false-case"
+  CaseTrue -> "true-case"
+  CasePair -> "pair-case"
+
+checkBoolMatch :: TCEnv -> Text -> Expr -> [MatchCase] -> TypeCheckM ()
+checkBoolMatch env scrutName retTy cases = do
   falseBody <- case [body | MatchFalse body <- cases] of
     (body:_) -> pure body
     [] -> lift (Left (MatchCaseError noLoc "missing false-case"))
   trueBody <- case [body | MatchTrue body <- cases] of
     (body:_) -> pure body
     [] -> lift (Left (MatchCaseError noLoc "missing true-case"))
-  falseTy <- infer env falseBody
-  trueTy <- infer env trueBody
-  ensureConv env trueTy falseTy
-  pure falseTy
+  expectedFalse <- subst scrutName (ELit (LBoolean False)) retTy
+  expectedTrue <- subst scrutName (ELit (LBoolean True)) retTy
+  check env falseBody expectedFalse
+  check env trueBody expectedTrue
 
-inferListMatch :: TCEnv -> Expr -> [MatchCase] -> TypeCheckM Expr
-inferListMatch env elemTy cases = do
+checkListMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
+checkListMatch env scrutName retTy elemTy cases = do
   emptyBody <- case [body | MatchEmpty body <- cases] of
     (body:_) -> pure body
     [] -> lift (Left (MatchCaseError noLoc "missing empty-case"))
@@ -663,20 +1109,33 @@ inferListMatch env elemTy cases = do
       listTy = tList elemTy
   ensureConv env hTy elemTy
   ensureConv env tTy listTy
-  emptyTy <- infer env emptyBody
-  consTy <- infer (extendLocal (extendLocal env h elemTy) t listTy) consBody
-  ensureConv env consTy emptyTy
-  pure emptyTy
+  expectedEmpty <- subst scrutName (listNilTerm elemTy) retTy
+  expectedCons <- subst scrutName (listConsTerm elemTy h t) retTy
+  check env emptyBody expectedEmpty
+  let env' = extendLocal (extendLocal env h elemTy) t listTy
+  check env' consBody expectedCons
 
-inferPairMatch :: TCEnv -> Expr -> Expr -> [MatchCase] -> TypeCheckM Expr
-inferPairMatch env aTy bTy cases = do
+checkPairMatch :: TCEnv -> Text -> Expr -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
+checkPairMatch env scrutName retTy aTy bTy cases = do
   pairCase <- case [(x, xTy, y, yTy, body) | MatchPair x xTy y yTy body <- cases] of
     (c:_) -> pure c
     [] -> lift (Left (MatchCaseError noLoc "missing pair-case"))
   let (x, xTy, y, yTy, body) = pairCase
   ensureConv env xTy aTy
   ensureConv env yTy bTy
-  infer (extendLocal (extendLocal env x aTy) y bTy) body
+  expected <- subst scrutName (pairTerm aTy bTy x y) retTy
+  check (extendLocal (extendLocal env x aTy) y bTy) body expected
+
+listNilTerm :: Expr -> Expr
+listNilTerm elemTy = EApp (EVar "nil-prim") [elemTy]
+
+listConsTerm :: Expr -> Text -> Text -> Expr
+listConsTerm elemTy h t =
+  EApp (EVar "cons-prim") [elemTy, EVar h, EVar t]
+
+pairTerm :: Expr -> Expr -> Text -> Text -> Expr
+pairTerm aTy bTy x y =
+  EApp (EVar "pair-prim") [aTy, bTy, EVar x, EVar y]
 
 applyArg :: TCEnv -> Expr -> Expr -> TypeCheckM Expr
 applyArg env funTy argExpr = do
@@ -702,11 +1161,6 @@ inferUniverse env tyExpr = do
   case tyWhnf of
     ETypeUniverse n -> pure n
     _ -> lift (Left (ExpectedType noLoc tyWhnf))
-
-universeLevel :: TCEnv -> Expr -> Int
-universeLevel _ tyExpr = case tyExpr of
-  ETypeUniverse n -> n
-  _ -> 0
 
 typeOfTypeConst :: TypeConst -> Expr
 typeOfTypeConst tc = case tc of
@@ -827,22 +1281,43 @@ buildPrimitiveEnv = Map.fromList
 
 typeCheckModule :: Module -> Either TypeError TypeEnv
 typeCheckModule m = do
-  env <- runTypeCheck (typeCheckModuleWithEnv emptyEnv m)
+  let envWithOpens = processOpens (modOpens m) emptyEnv
+  env <- runTypeCheck (typeCheckModuleWithEnv envWithOpens m)
   pure (tcTypes env)
 
 typeCheckModuleWithImports :: FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
 typeCheckModuleWithImports projectRoot _sourceContents m = do
   importedEnv <- loadTypeImports projectRoot m
-  pure $ fmap tcTypes (runTypeCheck (typeCheckModuleWithEnv importedEnv m))
+  let envWithOpens = processOpens (modOpens m) importedEnv
+  pure $ fmap tcTypes (runTypeCheck (typeCheckModuleWithEnv envWithOpens m))
 
 typeCheckModuleWithEnv :: TCEnv -> Module -> TypeCheckM TCEnv
 typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) =
   foldM typeCheckDef initialEnv defs
 
 typeCheckDef :: TCEnv -> Definition -> TypeCheckM TCEnv
-typeCheckDef env (Definition tr name body) = do
-  ty <- infer env body
-  pure (extendGlobal env name ty tr body)
+typeCheckDef env (Definition tr name body) = case body of
+  ETypeClass param methods -> do
+    _ <- infer env body
+    let info = ClassInfo
+          { className = name
+          , classParam = param
+          , classMethods = methods
+          }
+    pure (extendClass env name info (classType param))
+  EInstance clsName instTy methods -> do
+    ty <- infer env body
+    classInfo <- lookupClass noLoc env clsName
+    let info = InstanceInfo
+          { instName = name
+          , instClass = className classInfo
+          , instType = instTy
+          , instMethods = Map.fromList methods
+          }
+    pure (extendInstance env name info ty)
+  _ -> do
+    ty <- infer env body
+    pure (extendGlobal env name ty tr body)
 
 annotateModule :: TypeEnv -> Module -> Either TypeError Module
 annotateModule _env m = Right m
@@ -855,7 +1330,14 @@ loadTypeImports projectRoot (Module _ imports _ _) = do
   envs <- mapM (loadTypeImport projectRoot) imports
   let mergedTypes = Map.unions (tcTypes emptyEnv : map tcTypes envs)
       mergedDefs = Map.unions (tcDefs emptyEnv : map tcDefs envs)
-  pure emptyEnv { tcTypes = mergedTypes, tcDefs = mergedDefs }
+      mergedClasses = Map.unions (tcClasses emptyEnv : map tcClasses envs)
+      mergedInstances = Map.unionsWith (++) (tcInstances emptyEnv : map tcInstances envs)
+  pure emptyEnv
+    { tcTypes = mergedTypes
+    , tcDefs = mergedDefs
+    , tcClasses = mergedClasses
+    , tcInstances = mergedInstances
+    }
 
 loadTypeImport :: FilePath -> Import -> IO TCEnv
 loadTypeImport projectRoot (Import modName alias) = do
@@ -887,12 +1369,23 @@ loadTypeImport projectRoot (Import modName alias) = do
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
     Right envSelf -> do
       let defNames = map defName defs
-          envFinal = foldl (insertQualified alias envSelf) envWithOpens defNames
+          localClassNames = [defName d | d@(Definition _ _ body) <- defs, isClass body]
+          localInstanceNames = [defName d | d@(Definition _ _ body) <- defs, isInstance body]
+          localClassSet = Set.fromList localClassNames
+          envValues = foldl (insertQualified alias envSelf) envWithOpens defNames
+          envClasses = foldl (insertQualifiedClass alias envSelf) envValues localClassNames
+          envFinal = foldl (insertQualifiedInstance alias envSelf localClassSet) envClasses localInstanceNames
       pure envFinal
   where
     tryLoadFile p = do
       c <- TIO.readFile p
       pure (p, c)
+    isClass expr = case expr of
+      ETypeClass _ _ -> True
+      _ -> False
+    isInstance expr = case expr of
+      EInstance _ _ _ -> True
+      _ -> False
 
 insertQualified :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
 insertQualified alias envSelf env name =
@@ -900,6 +1393,37 @@ insertQualified alias envSelf env name =
     Just scheme ->
       env { tcTypes = Map.insert (qualifyName alias name) scheme (tcTypes env) }
     Nothing -> env
+
+insertQualifiedClass :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
+insertQualifiedClass alias envSelf env name =
+  case Map.lookup name (tcClasses envSelf) of
+    Just info ->
+      let qualified = qualifyName alias name
+          info' = info { className = qualified }
+          ty = classType (classParam info)
+      in extendClass env qualified info' ty
+    Nothing -> env
+
+insertQualifiedInstance :: Text -> TCEnv -> Set.Set Text -> TCEnv -> Text -> TCEnv
+insertQualifiedInstance alias envSelf localClasses env name =
+  case findInstanceByName envSelf name of
+    Nothing -> env
+    Just info ->
+      let qualifiedName = qualifyName alias name
+          className' =
+            if instClass info `Set.member` localClasses
+              then qualifyName alias (instClass info)
+              else instClass info
+          info' = info { instName = qualifiedName, instClass = className' }
+          ty = EApp (EVar className') [instType info]
+      in extendInstance env qualifiedName info' ty
+
+findInstanceByName :: TCEnv -> Text -> Maybe InstanceInfo
+findInstanceByName env name =
+  let allInstances = concat (Map.elems (tcInstances env))
+  in case filter (\info -> instName info == name) allInstances of
+      (info:_) -> Just info
+      [] -> Nothing
 
 processOpens :: [Open] -> TCEnv -> TCEnv
 processOpens opens env = foldl processOneOpen env opens
@@ -909,8 +1433,9 @@ processOpens opens env = foldl processOneOpen env opens
 
     insertOpen modAlias e name =
       let qualifiedName = qualifyName modAlias name
-      in case Map.lookup qualifiedName (tcTypes e) of
-          Just scheme -> e { tcTypes = Map.insert name scheme (tcTypes e) }
-          Nothing ->
-            error $ "open: qualified name not found: " <> T.unpack qualifiedName <>
-                    "\nAvailable keys: " <> show (take 20 $ Map.keys (tcTypes e))
+          withValue = case Map.lookup qualifiedName (tcTypes e) of
+            Just scheme -> e { tcTypes = Map.insert name scheme (tcTypes e) }
+            Nothing -> e
+      in case Map.lookup qualifiedName (tcClasses e) of
+          Just info -> withValue { tcClasses = Map.insert name info (tcClasses withValue) }
+          Nothing -> withValue

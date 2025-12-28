@@ -1,12 +1,39 @@
 import prelude as P
+import comparison as C
+import string as S
 
 module assert contains
-  define opaque assert-eq-nat as assert-eq-nat-prim
-  define opaque assert-eq-string as assert-eq-string-prim
-  define opaque assert-eq-bool as assert-eq-bool-prim
+  define transparent assert-eq-nat as assert-eq-nat-prim
+  define transparent assert-eq-string as assert-eq-string-prim
+  define transparent assert-eq-bool as assert-eq-bool-prim
+
+  define transparent Equality as typeclass A where
+    eq of-type for-all x as A to for-all y as A to Boolean
+  end
+
+  define transparent Equality-Natural as instance Equality Natural where
+    eq as C::eq-nat
+  end
+
+  define transparent Equality-String as instance Equality String where
+    eq as S::eq
+  end
+
+  define transparent Equality-Boolean as instance Equality Boolean where
+    eq as function x Boolean y Boolean returns Boolean value
+      P::if-bool Boolean x y (P::not y)
+    end
+  end
+
+  define transparent assert-eq as
+    function A Type0 x A y A requires Equality A returns computation Unit value
+      compute
+        perform (assert-eq-bool (eq x y) true)
+      end
+    end
 
   define transparent assert-false as
     function msg String cond Boolean returns Unit value
-      P::if-bool cond (error-prim msg) tt
+      P::if-bool Unit cond (error-prim Unit msg) tt
     end
 end

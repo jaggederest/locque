@@ -1,6 +1,6 @@
 # Migrated from ../07_import_lq.lq
 
-import TestImport as T
+import testimport as T
 import assert as A
 import prelude as P
 

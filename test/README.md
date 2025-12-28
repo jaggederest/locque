@@ -1,57 +1,34 @@
-Test harness sketch
+Test harness overview
 
-- Runner: `smith test` (future) discovers test modules under `test/` and runs a designated entry (default `main`) expecting success to be signaled by returning `tt` (unit) with no assertion failures.
-- Assertions: use explicit computation-level assertions (e.g., `assert-eq-nat`, `assert-eq-string`, `assert-true`). These live in the computation world and fail the test by raising an effect (to be defined).
-- No implicit magic: tests are ordinary modules; `main` is a `computation`.
-- File forms: M-exp tests `.lq`; S-exp mirrors `.lqs`.
+- Runner: `smyth test` runs `test/main.lq` and the `error-tests` list from `Smythfile.lq`.
+- Single test: `smyth test <file>` runs that module as a test.
+- Program run: `smyth run <file>` typechecks and runs any `.lq/.lqs`.
+- Assertions: prefer `assert::assert-eq` with an explicit type argument; primitive asserts are still available for low-level checks.
+- Entrypoint: tests are ordinary modules; `main` must evaluate to a computation value (use `compute` and `sequence`).
 
-## Test Organization
+## Organization
 
-### Current Structure (Modular)
-- `features/`: Language feature tests (basics, IO, lambda, fold, match, primitives, etc.)
-- `typecheck/`: Type checker tests (monomorphic, polymorphic, bidirectional, etc.)
-- `smyth/`: Smyth tool integration tests (run, test commands, assertion counting)
-- `errors/`: Error message tests (fuzzy matching, suggestions)
-- `syntax/`: Syntax tests (comments, validation)
-- `conversion/`: M-expr ↔ S-expr conversion tests
+- `test/main.lq`: rollup entry; currently runs prelude + arithmetic + list suites.
+- `test/prelude/`: core language and CBPV tests.
+- `test/typecheck/`: negative typechecker cases (registered in `Smythfile.lq`).
+- `test/arithmetic/`, `test/list/`, `test/string/`, `test/comparison/`, `test/io/`, `test/shell/`, `test/typeclass/`: stdlib/module tests.
+- `test/errors/`, `test/syntax/`, `test/tools/`, `test/smyth/`: tooling and diagnostics.
 
-### Legacy Structure (Numbered)
-- `00-39`: Feature tests (basics, IO, lambda, fold, match, primitives, etc.)
-- `40-49`: Validator/negative tests (malformed code, error cases)
-- `50-59`: Conversion/metaprogramming tests (roundtrip, AST manipulation)
-- `99-XX`: Type checker tests (monomorphic, polymorphic, etc.)
+## Policies
 
-**Note:** Legacy numbered tests at root level will be gradually migrated to the modular structure.
+- Every `lib/**/*.lq` must have a matching `test/**/*.lq` path (tooling enforces this).
+- File paths for `lib/**/*.lq` and `test/**/*.lq` must be lowercase (tooling enforces this).
+- `.lqs` files are generated mirrors; author `.lq` and use the converters.
 
-## Test Expectations
-
-- All tests must pass at all times (no known failures)
-- New features require new tests before merge
-- Both `.lq` and `.lqs` versions should exist where appropriate
-- Negative tests (40s) should test error handling explicitly
-- **New tests should include type annotations** (use `function x of-type T produce ...`)
-- Legacy tests may require `--skip-typecheck` flag
-
-## Running Tests
+## Running tests
 
 ```bash
-# Run single test (with type checking)
-cabal run locque-interpreter -- --run-lq test/99_typecheck_mono.lq
+# Run the full suite (test/main.lq + error-tests)
+smyth test
 
-# Run legacy test (without type checking)
-cabal run locque-interpreter -- --skip-typecheck --run-lq test/00_basics.lq
+# Run a single test module
+smyth test test/prelude/basics.lq
 
-# Run validator test
-cabal run locque-interpreter -- --run-lqs test/40_small_bad_code.lqs
-
-# Type check only (don't run)
-cabal run locque-interpreter -- --typecheck test/99_typecheck_mono.lq
+# Typecheck only
+locque-interpreter typecheck test/list.lq
 ```
-
-Initial smoke tests (spec intent)
-- Equality (nat): `assert-eq-nat (add-nat 2 3) 5`
-- Equality (string): `assert-eq-string "hi" "hi"`
-- Output: `perform io (print "Hello, test!")`
-- Composition: run multiple assertions, ensure sequencing via `bind`.
-
-See `test/00_basics.lq` and `test/00_basics.lqs` for concrete shapes.

@@ -13,6 +13,8 @@ import           Eval
 import           Parser
 import           Validator
 import qualified TypeChecker as TC
+import           DictPass (transformModuleWithEnvs)
+import           ProjectChecks (requireLibTests)
 
 main :: IO ()
 main = do
@@ -30,6 +32,7 @@ runFile :: FilePath -> IO ()
 runFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
+  requireLibTests projectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
@@ -37,7 +40,10 @@ runFile file = do
       typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
       case typeResult of
         Left tcErr -> die ("Type error: " ++ show tcErr)
-        Right _env -> do _ <- runModuleMain projectRoot m; pure ()
+        Right _env -> do
+          m' <- transformModuleWithEnvs projectRoot m
+          _ <- runModuleMain projectRoot m'
+          pure ()
 
 usage :: String
 usage = unlines
@@ -65,6 +71,7 @@ typecheckFile :: FilePath -> IO ()
 typecheckFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
+  requireLibTests projectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err

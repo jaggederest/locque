@@ -1,0 +1,11 @@
+# Expected type error: perform expects a computation, got Natural.
+
+module test::typecheck::perform_non_computation contains
+  define transparent bad-perform as compute
+    perform 1
+  end
+
+  define transparent main as compute
+    return tt
+  end
+end

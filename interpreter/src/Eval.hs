@@ -42,6 +42,7 @@ data Value
   | VTypeForAll Text Expr Expr
   | VTypeThereExists Text Expr Expr
   | VTypeComp Expr
+  | VTypeLift Expr Int Int
   | VTypeApp Value [Value]
   | VClosure Env [Text] FunctionBody
   | VPrim ([Value] -> IO Value)
@@ -61,6 +62,7 @@ instance Show Value where
   show (VTypeForAll _ _ _) = "<for-all>"
   show (VTypeThereExists _ _ _) = "<there-exists>"
   show (VTypeComp _) = "<computation-type>"
+  show (VTypeLift _ _ _) = "<lift-type>"
   show (VTypeApp _ _) = "<type-app>"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
@@ -96,7 +98,7 @@ primEnv = Map.fromList
   , (T.pack "assert-eq-string-prim", BVal (VPrim primAssertEqString))
   , (T.pack "tt-prim", BVal VUnit)
   , (T.pack "tt", BVal VUnit)
-  , (T.pack "nil-prim", BVal (VList []))
+  , (T.pack "nil-prim", BVal (VPrim primNil))
   , (T.pack "cons-prim", BVal (VPrim primCons))
   , (T.pack "head-prim", BVal (VPrim primHead))
   , (T.pack "tail-prim", BVal (VPrim primTail))
@@ -193,51 +195,86 @@ primTrim [VString s] = pure $ VString (T.strip s)
 primTrim _ = error "trim-prim expects 1 string"
 
 primFilter :: [Value] -> IO Value
-primFilter [fn, VList xs] = do
+primFilter [ty, fn, VList xs] = do
+  expectTypeArg ty
   kept <- filterM (\v -> do
                       res <- apply fn [v]
                       pure (isTruthy res)) xs
   pure $ VList kept
-primFilter _ = error "filter-prim expects (predicate, list)"
+primFilter _ = error "filter-prim expects (Type, predicate, list)"
 
 primFold :: [Value] -> IO Value
-primFold [fn, z, VList xs] = foldM step z xs
+primFold [tyA, tyB, fn, z, VList xs] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  foldM step z xs
   where
     step acc v = apply fn [acc, v]
-primFold _ = error "fold-prim expects (fn, init, list)"
+primFold _ = error "fold-prim expects (Type, Type, fn, init, list)"
+
+primNil :: [Value] -> IO Value
+primNil [ty] = do
+  expectTypeArg ty
+  pure (VList [])
+primNil _ = error "nil-prim expects (Type)"
 
 primMatchList :: [Value] -> IO Value
-primMatchList [VList [], c1, _c2] = apply c1 [VUnit]
-primMatchList [VList (h:t), _c1, c2] = apply c2 [h, VList t]
-primMatchList [v, _, _] = error $ "match-list-prim expects List, got " ++ show v
-primMatchList _ = error "match-list-prim expects (List, empty-handler, cons-handler)"
+primMatchList [tyA, tyB, VList [], c1, _c2] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  apply c1 [VUnit]
+primMatchList [tyA, tyB, VList (h:t), _c1, c2] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  apply c2 [h, VList t]
+primMatchList [_, _, v, _, _] = error $ "match-list-prim expects List, got " ++ show v
+primMatchList _ = error "match-list-prim expects (Type, Type, list, empty-handler, cons-handler)"
 
 primMatchBool :: [Value] -> IO Value
-primMatchBool [VBoolean False, c1, _c2] = apply c1 [VUnit]
-primMatchBool [VBoolean True, _c1, c2] = apply c2 [VUnit]
-primMatchBool [v, _, _] = error $ "match-bool-prim expects Bool, got " ++ show v
-primMatchBool _ = error "match-bool-prim expects (Bool, false-handler, true-handler)"
+primMatchBool [tyB, VBoolean False, c1, _c2] = do
+  expectTypeArg tyB
+  apply c1 [VUnit]
+primMatchBool [tyB, VBoolean True, _c1, c2] = do
+  expectTypeArg tyB
+  apply c2 [VUnit]
+primMatchBool [_, v, _, _] = error $ "match-bool-prim expects Bool, got " ++ show v
+primMatchBool _ = error "match-bool-prim expects (Type, Bool, false-handler, true-handler)"
 
 primMatchPair :: [Value] -> IO Value
-primMatchPair [VPair a b, _c1, c2] = apply c2 [a, b]
-primMatchPair [v, _, _] = error $ "match-pair-prim expects Pair, got " ++ show v
-primMatchPair _ = error "match-pair-prim expects (Pair, unreachable-handler, pair-handler)"
+primMatchPair [tyA, tyB, tyC, VPair a b, _c1, c2] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  expectTypeArg tyC
+  apply c2 [a, b]
+primMatchPair [_, _, _, v, _, _] = error $ "match-pair-prim expects Pair, got " ++ show v
+primMatchPair _ = error "match-pair-prim expects (Type, Type, Type, pair, unreachable-handler, pair-handler)"
 
 primPair :: [Value] -> IO Value
-primPair [a,b] = pure $ VPair a b
-primPair _ = error "pair-prim expects 2 args"
+primPair [tyA, tyB, a, b] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  pure $ VPair a b
+primPair _ = error "pair-prim expects (Type, Type, a, b)"
 
 primFst :: [Value] -> IO Value
-primFst [VPair a _] = pure a
-primFst _ = error "fst-prim expects pair"
+primFst [tyA, tyB, VPair a _] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  pure a
+primFst _ = error "fst-prim expects (Type, Type, pair)"
 
 primSnd :: [Value] -> IO Value
-primSnd [VPair _ b] = pure b
-primSnd _ = error "snd-prim expects pair"
+primSnd [tyA, tyB, VPair _ b] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  pure b
+primSnd _ = error "snd-prim expects (Type, Type, pair)"
 
 primPairToList :: [Value] -> IO Value
-primPairToList [VPair a b] = pure $ VList [a,b]
-primPairToList _ = error "pair-to-list-prim expects pair"
+primPairToList [tyA, VPair a b] = do
+  expectTypeArg tyA
+  pure $ VList [a, b]
+primPairToList _ = error "pair-to-list-prim expects (Type, pair)"
 
 primValidate :: [Value] -> IO Value
 primValidate [VString s] = do
@@ -302,30 +339,47 @@ primAssertEqString [a,b] = do
 primAssertEqString _ = error "assert-eq-string expects 2 args"
 
 primCons :: [Value] -> IO Value
-primCons [h, VList t] = pure $ VList (h:t)
-primCons _ = error "cons-prim expects head and list"
+primCons [ty, h, VList t] = do
+  expectTypeArg ty
+  pure $ VList (h:t)
+primCons _ = error "cons-prim expects (Type, head, list)"
 
 primHead :: [Value] -> IO Value
-primHead [VList (h:_)] = pure h
-primHead [VList []]    = pure (VList [])
-primHead _ = error "head-prim expects non-empty list"
+primHead [ty, VList (h:_)] = do
+  expectTypeArg ty
+  pure h
+primHead [ty, VList []] = do
+  expectTypeArg ty
+  pure (VList [])
+primHead _ = error "head-prim expects (Type, list)"
 
 primTail :: [Value] -> IO Value
-primTail [VList (_:t)] = pure (VList t)
-primTail [VList []]    = pure (VList [])
-primTail _ = error "tail-prim expects non-empty list"
+primTail [ty, VList (_:t)] = do
+  expectTypeArg ty
+  pure (VList t)
+primTail [ty, VList []] = do
+  expectTypeArg ty
+  pure (VList [])
+primTail _ = error "tail-prim expects (Type, list)"
 
 primLengthList :: [Value] -> IO Value
-primLengthList [VList xs] = pure $ VNatural (fromIntegral (length xs))
-primLengthList _ = error "length-list-prim expects 1 list arg"
+primLengthList [ty, VList xs] = do
+  expectTypeArg ty
+  pure $ VNatural (fromIntegral (length xs))
+primLengthList _ = error "length-list-prim expects (Type, list)"
 
 primAppend :: [Value] -> IO Value
-primAppend [VList xs, VList ys] = pure $ VList (xs ++ ys)
-primAppend _ = error "append-prim expects (list, list)"
+primAppend [ty, VList xs, VList ys] = do
+  expectTypeArg ty
+  pure $ VList (xs ++ ys)
+primAppend _ = error "append-prim expects (Type, list, list)"
 
 primMap :: [Value] -> IO Value
-primMap [fn, VList xs] = VList <$> mapM (\v -> apply fn [v]) xs
-primMap _ = error "map-prim expects (fn, list)"
+primMap [tyA, tyB, fn, VList xs] = do
+  expectTypeArg tyA
+  expectTypeArg tyB
+  VList <$> mapM (\v -> apply fn [v]) xs
+primMap _ = error "map-prim expects (Type, Type, fn, list)"
 
 primNot :: [Value] -> IO Value
 primNot [VBoolean b] = pure $ VBoolean (not b)
@@ -333,8 +387,10 @@ primNot [v] = pure $ VBoolean (not (isTruthy v))
 primNot _ = error "not-prim expects 1 arg"
 
 primIfBool :: [Value] -> IO Value
-primIfBool [cond, t, f] = pure $ if isTruthy cond then t else f
-primIfBool _ = error "if-bool-prim expects (cond, then, else)"
+primIfBool [ty, cond, t, f] = do
+  expectTypeArg ty
+  pure $ if isTruthy cond then t else f
+primIfBool _ = error "if-bool-prim expects (Type, cond, then, else)"
 
 primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
 primCompareNat op [a, b] = do
@@ -371,24 +427,27 @@ primModNat _ = error "mod-nat-prim expects 2 args"
 -- List operations
 
 primNth :: [Value] -> IO Value
-primNth [VNatural idx, VList xs] = do
+primNth [ty, VNatural idx, VList xs] = do
+  expectTypeArg ty
   let i = fromInteger idx
   if i < 0 || i >= length xs
     then error $ "nth-prim: index " ++ show idx ++ " out of bounds for list of length " ++ show (length xs)
     else pure $ xs !! i
-primNth _ = error "nth-prim expects (index, list)"
+primNth _ = error "nth-prim expects (Type, index, list)"
 
 primTake :: [Value] -> IO Value
-primTake [VNatural n, VList xs] = do
+primTake [ty, VNatural n, VList xs] = do
+  expectTypeArg ty
   let count = fromInteger n
   pure $ VList (take count xs)
-primTake _ = error "take-prim expects (count, list)"
+primTake _ = error "take-prim expects (Type, count, list)"
 
 primDrop :: [Value] -> IO Value
-primDrop [VNatural n, VList xs] = do
+primDrop [ty, VNatural n, VList xs] = do
+  expectTypeArg ty
   let count = fromInteger n
   pure $ VList (drop count xs)
-primDrop _ = error "drop-prim expects (count, list)"
+primDrop _ = error "drop-prim expects (Type, count, list)"
 
 -- String operations
 
@@ -435,22 +494,26 @@ primReverseString [VString s] = pure $ VString (T.reverse s)
 primReverseString _ = error "reverse-string-prim expects 1 string arg"
 
 primLast :: [Value] -> IO Value
-primLast [VList xs] =
+primLast [ty, VList xs] = do
+  expectTypeArg ty
   if null xs
     then pure (VList [])
     else pure (last xs)
-primLast _ = error "last-prim expects 1 list arg"
+primLast _ = error "last-prim expects (Type, list)"
 
 primInit :: [Value] -> IO Value
-primInit [VList xs] =
+primInit [ty, VList xs] = do
+  expectTypeArg ty
   if null xs
     then pure (VList [])
     else pure (VList (init xs))
-primInit _ = error "init-prim expects 1 list arg"
+primInit _ = error "init-prim expects (Type, list)"
 
 primError :: [Value] -> IO Value
-primError [VString msg] = error (T.unpack msg)
-primError _ = error "error-prim expects 1 string arg"
+primError [ty, VString msg] = do
+  expectTypeArg ty
+  error (T.unpack msg)
+primError _ = error "error-prim expects (Type, string)"
 
 primNatToString :: [Value] -> IO Value
 primNatToString [VNatural n] = pure $ VString (T.pack (show n))
@@ -462,6 +525,23 @@ primAssertEqBool [VBoolean a, VBoolean b] = do
     then pure (VComp (modifyIORef' assertionCounter (+1) >> pure VUnit))
     else pure (VComp (error $ "assert-eq-bool failed: " ++ show a ++ " /= " ++ show b))
 primAssertEqBool _ = error "assert-eq-bool-prim expects 2 Boolean args"
+
+isTypeValue :: Value -> Bool
+isTypeValue v = case v of
+  VTypeConst _ -> True
+  VTypeUniverse _ -> True
+  VTypeForAll _ _ _ -> True
+  VTypeThereExists _ _ _ -> True
+  VTypeComp _ -> True
+  VTypeLift _ _ _ -> True
+  VTypeApp _ _ -> True
+  _ -> False
+
+expectTypeArg :: Value -> IO ()
+expectTypeArg v =
+  if isTypeValue v
+    then pure ()
+    else error $ "expected Type argument, got " ++ show v
 
 expectNat :: Value -> IO Integer
 expectNat (VNatural n) = pure n
@@ -532,14 +612,28 @@ evalExpr env expr = case expr of
   EForAll v dom cod -> pure (VTypeForAll v dom cod)
   EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
   ECompType t -> pure (VTypeComp t)
-  EFunction params _retTy body ->
+  ELift ty fromLevel toLevel -> pure (VTypeLift ty fromLevel toLevel)
+  EUp _ _ _ body -> evalExpr env body
+  EDown _ _ _ body -> evalExpr env body
+  EPack _ _ _ witness body -> do
+    witness' <- evalExpr env witness
+    body' <- evalExpr env body
+    pure (VPair witness' body')
+  EUnpack packed x y body -> do
+    packedVal <- evalExpr env packed
+    case packedVal of
+      VPair a b ->
+        let env' = Map.insert y (BVal b) (Map.insert x (BVal a) env)
+        in evalExpr env' body
+      _ -> error "unpack expects a packed value"
+  EFunction params _constraints _retTy body ->
     pure $ VClosure env (map paramName params) body
   ELet name val body -> do
     val' <- evalExpr env val
     let env' = Map.insert name (BVal val') env
     evalExpr env' body
   ECompute comp -> pure $ VComp (runComp env comp)
-  EMatch scrut _scrutTy cases -> evalMatch env scrut cases
+  EMatch scrut _scrutTy scrutName _retTy cases -> evalMatch env scrut scrutName cases
   EAnnot annExpr _ty -> evalExpr env annExpr  -- Type annotation ignored in evaluation
   ETyped typedExpr _ty -> evalExpr env typedExpr  -- Inferred type ignored in evaluation
   EApp f args -> do
@@ -560,6 +654,8 @@ evalExpr env expr = case expr of
           Just val -> pure val
           Nothing -> error $ "Method not found in dictionary: " ++ T.unpack methodName
       _ -> error "Expected dictionary value"
+  ETypeClass _ _ -> error "Typeclass nodes are not evaluable"
+  EInstance _ _ _ -> error "Instance nodes are not evaluable"
 
 resolveBinding :: Env -> Binding -> IO Value
 resolveBinding _outerEnv b = case b of
@@ -570,6 +666,8 @@ apply :: Value -> [Value] -> IO Value
 apply v [] = pure v
 apply (VPrim f) args = f args
 apply (VTypeConst tc) args = pure (VTypeApp (VTypeConst tc) args)
+apply (VTypeLift ty fromLevel toLevel) args =
+  pure (VTypeApp (VTypeLift ty fromLevel toLevel) args)
 apply (VTypeApp f existing) args = pure (VTypeApp f (existing ++ args))
 apply (VClosure cenv params body) args = do
   let (used, remaining) = splitAt (length params) args
@@ -592,32 +690,33 @@ evalFunctionBody env body = case body of
   FunctionValue expr -> evalExpr env expr
   FunctionCompute comp -> pure (VComp (runComp env comp))
 
-evalMatch :: Env -> Expr -> [MatchCase] -> IO Value
-evalMatch env scrut cases = do
+evalMatch :: Env -> Expr -> Text -> [MatchCase] -> IO Value
+evalMatch env scrut scrutName cases = do
   scrutVal <- evalExpr env scrut
+  let envScrut = Map.insert scrutName (BVal scrutVal) env
   case scrutVal of
     VList [] ->
       case [body | MatchEmpty body <- cases] of
-        (body:_) -> evalExpr env body
+        (body:_) -> evalExpr envScrut body
         [] -> error "match: missing empty-case"
     VList (h:t) ->
       case [(hName, tName, body) | MatchCons hName _ tName _ body <- cases] of
         ((hName, tName, body):_) -> do
-          let env' = Map.insert tName (BVal (VList t)) (Map.insert hName (BVal h) env)
+          let env' = Map.insert tName (BVal (VList t)) (Map.insert hName (BVal h) envScrut)
           evalExpr env' body
         [] -> error "match: missing cons-case"
     VBoolean False ->
       case [body | MatchFalse body <- cases] of
-        (body:_) -> evalExpr env body
+        (body:_) -> evalExpr envScrut body
         [] -> error "match: missing false-case"
     VBoolean True ->
       case [body | MatchTrue body <- cases] of
-        (body:_) -> evalExpr env body
+        (body:_) -> evalExpr envScrut body
         [] -> error "match: missing true-case"
     VPair a b ->
       case [(aName, bName, body) | MatchPair aName _ bName _ body <- cases] of
         ((aName, bName, body):_) -> do
-          let env' = Map.insert bName (BVal b) (Map.insert aName (BVal a) env)
+          let env' = Map.insert bName (BVal b) (Map.insert aName (BVal a) envScrut)
           evalExpr env' body
         [] -> error "match: missing pair-case"
     _ -> error "match: unsupported scrutinee value"
@@ -669,23 +768,23 @@ loadImport projectRoot (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  -- Type check the imported module
+  -- Type check the imported module (native typeclass support on original module)
   tcResult <- TC.typeCheckModuleWithImports projectRoot contents parsed
   annotated <- case tcResult of
     Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
-    Right env -> case TC.annotateModule env parsed of
-      Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
-      Right m -> pure m
+    Right env -> do
+      transformed <- transformModuleWithEnvs projectRoot parsed
+      case TC.annotateModule env transformed of
+        Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
+        Right m -> pure m
 
-  -- Apply dictionary pass to transform typeclass method calls
-  let transformed = transformModuleWithEnvs annotated
-  let Module _modName _ opens defs = transformed
-  envImports <- loadImports projectRoot transformed
+  let Module _modName _ opens defs = annotated
+  envImports <- loadImports projectRoot annotated
   -- Process opens to bring in unqualified names from open statements
   let envWithOpens = processOpens opens envImports
 
   -- Bind the module to get all definitions
-  let envSelf = bindModule transformed envWithOpens
+  let envSelf = bindModule annotated envWithOpens
       -- Add qualified names for each definition using the alias
       defNames = map defName defs
       envFinal = foldl (insertQualified alias envSelf) envWithOpens defNames

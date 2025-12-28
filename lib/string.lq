@@ -2,18 +2,18 @@ import prelude as P
 import comparison as C
 
 module string contains
-  define opaque concat as concat-string-prim
-  define opaque length as length-string-prim
-  define opaque eq as eq-string-prim
-  define opaque split-on as split-on-prim
-  define opaque join-with as join-with-prim
-  define opaque trim as trim-prim
-  define opaque substring as substring-prim
-  define opaque char-at as char-at-prim
-  define opaque string-contains as contains-prim
-  define opaque string-starts-with as starts-with-prim
-  define opaque string-ends-with as ends-with-prim
-  define opaque string-index-of as index-of-prim
+  define transparent concat as concat-string-prim
+  define transparent length as length-string-prim
+  define transparent eq as eq-string-prim
+  define transparent split-on as split-on-prim
+  define transparent join-with as join-with-prim
+  define transparent trim as trim-prim
+  define transparent substring as substring-prim
+  define transparent char-at as char-at-prim
+  define transparent string-contains as contains-prim
+  define transparent string-starts-with as starts-with-prim
+  define transparent string-ends-with as ends-with-prim
+  define transparent string-index-of as index-of-prim
 
   define transparent is-empty as
     function s String returns Boolean value
@@ -53,7 +53,7 @@ module string contains
   define transparent split-spaces as
     function s String returns List String value
       let value trimmed be trim s in
-        P::filter
+        P::filter String
           (function x String returns Boolean value
             P::not (is-empty x)
           end)

@@ -1,0 +1,6 @@
+module test::typecheck::exists_unpack_non_sigma contains
+  define transparent bad as
+    unpack 5 as x y in
+      y
+    end
+end

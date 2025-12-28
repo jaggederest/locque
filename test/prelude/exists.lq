@@ -1,0 +1,49 @@
+# Prelude tests for there-exists pack/unpack
+
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::prelude::exists contains
+  define transparent sigma-flag as
+    pack x as Natural in Boolean with 5 true end
+
+  define transparent check-sigma-flag-type as
+    of-type sigma-flag (there-exists x as Natural in Boolean)
+
+  define transparent unpack-flag as
+    unpack sigma-flag as x y in
+      y
+    end
+
+  define transparent check-unpack-flag-type as
+    of-type unpack-flag Boolean
+
+  define transparent check-unpack-flag as compute
+    perform (A::assert-eq Boolean unpack-flag true)
+  end
+
+  define transparent sigma-type as
+    pack A as Type0 in A with Natural 3 end
+
+  define transparent check-sigma-type as
+    of-type sigma-type (there-exists A as Type0 in A)
+
+  define transparent unpack-ignore as
+    unpack sigma-type as T v in
+      tt
+    end
+
+  define transparent check-unpack-ignore-type as
+    of-type unpack-ignore Unit
+
+  define transparent all-tests as compute
+    sequence
+      check-unpack-flag
+    end
+  end
+
+  define transparent main as compute
+    perform all-tests
+  end
+end

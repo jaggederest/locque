@@ -1,0 +1,15 @@
+# Test rollup for testimport module
+
+import testimport as T
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::testimport contains
+  define transparent main as compute
+    sequence
+      (assert-eq Natural T::test-value 42)
+      (assert-eq String T::test-string "hello from .lq")
+    end
+  end
+end

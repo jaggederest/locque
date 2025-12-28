@@ -1,0 +1,14 @@
+# Expected type error: missing empty-case.
+
+import prelude as P
+
+module test::typecheck::match_missing_empty contains
+  define transparent bad-match as
+    match (P::cons Natural 1 (P::nil Natural)) of-type (List Natural) as ignored returns Natural
+      cons-case with h Natural t (List Natural) as h
+    end
+
+  define transparent main as compute
+    return tt
+  end
+end

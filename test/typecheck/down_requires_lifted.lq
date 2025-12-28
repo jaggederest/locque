@@ -1,0 +1,4 @@
+module test::typecheck::down_requires_lifted contains
+  define transparent bad as
+    down Natural from Type0 to Type1 5
+end

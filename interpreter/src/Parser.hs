@@ -10,10 +10,11 @@ import AST
 import qualified Type as T
 import Data.Char (isAlphaNum, isLetter, isSpace, isAscii)
 import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as DT
 import Data.Void (Void)
-import Text.Megaparsec (Parsec, between, many, manyTill, optional, some, (<|>), notFollowedBy)
+import Text.Megaparsec (Parsec, between, many, manyTill, optional, some, someTill, (<|>), notFollowedBy)
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -170,15 +171,50 @@ fromExpr _ (SNum n)         = Right (ELit (LNatural n))
 fromExpr _ (SStr s)         = Right (ELit (LString s))
 fromExpr path (SList [])    = Left (path ++ ": empty expression list")
 fromExpr path (SList (SAtom "function" : parts)) = fromFunction path parts
+fromExpr path (SList (SAtom "typeclass" : parts)) = fromTypeclass path parts
+fromExpr path (SList (SAtom "instance" : parts)) = fromInstance path parts
+fromExpr path (SList [SAtom "pack", SList [SAtom v, dom], cod, witness, body]) = do
+  dom' <- fromType path dom
+  cod' <- fromType path cod
+  witness' <- fromExpr path witness
+  body' <- fromExpr path body
+  pure (EPack v dom' cod' witness' body')
+fromExpr path (SList [SAtom "unpack", packed, SList [SAtom x, SAtom y], body]) = do
+  packed' <- fromExpr path packed
+  body' <- fromExpr path body
+  pure (EUnpack packed' x y body')
+fromExpr path (SList [SAtom "lift", ty, from, to]) = do
+  ty' <- fromType path ty
+  fromLevel <- fromUniverse path "lift" from
+  toLevel <- fromUniverse path "lift" to
+  pure (ELift ty' fromLevel toLevel)
+fromExpr path (SList [SAtom "up", ty, from, to, body]) = do
+  ty' <- fromType path ty
+  fromLevel <- fromUniverse path "up" from
+  toLevel <- fromUniverse path "up" to
+  body' <- fromExpr path body
+  pure (EUp ty' fromLevel toLevel body')
+fromExpr path (SList [SAtom "down", ty, from, to, body]) = do
+  ty' <- fromType path ty
+  fromLevel <- fromUniverse path "down" from
+  toLevel <- fromUniverse path "down" to
+  body' <- fromExpr path body
+  pure (EDown ty' fromLevel toLevel body')
 fromExpr path (SList [SAtom "compute", comp]) = ECompute <$> fromComp path comp
 fromExpr path (SList [SAtom "let", SList [SAtom name, val], body]) = do
   val' <- fromExpr path val
   body' <- fromExpr path body
   pure (ELet name val' body')
-fromExpr path (SList (SAtom "match" : scrut : cases)) = do
+fromExpr path (SList (SAtom "match" : scrut : rest)) = do
   (scrutExpr, scrutTy) <- fromOfType path scrut
-  cases' <- mapM (fromMatchCase path) cases
-  pure (EMatch scrutExpr scrutTy cases')
+  case rest of
+    (SAtom name : retTy : cases) -> do
+      retTy' <- fromType path retTy
+      cases' <- mapM (fromMatchCase path) cases
+      pure (EMatch scrutExpr scrutTy name retTy' cases')
+    _ ->
+      Left (path ++ ": match expects (of-type <expr> <Type>) <name> <Type> <cases...>, found "
+        ++ renderHead (SList rest))
 fromExpr path (SList [SAtom "of-type", e, ty]) = do
   e' <- fromExpr path e
   ty' <- fromType path ty
@@ -191,11 +227,19 @@ fromExpr path (SList (f:args)) = do
 fromFunction :: FilePath -> [SExpr] -> Either String Expr
 fromFunction path parts =
   case reverse parts of
-    (bodyForm : retForm : paramFormsRev) -> do
+    (bodyForm : retForm : restRev) -> do
+      let (constraints, paramFormsRev) =
+            case restRev of
+              (reqForm:paramsRev) | isRequiresForm reqForm ->
+                case fromRequires path reqForm of
+                  Left err -> (Left err, [])
+                  Right cs -> (Right cs, paramsRev)
+              _ -> (Right [], restRev)
+      constraints' <- constraints
       body <- fromFunctionBody path bodyForm
       retTy <- fromType path retForm
       params <- mapM (fromParam path) (reverse paramFormsRev)
-      pure (EFunction params retTy body)
+      pure (EFunction params constraints' retTy body)
     _ -> Left (path ++ ": function expects params, return type, and body")
 
 fromFunctionBody :: FilePath -> SExpr -> Either String FunctionBody
@@ -212,6 +256,49 @@ fromParam path (SList [SAtom name, ty]) = do
   pure (Param name ty')
 fromParam path other =
   Left (path ++ ": function parameter must be (name Type), found " ++ renderHead other)
+
+fromTypeclass :: FilePath -> [SExpr] -> Either String Expr
+fromTypeclass path parts = case parts of
+  (SAtom param : methods) -> do
+    methods' <- mapM (fromClassMethod path) methods
+    pure (ETypeClass param methods')
+  _ -> Left (path ++ ": typeclass expects param and method declarations")
+
+fromInstance :: FilePath -> [SExpr] -> Either String Expr
+fromInstance path parts = case parts of
+  (SAtom className : instTy : methods) -> do
+    instTy' <- fromType path instTy
+    methods' <- mapM (fromInstanceMethod path) methods
+    pure (EInstance className instTy' methods')
+  _ -> Left (path ++ ": instance expects class name, instance type, and methods")
+
+fromClassMethod :: FilePath -> SExpr -> Either String (Text, Expr)
+fromClassMethod path (SList [SAtom name, SAtom "of-type", ty]) =
+  (name,) <$> fromType path ty
+fromClassMethod path other =
+  Left (path ++ ": typeclass method must be (name of-type Type), found " ++ renderHead other)
+
+fromInstanceMethod :: FilePath -> SExpr -> Either String (Text, Expr)
+fromInstanceMethod path (SList [SAtom name, body]) =
+  (name,) <$> fromExpr path body
+fromInstanceMethod path other =
+  Left (path ++ ": instance method must be (name <expr>), found " ++ renderHead other)
+
+isRequiresForm :: SExpr -> Bool
+isRequiresForm (SList (SAtom "requires" : _)) = True
+isRequiresForm _ = False
+
+fromRequires :: FilePath -> SExpr -> Either String [Constraint]
+fromRequires path (SList (SAtom "requires" : rest)) =
+  mapM (fromConstraint path) rest
+fromRequires path other =
+  Left (path ++ ": requires expects a list of constraints, found " ++ renderHead other)
+
+fromConstraint :: FilePath -> SExpr -> Either String Constraint
+fromConstraint path (SList [SAtom className, ty]) =
+  Constraint className <$> fromType path ty
+fromConstraint path other =
+  Left (path ++ ": constraint must be (Class Type), found " ++ renderHead other)
 
 fromOfType :: FilePath -> SExpr -> Either String (Expr, Expr)
 fromOfType path (SList [SAtom "of-type", e, ty]) = do
@@ -253,6 +340,11 @@ fromComp path se = case se of
     c1' <- fromComp path c1
     c2' <- fromComp path c2
     pure $ CBind v c1' c2'
+  SList (SAtom "sequence" : rest) -> do
+    exprs <- mapM (fromExpr path) rest
+    case exprs of
+      [] -> Left (path ++ ": sequence expects at least one computation")
+      _ -> pure (sequenceComp exprs)
   _ -> Left (path ++ ": invalid computation form " ++ renderHead se)
 
 fromType :: FilePath -> SExpr -> Either String Expr
@@ -273,6 +365,11 @@ fromType path se = case se of
   SStr s -> Right (ELit (LString s))
   SList [] -> Left (path ++ ": empty type expression")
   SList [SAtom "computation", t] -> ECompType <$> fromType path t
+  SList [SAtom "lift", ty, from, to] -> do
+    ty' <- fromType path ty
+    fromLevel <- fromUniverse path "lift" from
+    toLevel <- fromUniverse path "lift" to
+    pure (ELift ty' fromLevel toLevel)
   SList [SAtom "for-all", SList [SAtom v, a], b] ->
     EForAll v <$> fromType path a <*> fromType path b
   SList [SAtom "there-exists", SList [SAtom v, a], b] ->
@@ -290,6 +387,14 @@ parseUniverseAtom t =
     _ -> Nothing
   where
     isDigitChar c = c >= '0' && c <= '9'
+
+fromUniverse :: FilePath -> String -> SExpr -> Either String Int
+fromUniverse path context se = case se of
+  SAtom t
+    | Just n <- parseUniverseAtom t -> Right n
+    | otherwise ->
+        Left (path ++ ": " ++ context ++ " expects TypeN, found " ++ DT.unpack t)
+  _ -> Left (path ++ ": " ++ context ++ " expects TypeN, found " ++ renderHead se)
 
 renderHead :: SExpr -> String
 renderHead sexpr = case sexpr of
@@ -347,13 +452,50 @@ pDefinition = mLexeme $ do
   tr <- (Transparent <$ keyword "transparent") <|> (Opaque <$ keyword "opaque")
   name <- pIdentifier
   keyword "as"
-  body <- pValue
+  body <- pTypeclassDef <|> pInstanceDef <|> pValue
   pure (Definition tr name body)
+
+pTypeclassDef :: Parser Expr
+pTypeclassDef = M.try $ do
+  keyword "typeclass"
+  param <- pIdentifier
+  keyword "where"
+  methods <- manyTill pClassMethod (keyword "end")
+  pure (ETypeClass param methods)
+
+pClassMethod :: Parser (Text, Expr)
+pClassMethod = M.try $ do
+  name <- pIdentifier
+  keyword "of-type"
+  ty <- pType
+  pure (name, ty)
+
+pInstanceDef :: Parser Expr
+pInstanceDef = M.try $ do
+  keyword "instance"
+  className <- pIdentifier
+  instTy <- pTypeParam
+  keyword "where"
+  methods <- manyTill pInstanceMethod (keyword "end")
+  pure (EInstance className instTy methods)
+
+pInstanceMethod :: Parser (Text, Expr)
+pInstanceMethod = M.try $ do
+  name <- pIdentifier
+  keyword "as"
+  body <- pValue
+  pure (name, body)
 
 -- Computations
 
 pComp :: Parser Comp
-pComp = pBind <|> pReturn <|> pPerform
+pComp = pSequence <|> pBind <|> pReturn <|> pPerform
+
+pSequence :: Parser Comp
+pSequence = M.try $ do
+  keyword "sequence"
+  exprs <- someTill pValueAtom (keyword "end")
+  pure (sequenceComp exprs)
 
 pBind :: Parser Comp
 pBind = M.try $ do
@@ -379,7 +521,18 @@ pPerform = do
 -- Expressions (values)
 
 pValue :: Parser Expr
-pValue = pLet <|> pMatch <|> pFunction <|> pCompute <|> pAnnot <|> pApp
+pValue =
+  pLet
+    <|> pMatch
+    <|> pFunction
+    <|> pCompute
+    <|> pPack
+    <|> pUnpack
+    <|> pLiftValue
+    <|> pUp
+    <|> pDown
+    <|> pAnnot
+    <|> pApp
 
 pLet :: Parser Expr
 pLet = M.try $ do
@@ -396,17 +549,32 @@ pLet = M.try $ do
 pFunction :: Parser Expr
 pFunction = M.try $ do
   keyword "function"
-  params <- manyTill pParam (keyword "returns")
+  params <- manyTill pParam (M.lookAhead (keyword "returns" <|> keyword "requires"))
+  constraints <- fromMaybe [] <$> M.optional pConstraints
+  keyword "returns"
   retTy <- pType
   body <- (FunctionValue <$> (keyword "value" *> pValue))
       <|> (FunctionCompute <$> (keyword "compute" *> pComp))
   keyword "end"
-  pure (EFunction params retTy body)
+  pure (EFunction params constraints retTy body)
   where
     pParam = do
       name <- pIdentifier
       ty <- pTypeParam
       pure (Param name ty)
+
+pConstraints :: Parser [Constraint]
+pConstraints = M.try $ do
+  keyword "requires"
+  first <- pConstraint
+  rest <- many (keyword "and" *> pConstraint)
+  pure (first:rest)
+
+pConstraint :: Parser Constraint
+pConstraint = M.try $ do
+  className <- pIdentifier
+  arg <- pTypeParam
+  pure (Constraint className arg)
 
 pCompute :: Parser Expr
 pCompute = M.try $ do
@@ -415,10 +583,61 @@ pCompute = M.try $ do
   keyword "end"
   pure (ECompute comp)
 
+pPack :: Parser Expr
+pPack = M.try $ do
+  keyword "pack"
+  v <- pIdentifier
+  keyword "as"
+  dom <- pTypeParam
+  keyword "in"
+  cod <- pType
+  keyword "with"
+  witness <- pValueAtom
+  body <- pValue
+  keyword "end"
+  pure (EPack v dom cod witness body)
+
+pUnpack :: Parser Expr
+pUnpack = M.try $ do
+  keyword "unpack"
+  packed <- pValue
+  keyword "as"
+  x <- pIdentifier
+  y <- pIdentifier
+  keyword "in"
+  body <- pValue
+  keyword "end"
+  pure (EUnpack packed x y body)
+
+pLiftValue :: Parser Expr
+pLiftValue = pLiftExpr
+
+pUp :: Parser Expr
+pUp = M.try $ do
+  keyword "up"
+  ty <- pTypeParam
+  keyword "from"
+  fromLevel <- pUniverseLevel
+  keyword "to"
+  toLevel <- pUniverseLevel
+  body <- pValue
+  pure (EUp ty fromLevel toLevel body)
+
+pDown :: Parser Expr
+pDown = M.try $ do
+  keyword "down"
+  ty <- pTypeParam
+  keyword "from"
+  fromLevel <- pUniverseLevel
+  keyword "to"
+  toLevel <- pUniverseLevel
+  body <- pValue
+  pure (EDown ty fromLevel toLevel body)
+
 pAnnot :: Parser Expr
 pAnnot = M.try $ do
   keyword "of-type"
-  e <- pValue
+  e <- pValueAtom
   ty <- pType
   pure (EAnnot e ty)
 
@@ -428,8 +647,12 @@ pMatch = M.try $ do
   scrut <- pValue
   keyword "of-type"
   scrutTy <- pType
+  keyword "as"
+  scrutName <- pIdentifier
+  keyword "returns"
+  retTy <- pType
   cases <- manyTill pMatchCase (keyword "end")
-  pure (EMatch scrut scrutTy cases)
+  pure (EMatch scrut scrutTy scrutName retTy cases)
 
 pMatchCase :: Parser MatchCase
 pMatchCase =
@@ -505,7 +728,7 @@ pStringLit = lexeme $ do
 -- Type parsing
 
 pType :: Parser Expr
-pType = pForAll <|> pThereExists <|> pComputation <|> pTypeApp
+pType = pForAll <|> pThereExists <|> pComputation <|> pLiftType <|> pTypeApp
 
 pTypeParam :: Parser Expr
 pTypeParam = parens pType <|> pTypeSimple
@@ -535,6 +758,19 @@ pComputation = M.try $ do
   keyword "computation"
   ECompType <$> pType
 
+pLiftType :: Parser Expr
+pLiftType = pLiftExpr
+
+pLiftExpr :: Parser Expr
+pLiftExpr = M.try $ do
+  keyword "lift"
+  ty <- pTypeParam
+  keyword "from"
+  fromLevel <- pUniverseLevel
+  keyword "to"
+  toLevel <- pUniverseLevel
+  pure (ELift ty fromLevel toLevel)
+
 pTypeApp :: Parser Expr
 pTypeApp = do
   headTy <- pTypeAtom
@@ -556,10 +792,12 @@ pTypeSimple =
   <|> (EVar <$> pIdentifier)
 
 pUniverse :: Parser Expr
-pUniverse = mLexeme . M.try $ do
+pUniverse = ETypeUniverse <$> pUniverseLevel
+
+pUniverseLevel :: Parser Int
+pUniverseLevel = mLexeme . M.try $ do
   _ <- C.string "Type"
-  n <- L.decimal
-  pure (ETypeUniverse n)
+  L.decimal
 
 pTypeConst :: Parser Expr
 pTypeConst =
@@ -590,9 +828,10 @@ reservedWords :: [Text]
 reservedWords =
   [ "module", "contains", "import", "open", "define", "transparent", "opaque"
   , "as", "function", "returns", "value", "compute", "let", "bind", "from", "then"
-  , "perform", "return", "match", "of-type", "exposing", "end", "be", "in", "with"
+  , "perform", "return", "sequence", "match", "of-type", "exposing", "end", "be", "in", "with"
   , "empty-case", "cons-case", "false-case", "true-case", "pair-case"
-  , "for-all", "there-exists", "computation", "to"
+  , "for-all", "there-exists", "computation", "to", "lift", "up", "down", "pack", "unpack"
+  , "typeclass", "instance", "where", "requires", "and"
   , "true", "false", "tt"
   , "Natural", "String", "Boolean", "Unit", "List", "Pair"
   ]
@@ -685,16 +924,33 @@ renderExpr expr = case expr of
   EThereExists v dom cod ->
     "(there-exists (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod <> ")"
   ECompType t -> "(computation " <> T.typeToSExpr t <> ")"
+  EPack v dom cod witness body ->
+    "(pack (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod
+      <> " " <> renderExpr witness <> " " <> renderExpr body <> ")"
+  EUnpack packed x y body ->
+    "(unpack " <> renderExpr packed <> " (" <> x <> " " <> y <> ") "
+      <> renderExpr body <> ")"
+  ELift ty fromLevel toLevel ->
+    "(lift " <> T.typeToSExpr ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> ")"
+  EUp ty fromLevel toLevel body ->
+    "(up " <> T.typeToSExpr ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> " " <> renderExpr body <> ")"
+  EDown ty fromLevel toLevel body ->
+    "(down " <> T.typeToSExpr ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> " " <> renderExpr body <> ")"
   EApp f args     -> "(" <> DT.unwords (renderExpr f : map renderExpr args) <> ")"
-  EFunction params retTy body ->
+  EFunction params constraints retTy body ->
     "(function " <> DT.unwords (map renderParam params)
       <> (if null params then "" else " ")
+      <> renderConstraintsS constraints
       <> T.typeToSExpr retTy <> " " <> renderFunctionBody body <> ")"
   ELet name val body ->
     "(let (" <> name <> " " <> renderExpr val <> ") " <> renderExpr body <> ")"
   ECompute comp -> "(compute " <> renderComp comp <> ")"
-  EMatch scrut scrutTy cases ->
+  EMatch scrut scrutTy scrutName retTy cases ->
     "(match (of-type " <> renderExpr scrut <> " " <> T.typeToSExpr scrutTy <> ") "
+      <> scrutName <> " " <> T.typeToSExpr retTy <> " "
       <> DT.unwords (map renderMatchCase cases) <> ")"
   EAnnot e ty -> "(of-type " <> renderExpr e <> " " <> T.typeToSExpr ty <> ")"
   ETyped e _ -> renderExpr e
@@ -702,9 +958,31 @@ renderExpr expr = case expr of
     "(dict " <> className <> " " <>
     DT.intercalate " " [n <> " " <> renderExpr e | (n, e) <- impls] <> ")"
   EDictAccess d method -> "(dict-access " <> renderExpr d <> " " <> method <> ")"
+  ETypeClass param methods ->
+    "(typeclass " <> param <> " " <> DT.unwords (map renderClassMethod methods) <> ")"
+  EInstance className instTy methods ->
+    "(instance " <> className <> " " <> T.typeToSExpr instTy <> " "
+      <> DT.unwords (map renderInstanceMethod methods) <> ")"
 
 renderParam :: Param -> DT.Text
 renderParam (Param name ty) = "(" <> name <> " " <> T.typeToSExpr ty <> ")"
+
+renderConstraintsS :: [Constraint] -> DT.Text
+renderConstraintsS [] = ""
+renderConstraintsS cs =
+  " (requires " <> DT.unwords (map renderConstraintS cs) <> ") "
+
+renderConstraintS :: Constraint -> DT.Text
+renderConstraintS (Constraint className ty) =
+  "(" <> className <> " " <> T.typeToSExpr ty <> ")"
+
+renderClassMethod :: (Text, Expr) -> DT.Text
+renderClassMethod (name, ty) =
+  "(" <> name <> " of-type " <> T.typeToSExpr ty <> ")"
+
+renderInstanceMethod :: (Text, Expr) -> DT.Text
+renderInstanceMethod (name, body) =
+  "(" <> name <> " " <> renderExpr body <> ")"
 
 renderFunctionBody :: FunctionBody -> DT.Text
 renderFunctionBody body = case body of
@@ -730,12 +1008,19 @@ renderComp comp = case comp of
   CBind v c1 c2  -> "(bind (" <> v <> " " <> renderComp c1 <> ") " <> renderComp c2 <> ")"
   CSeq c1 c2     -> "(bind (_ " <> renderComp c1 <> ") " <> renderComp c2 <> ")"
 
+sequenceComp :: [Expr] -> Comp
+sequenceComp exprs =
+  foldr (\expr acc -> CSeq (CPerform expr) acc) (CReturn (ELit LUnit)) exprs
+
 renderLit :: Literal -> DT.Text
 renderLit lit = case lit of
   LNatural n -> DT.pack (show n)
   LString s  -> DT.pack (show (DT.unpack s))
   LBoolean b -> if b then "true" else "false"
   LUnit      -> "tt"
+
+renderUniverseAtom :: Int -> DT.Text
+renderUniverseAtom n = "Type" <> DT.pack (show n)
 
 --------------------------------------------------------------------------------
 -- AST -> M-expression pretty-printer
@@ -778,15 +1063,31 @@ renderMExpr expr = case expr of
   EThereExists v dom cod ->
     "there-exists " <> v <> " as " <> T.prettyTypeAtom dom <> " in " <> T.prettyType cod
   ECompType t -> "computation " <> T.prettyTypeAtom t
+  EPack v dom cod witness body ->
+    "pack " <> v <> " as " <> T.prettyTypeAtom dom <> " in " <> T.prettyType cod
+      <> " with " <> renderMExpr witness <> " " <> renderMExpr body <> " end"
+  EUnpack packed x y body ->
+    "unpack " <> renderMExpr packed <> " as " <> x <> " " <> y <> " in "
+      <> renderMExpr body <> " end"
+  ELift ty fromLevel toLevel ->
+    "lift " <> T.prettyTypeAtom ty <> " from " <> renderUniverseAtom fromLevel
+      <> " to " <> renderUniverseAtom toLevel
+  EUp ty fromLevel toLevel body ->
+    "up " <> T.prettyTypeAtom ty <> " from " <> renderUniverseAtom fromLevel
+      <> " to " <> renderUniverseAtom toLevel <> " " <> renderMExpr body
+  EDown ty fromLevel toLevel body ->
+    "down " <> T.prettyTypeAtom ty <> " from " <> renderUniverseAtom fromLevel
+      <> " to " <> renderUniverseAtom toLevel <> " " <> renderMExpr body
   EApp f args -> "(" <> DT.unwords (renderMExpr f : map renderMExpr args) <> ")"
-  EFunction params retTy body ->
-    "function " <> renderParams params <> " returns " <> T.prettyType retTy <> " "
-      <> renderFunctionBodyM body <> " end"
+  EFunction params constraints retTy body ->
+    "function " <> renderParams params <> renderConstraintsM constraints
+      <> " returns " <> T.prettyType retTy <> " " <> renderFunctionBodyM body <> " end"
   ELet name val body ->
     "let value " <> name <> " be " <> renderMExpr val <> " in " <> renderMExpr body <> " end"
   ECompute comp -> "compute " <> renderMComp comp <> " end"
-  EMatch scrut scrutTy cases ->
-    "match " <> renderMExpr scrut <> " of-type " <> T.prettyType scrutTy <> " "
+  EMatch scrut scrutTy scrutName retTy cases ->
+    "match " <> renderMExpr scrut <> " of-type " <> T.prettyType scrutTy
+      <> " as " <> scrutName <> " returns " <> T.prettyType retTy <> " "
       <> DT.unwords (map renderMatchCaseM cases) <> " end"
   EAnnot e ty -> "of-type " <> renderMExpr e <> " " <> T.prettyType ty
   ETyped e _ -> renderMExpr e
@@ -794,6 +1095,11 @@ renderMExpr expr = case expr of
     "(dict " <> className <> " " <>
     DT.intercalate " " [n <> " " <> renderMExpr e | (n, e) <- impls] <> ")"
   EDictAccess d method -> "(dict-access " <> renderMExpr d <> " " <> method <> ")"
+  ETypeClass param methods ->
+    "typeclass " <> param <> " where " <> DT.unwords (map renderClassMethodM methods) <> " end"
+  EInstance className instTy methods ->
+    "instance " <> className <> " " <> T.prettyTypeAtom instTy <> " where "
+      <> DT.unwords (map renderInstanceMethodM methods) <> " end"
 
 renderParams :: [Param] -> DT.Text
 renderParams params = DT.unwords (map renderParamM params)
@@ -805,6 +1111,23 @@ renderFunctionBodyM :: FunctionBody -> DT.Text
 renderFunctionBodyM body = case body of
   FunctionValue e -> "value " <> renderMExpr e
   FunctionCompute c -> "compute " <> renderMComp c
+
+renderConstraintsM :: [Constraint] -> DT.Text
+renderConstraintsM [] = ""
+renderConstraintsM cs =
+  " requires " <> DT.intercalate " and " (map renderConstraintM cs)
+
+renderConstraintM :: Constraint -> DT.Text
+renderConstraintM (Constraint className ty) =
+  className <> " " <> T.prettyTypeAtom ty
+
+renderClassMethodM :: (Text, Expr) -> DT.Text
+renderClassMethodM (name, ty) =
+  name <> " of-type " <> T.prettyType ty
+
+renderInstanceMethodM :: (Text, Expr) -> DT.Text
+renderInstanceMethodM (name, body) =
+  name <> " as " <> renderMExpr body
 
 renderMatchCaseM :: MatchCase -> DT.Text
 renderMatchCaseM mc = case mc of

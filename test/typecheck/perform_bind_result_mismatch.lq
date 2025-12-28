@@ -1,0 +1,15 @@
+# Expected type error: bind result is String, but used as Natural.
+
+import prelude as P
+
+module test::typecheck::perform_bind_result_mismatch contains
+  define transparent bad-bind as compute
+    bind x from perform (compute return "hi" end) then
+      return (P::add-nat x 1)
+    end
+  end
+
+  define transparent main as compute
+    return tt
+  end
+end

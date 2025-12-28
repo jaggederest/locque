@@ -44,9 +44,41 @@ define opaque       <name> as <Value>
 - Computation values are explicit: `compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr); they run only when performed.
 - Functions are values; effectful functions return `computation T`.
 
+## Typeclasses and constraints
+
+```
+define transparent Equality as typeclass A where
+  eq of-type for-all x as A to for-all y as A to Boolean
+end
+
+define transparent Equality-Natural as instance Equality Natural where
+  eq as <Value>
+end
+```
+
+- `typeclass` introduces a class with a single type parameter (currently assumed `Type0`) and a list of method types.
+- `instance` provides implementations for all class methods; missing/extra methods are errors.
+- Instance constraints are not supported yet.
+
+```
+function A Type0 x A y A requires Equality A and Display A returns Boolean value
+  ...
+end
+```
+
+- `requires` introduces class constraints for a function. Constraints bring method names into scope in the body.
+- Method names must be unique across constraints; local bindings can shadow them.
+
+S-expr sketches:
+- `(typeclass A (eq of-type (for-all (x A) (for-all (y A) Boolean))))`
+- `(instance Equality Natural (eq <expr>))`
+- `(function (A Type0) (x A) (requires (Equality A)) Boolean (value <expr>))`
+
 ## Block termination (M-expr)
 
-`end` is mandatory for any construct that can be multiline: `function`, `compute`, `let value`, `bind`, `match`, `module`, `open`. `end` is never optional in M-expr, even for single-line bodies.
+`end` is mandatory for any construct that can be multiline: `function`, `compute`,
+`let value`, `bind`, `match`, `pack`, `unpack`, `module`, `open`. `end` is never
+optional in M-expr, even for single-line bodies.
 
 ## Values
 
@@ -59,6 +91,16 @@ Value ::=
   | compute Computation end            -- explicit computation value
   | let value x be Value in Value end  -- pure local
   | match ...                          -- typed match (see below)
+  | of-type ValueAtom Type             -- explicit annotation
+  | up Type from TypeN to TypeM Value  -- term lift
+  | down Type from TypeN to TypeM Value -- term unlift
+  | pack x as Type in Type with ValueAtom Value end
+  | unpack Value as x y in Value end
+
+ValueAtom ::=
+    Identifier
+  | Literal
+  | ( Value )
 ```
 
 ### Function (only form)
@@ -81,35 +123,40 @@ Computation ::=
     return Value
   | bind x from Computation then Computation end
   | perform Value                 -- value of type computation T
+  | sequence ValueAtom+ end       -- sugar for `perform` + `bind` sequencing
 
 - Computations are not identifiers; to run a named computation value, use `perform`.
+- `sequence` performs each value in order and returns `tt` (unit).
 ```
 
 ## Pattern matching (typed, unified `match`)
 
-Scrutinee type must be known (annotate inline if ambiguous).
+Scrutinee type and return type must be known (annotate inline if ambiguous). A
+scrutinee binder is mandatory; use `ignored` when it is unused. The return type
+may depend on the binder.
 
 ```
 -- List
-match xs of-type List A
+match xs of-type List A as ignored returns List A
   empty-case as <Value>
   cons-case with h A t (List A) as <Value>
 end
 
 -- Boolean
-match flag of-type Boolean
+match flag of-type Boolean as ignored returns Natural
   false-case as <Value>
   true-case  as <Value>
 end
 
 -- Pair
-match p of-type Pair A B
+match p of-type Pair A B as ignored returns A
   pair-case with a A b B as <Value>
 end
 ```
 
 Handlers use value bodies (pure); no lambdas.
 Case binders use the same `TypeParam` rule as function params; parenthesize non-atomic types.
+Matches must be exhaustive and may not repeat or mix case kinds.
 
 ## Types
 
@@ -119,6 +166,7 @@ Type ::=
   | for-all x as Type to Type          -- Pi (function type, dependent)
   | there-exists x as Type in Type     -- Sigma (dependent pair)
   | computation Type                   -- effectful result type
+  | lift Type from TypeN to TypeM      -- universe lift (strict)
 
 TypeParam ::= TypeSimple | ( Type )    -- M-expr binders only
 
@@ -139,9 +187,35 @@ TypeSimple ::=
 
 - No arrow syntax; always the `for-all ... to ...` form (even non-dependent; use a throwaway name if unused).
 - Sigma is `there-exists x as A in B`; non-dependent pairs may use `Pair A B`.
-- Universes are explicit (`Type0`, `Type1`, `Type2`, …); cumulative; no bare `Type`.
+- Universes are explicit (`Type0`, `Type1`, `Type2`, …) and **not** cumulative; no bare `Type`.
+- `TypeN : Type(N+1)`. Use `lift` to move a type across universes.
 - Type application is word-based: `List Natural`, `Vector Natural n`, `Result Error a`.
 - In M-expr binder positions, parenthesize non-atomic types: `x (List Natural)`, `x (Vector Natural n)`.
+
+## Universe lifting (strict)
+
+```
+lift A from TypeN to TypeM          -- type-level lift
+up   A from TypeN to TypeM x        -- term-level lift
+down A from TypeN to TypeM x        -- term-level unlift
+```
+
+- `A` must be a type in `TypeN`; `N <= M` is required (same-universe lifts are allowed).
+- `lift A from TypeN to TypeM` has type `TypeM`.
+- `up A from TypeN to TypeM x` requires `x : A` and produces `lift A from TypeN to TypeM`.
+- `down A from TypeN to TypeM x` requires `x : lift A from TypeN to TypeM` and produces `A`.
+
+## there-exists introduction/elimination
+
+```
+pack x as A in B with w v end
+unpack p as x y in body end
+```
+
+- `pack`: `w : A`, `v : B[w/x]`, result is `there-exists x as A in B`.
+- `unpack`: `p : there-exists x as A in B`, binds `x : A`, `y : B`,
+  then returns `body`.
+- `w` is a value atom; parenthesize if it is an application.
 
 ## Effects
 
@@ -164,8 +238,14 @@ TypeSimple ::=
 - `define` binds a value directly in S-expr (no outer `value` wrapper).
 - S-expr represents computation values as `(compute <Computation>)`.
 - S-expr uses `(of-type <expr> <Type>)` for explicit type annotations.
+- S-expr match shape is `(match (of-type <expr> <Type>) <binder> <Type> <cases...>)`.
+- S-expr sequence form is `(sequence <expr> <expr> ...)`.
 - S-expr binders are always parenthesized: `(x Type)`; M-expr requires parentheses only for non-atomic types.
 - S-expr may introduce additional keywords for desugared AST forms when the M-expr is ambiguous.
+- M-expr `of-type` accepts only a value atom; parenthesize applications: `of-type (f x) T`.
+- S-expr lift forms are `(lift <Type> TypeN TypeM)`, `(up <Type> TypeN TypeM <expr>)`, `(down <Type> TypeN TypeM <expr>)`.
+- S-expr pack/unpack forms are `(pack (x <Type>) <Type> <witness> <value>)`
+  and `(unpack <expr> (x y) <body>)`.
 
 ## Determinism guarantees
 

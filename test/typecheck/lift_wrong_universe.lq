@@ -1,0 +1,4 @@
+module test::typecheck::lift_wrong_universe contains
+  define transparent bad as
+    lift Natural from Type1 to Type2
+end

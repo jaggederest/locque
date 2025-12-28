@@ -2,46 +2,49 @@ import prelude as P
 import comparison as C
 
 module arithmetic contains
-  define opaque add-nat as value add-nat-prim
-  define opaque sub-nat as value sub-nat-prim
-  define opaque mul-nat as value mul-nat-prim
-  define opaque div-nat as value div-nat-prim
-  define opaque mod-nat as value mod-nat-prim
+  define transparent add-nat as add-nat-prim
+  define transparent sub-nat as sub-nat-prim
+  define transparent mul-nat as mul-nat-prim
+  define transparent div-nat as div-nat-prim
+  define transparent mod-nat as mod-nat-prim
 
-  define transparent min as value
-    function a of-type Natural produce
-      function b of-type Natural produce
-        P.if-bool (C.lt-nat a b) a b
+  define transparent min as
+    function a Natural b Natural returns Natural value
+      P::if-bool Natural (C::lt-nat a b) a b
+    end
 
-  define transparent max as value
-    function a of-type Natural produce
-      function b of-type Natural produce
-        P.if-bool (C.gt-nat a b) a b
+  define transparent max as
+    function a Natural b Natural returns Natural value
+      P::if-bool Natural (C::gt-nat a b) a b
+    end
 
-  define transparent abs-diff as value
-    function a of-type Natural produce
-      function b of-type Natural produce
-        P.if-bool (C.gt-nat a b) (sub-nat a b) (sub-nat b a)
+  define transparent abs-diff as
+    function a Natural b Natural returns Natural value
+      P::if-bool Natural (C::gt-nat a b) (sub-nat a b) (sub-nat b a)
+    end
 
-  define transparent clamp as value
-    function low of-type Natural produce
-      function high of-type Natural produce
-        function val of-type Natural produce
-          min high (max low val)
+  define transparent clamp as
+    function low Natural high Natural val Natural returns Natural value
+      min high (max low val)
+    end
 
-  define transparent even as value
-    function n of-type Natural produce
-      C.eq-nat (mod-nat n 2) 0
+  define transparent even as
+    function n Natural returns Boolean value
+      C::eq-nat (mod-nat n 2) 0
+    end
 
-  define transparent odd as value
-    function n of-type Natural produce
-      P.not (even n)
+  define transparent odd as
+    function n Natural returns Boolean value
+      P::not (even n)
+    end
 
-  define transparent is-zero as value
-    function n of-type Natural produce
-      C.eq-nat n 0
+  define transparent is-zero as
+    function n Natural returns Boolean value
+      C::eq-nat n 0
+    end
 
-  define transparent is-positive as value
-    function n of-type Natural produce
-      C.gt-nat n 0
+  define transparent is-positive as
+    function n Natural returns Boolean value
+      C::gt-nat n 0
+    end
 end

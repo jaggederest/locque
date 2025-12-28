@@ -60,12 +60,12 @@ Notes on surface cues
 - `define transparent|opaque name as <Value> ...` declares a value; opacity controls δ-unfolding in conversion.
 - Computation values are explicit: `define ... as compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr).
 - `value` and `compute` mark function bodies.
-- `perform ...`, `return ...`, `bind name from ... then ... end` are the computation sequencing vocabulary.
+- `perform ...`, `return ...`, `bind name from ... then ... end`, and `sequence ... end` are the computation sequencing vocabulary.
 - `end` closes every multiline construct (function, compute, bind, match, module, open).
 
 Universe choices and examples
 
-- Cumulative tower (explicit levels, `Type0 : Type1 : Type2 ...`)
+- Strict tower (explicit levels, non-cumulative; `Type0 : Type1 : Type2 ...`)
   - Example 1 (Type0 inhabitant, lives in Type1):
     - M: `define transparent id0 as for-all A as Type0 to for-all _ as A to A`
     - S: `(define transparent id0 (for-all (A Type0) (for-all (_ A) A)))`
@@ -74,6 +74,7 @@ Universe choices and examples
     - M: `define transparent pair0 as for-all A as Type0 to for-all B as Type0 to Type0`
     - S: `(define transparent pair0 (for-all (A Type0) (for-all (B Type0) Type0)))`
     - The type of `pair0` itself sits in `Type1`.
+  - Lifting is explicit: `lift A from Type0 to Type1`, with term-level `up`/`down`.
 
 - Type-in-type (rejected, but illustrative of the shape we avoid)
   - Example 1: `Type : Type` collapses levels; would be written as `define transparent Type as Type` in a type-in-type world.
@@ -86,31 +87,31 @@ Pattern matching (current surface)
 - List:
   - M:
     ```
-    match xs of-type List A
+    match xs of-type List A as ignored returns List A
       empty-case as nil
-      cons-case with h A t List A as cons h t
+      cons-case with h A t (List A) as cons h t
     end
     ```
-  - S: `(match (of-type xs (List A)) (empty-case nil) (cons-case (h A) (t (List A)) (cons h t)))`
+  - S: `(match (of-type xs (List A)) ignored (List A) (empty-case nil) (cons-case (h A) (t (List A)) (cons h t)))`
 
 - Boolean:
   - M:
     ```
-    match flag of-type Boolean
+    match flag of-type Boolean as ignored returns Natural
       false-case as 0
       true-case as 1
     end
     ```
-  - S: `(match (of-type flag Boolean) (false-case 0) (true-case 1))`
+  - S: `(match (of-type flag Boolean) ignored Natural (false-case 0) (true-case 1))`
 
 - Pair:
   - M:
     ```
-    match p of-type Pair A B
+    match p of-type Pair A B as ignored returns A
       pair-case with a A b B as a
     end
     ```
-  - S: `(match (of-type p (Pair A B)) (pair-case (a A) (b B) a))`
+  - S: `(match (of-type p (Pair A B)) ignored A (pair-case (a A) (b B) a))`
 
 Future inductives and recursors (not in current grammar)
 
@@ -157,9 +158,9 @@ Termination and coverage illustrations
     ```
     define transparent sum-list as
       function xs (List Natural) returns Natural value
-        match xs of-type List Natural
+        match xs of-type List Natural as ignored returns Natural
           empty-case as 0
-          cons-case with h Natural t List Natural as add-nat h (sum-list t)
+          cons-case with h Natural t (List Natural) as add-nat h (sum-list t)
         end
       end
     ```
@@ -178,7 +179,7 @@ Termination and coverage illustrations
 - Coverage: exhaustive match required:
   - Missing case example (reject):
     ```
-    match b of-type Boolean
+    match b of-type Boolean as ignored returns Natural
       true-case as 0
     end
     ```
@@ -194,7 +195,7 @@ CBPV small-step semantics (informal rules)
   - Application β (value world): `(function x A returns B value body end) v → body[x := v]`
   - Return/bind: `bind x from (return v) then d end → d[x := v]`
   - Bind step: if `c → c'` then `bind x from c then d end → bind x from c' then d end`
-  - Match ι rules: `match ctor ... of-type ...` steps to the selected branch with pattern vars bound.
+  - Match ι rules: `match ctor ... of-type ... as binder returns Type ...` steps to the selected branch with pattern vars bound.
   - Perform: `perform v → effect-step(v)` (abstract; handled by runtime/host).
 
 - Evaluation contexts (computations):

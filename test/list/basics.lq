@@ -1,0 +1,72 @@
+# List module basics
+
+import prelude as P
+import assert as A
+import comparison as C
+import list as L
+
+open A exposing assert-eq Equality end
+
+module test::list::basics contains
+  define transparent nums as
+    P::cons Natural 1 (P::cons Natural 2 (P::cons Natural 3 (P::nil Natural)))
+
+  define transparent strs as
+    P::cons String "a" (P::cons String "b" (P::cons String "c" (P::nil String)))
+
+  define transparent test-basics as compute
+    sequence
+      (assert-eq Boolean (L::is-empty Natural nums) false)
+      (assert-eq Boolean (L::is-empty Natural (P::nil Natural)) true)
+      (assert-eq Natural (L::length Natural nums) 3)
+      (assert-eq Natural (L::first Natural nums) 1)
+      (assert-eq Natural (L::last Natural nums) 3)
+      (assert-eq Natural (L::nth Natural 0 nums) 1)
+      (assert-eq Natural (L::nth Natural 2 nums) 3)
+      (assert-eq Natural
+        (P::length-list Natural (L::init Natural nums))
+        2)
+      (assert-eq Natural
+        (P::head Natural (L::init Natural nums))
+        1)
+      (assert-eq Natural
+        (P::head Natural (L::take Natural 2 nums))
+        1)
+      (assert-eq Natural
+        (P::head Natural (L::drop Natural 1 nums))
+        2)
+      (assert-eq String
+        (P::head String (L::drop-until "b" strs))
+        "b")
+      (assert-eq Boolean (L::contains-string "b" strs) true)
+      (assert-eq Boolean (L::contains-string "z" strs) false)
+      (assert-eq Boolean
+        (L::any Natural
+          (function x Natural returns Boolean value
+            C::gt-nat x 2
+          end)
+          nums)
+        true)
+      (assert-eq Boolean
+        (L::all Natural
+          (function x Natural returns Boolean value
+            C::gt-nat x 0
+          end)
+          nums)
+        true)
+      (assert-eq Natural
+        (P::length-list Natural (L::slice Natural 1 2 nums))
+        2)
+      (assert-eq Natural
+        (P::head Natural (L::slice Natural 1 2 nums))
+        2)
+      (assert-eq Natural
+        (L::last Natural (L::slice Natural 1 2 nums))
+        3)
+    end
+  end
+
+  define transparent main as compute
+    perform test-basics
+  end
+end

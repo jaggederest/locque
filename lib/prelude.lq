@@ -1,24 +1,24 @@
 module prelude contains
-  define opaque add-nat as add-nat-prim
-  define opaque sub-nat as sub-nat-prim
-  define opaque nil as nil-prim
-  define opaque cons as cons-prim
-  define opaque head as head-prim
-  define opaque tail as tail-prim
-  define opaque length-list as length-list-prim
-  define opaque append as append-prim
-  define opaque filter as filter-prim
-  define opaque fold as fold-prim
-  define opaque map as map-prim
-  define opaque not as not-prim
-  define opaque if-bool as if-bool-prim
-  define opaque match-list as match-list-prim
-  define opaque match-bool as match-bool-prim
-  define opaque match-pair as match-pair-prim
-  define opaque pair as pair-prim
-  define opaque fst as fst-prim
-  define opaque snd as snd-prim
-  define opaque pair-to-list as pair-to-list-prim
+  define transparent add-nat as add-nat-prim
+  define transparent sub-nat as sub-nat-prim
+  define transparent nil as nil-prim
+  define transparent cons as cons-prim
+  define transparent head as head-prim
+  define transparent tail as tail-prim
+  define transparent length-list as length-list-prim
+  define transparent append as append-prim
+  define transparent filter as filter-prim
+  define transparent fold as fold-prim
+  define transparent map as map-prim
+  define transparent not as not-prim
+  define transparent if-bool as if-bool-prim
+  define transparent match-list as match-list-prim
+  define transparent match-bool as match-bool-prim
+  define transparent match-pair as match-pair-prim
+  define transparent pair as pair-prim
+  define transparent fst as fst-prim
+  define transparent snd as snd-prim
+  define transparent pair-to-list as pair-to-list-prim
 
   define transparent id as
     function x String returns String value
@@ -32,11 +32,11 @@ module prelude contains
 
   define transparent reverse as
     function xs (List String) returns List String value
-      fold
+      fold String (List String)
         (function acc (List String) x String returns List String value
-          cons x acc
+          cons String x acc
         end)
-        nil
+        (nil String)
         xs
     end
 end

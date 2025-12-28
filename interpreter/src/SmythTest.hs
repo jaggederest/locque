@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module SmythTest
   ( runTests
-  , TestResult(..)
   ) where
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Data.Maybe (catMaybes)
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath ((</>))
+import System.FilePath ((</>), isAbsolute)
 import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException)
 
@@ -17,17 +17,33 @@ import Eval (runModuleMain)
 import DictPass (transformModuleWithEnvs)
 import SmythConfig (SmythConfig(..))
 
-data TestResult
-  = AllPassed Int      -- Number of assertions
-  | Failed [TestError]
-  | TypeCheckFailed T.Text
-  deriving (Show)
-
 data TestError = TestError
   { errorFile :: FilePath
   , errorLine :: Maybe Int
   , errorMsg  :: T.Text
   } deriving (Show)
+
+data FailureKind
+  = ParseFailure
+  | TransformFailure
+  | TypeFailure
+  | AnnotFailure
+  | RuntimeFailure
+  deriving (Show)
+
+data Failure = Failure
+  { failureKind :: FailureKind
+  , failureMsg  :: T.Text
+  } deriving (Show)
+
+failureMessage :: Failure -> T.Text
+failureMessage (Failure kind msg) =
+  case kind of
+    ParseFailure -> "Parse error: " <> msg
+    TransformFailure -> "Transform error: " <> msg
+    TypeFailure -> "Type error: " <> msg
+    AnnotFailure -> "Annotation error: " <> msg
+    RuntimeFailure -> "Runtime error: " <> msg
 
 -- | Run tests based on arguments
 runTests :: SmythConfig -> [String] -> IO ()
@@ -35,66 +51,102 @@ runTests config args = do
   -- Change to project root so all paths are relative to it
   setCurrentDirectory (projectRoot config)
   case args of
-    []       -> runTestMain config  -- Run test/main.lq
-    files    -> runTestFiles config files
+    []    -> runAllTests config
+    files -> runPositiveTests config files
 
--- | Run test/main.lq
-runTestMain :: SmythConfig -> IO ()
-runTestMain config = do
+runAllTests :: SmythConfig -> IO ()
+runAllTests config = do
   let testFile = projectRoot config </> testRoot config </> "main.lq"
-  runTestFile config testFile
-
--- | Run specific test files
-runTestFiles :: SmythConfig -> [FilePath] -> IO ()
-runTestFiles config files = do
-  mapM_ (runTestFile config) files
-
--- | Run a single test file with type checking
-runTestFile :: SmythConfig -> FilePath -> IO ()
-runTestFile config file = do
-  result <- runTest (projectRoot config) file
-  case result of
-    AllPassed n -> do
-      putStrLn $ "✓ All tests passed (" ++ show n ++ " assertions)"
+  (assertions, baseErrors) <- runPositiveTestsWithCounts config [testFile]
+  (expectedCount, expectedErrors) <- runExpectedFailures config
+  let errors = baseErrors ++ expectedErrors
+  if null errors
+    then do
+      putStrLn $
+        "✓ All tests passed (" ++ show assertions ++ " assertions, "
+        ++ show expectedCount ++ " expected failures)"
       exitSuccess
-    TypeCheckFailed err -> do
-      TIO.putStrLn $ "✗ Type error:\n" <> err
-      exitFailure
-    Failed errors -> do
-      putStrLn $ "✗ " ++ show (length errors) ++ " assertion(s) failed\n"
+    else do
+      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
       mapM_ printError errors
       exitFailure
 
--- | Run a test file and capture result
-runTest :: FilePath -> FilePath -> IO TestResult
-runTest projectRoot file = do
-  -- Parse
+runPositiveTests :: SmythConfig -> [FilePath] -> IO ()
+runPositiveTests config files = do
+  (assertions, errors) <- runPositiveTestsWithCounts config files
+  if null errors
+    then do
+      putStrLn $ "✓ All tests passed (" ++ show assertions ++ " assertions)"
+      exitSuccess
+    else do
+      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
+      mapM_ printError errors
+      exitFailure
+
+runPositiveTestsWithCounts :: SmythConfig -> [FilePath] -> IO (Int, [TestError])
+runPositiveTestsWithCounts config files = do
+  results <- mapM (runPositiveTest (projectRoot config)) files
+  let assertions = sum [n | Right n <- results]
+      errors = [e | Left e <- results]
+  pure (assertions, errors)
+
+runPositiveTest :: FilePath -> FilePath -> IO (Either TestError Int)
+runPositiveTest projectRoot file = do
+  outcome <- runTestOutcome projectRoot file
+  case outcome of
+    Right count -> pure (Right count)
+    Left failure ->
+      pure $ Left (TestError file Nothing (failureMessage failure))
+
+runExpectedFailures :: SmythConfig -> IO (Int, [TestError])
+runExpectedFailures config = do
+  let tests = errorTests config
+  results <- mapM (runExpectedFailure (projectRoot config)) tests
+  let errors = catMaybes results
+      expectedCount = length tests - length errors
+  pure (expectedCount, errors)
+
+runExpectedFailure :: FilePath -> (FilePath, T.Text) -> IO (Maybe TestError)
+runExpectedFailure projectRoot (path, expectedSubstring) = do
+  let fullPath = resolvePath projectRoot path
+  outcome <- runTestOutcome projectRoot fullPath
+  case outcome of
+    Right _ ->
+      pure $ Just (TestError path Nothing "Expected failure, but test passed")
+    Left failure -> do
+      let actual = failureMessage failure
+      if expectedSubstring `T.isInfixOf` actual
+        then pure Nothing
+        else pure $ Just (TestError path Nothing
+              ("Expected error containing: " <> expectedSubstring <> "\nActual: " <> actual))
+
+resolvePath :: FilePath -> FilePath -> FilePath
+resolvePath root path =
+  if isAbsolute path then path else root </> path
+
+runTestOutcome :: FilePath -> FilePath -> IO (Either Failure Int)
+runTestOutcome projectRoot file = do
   contents <- TIO.readFile file
   case parseMExprFile file contents of
-    Left parseErr -> pure $ Failed [TestError file Nothing (T.pack parseErr)]
+    Left parseErr -> pure $ Left (Failure ParseFailure (T.pack parseErr))
     Right m -> do
-      -- Type check
-      tcResult <- TC.typeCheckModuleWithImports projectRoot contents m
-      case tcResult of
-        Left tcErr -> pure $ TypeCheckFailed (T.pack $ show tcErr)
-        Right env -> do
-          -- Annotate: wrap expressions with inferred types
-          case TC.annotateModule env m of
-            Left annotErr -> pure $ TypeCheckFailed (T.pack $ show annotErr)
-            Right annotatedM -> do
-              -- Transform: dictionary passing for typeclasses
-              let m' = transformModuleWithEnvs annotatedM
-              -- Run and capture assertion count
-              result <- (do
-                count <- runModuleMain projectRoot m'
-                pure (AllPassed count)
-                ) `catch` handleRuntimeError file
-              pure result
+      result <- (do
+        tcResult <- TC.typeCheckModuleWithImports projectRoot contents m
+        case tcResult of
+          Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
+          Right env -> do
+            m' <- transformModuleWithEnvs projectRoot m
+            case TC.annotateModule env m' of
+              Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+              Right annotatedM -> do
+                count <- runModuleMain projectRoot annotatedM
+                pure (Right count)
+        ) `catch` handleTestException
+      pure result
 
--- | Handle runtime errors (failed assertions)
-handleRuntimeError :: FilePath -> SomeException -> IO TestResult
-handleRuntimeError file e =
-  pure $ Failed [TestError file Nothing (T.pack $ show e)]
+handleTestException :: SomeException -> IO (Either Failure Int)
+handleTestException e =
+  pure $ Left (Failure RuntimeFailure (T.pack $ show e))
 
 -- | Print a test error
 printError :: TestError -> IO ()

@@ -1,0 +1,11 @@
+# Expected type error: missing pair-case.
+
+module test::typecheck::match_missing_pair contains
+  define transparent bad-match as
+    match (pair-prim Natural String 1 "hi") of-type (Pair Natural String) as ignored returns Natural
+    end
+
+  define transparent main as compute
+    return tt
+  end
+end

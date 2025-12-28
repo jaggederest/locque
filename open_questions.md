@@ -4,7 +4,7 @@ Future design decisions for dependent types and advanced features.
 
 ## 1) Universes
 
-- Decision: explicit cumulative tower `Type0`, `Type1`, `Type2`, … (no type-in-type). Surface tokens stay numeric; no sugar.
+- Decision: explicit **non-cumulative** tower `Type0`, `Type1`, `Type2`, … (no type-in-type). Use `lift`/`up`/`down` to move types/terms across levels.
 - Open: whether to add level polymorphism/solving later vs. keep levels explicit; max rules for Π/Σ/inductives remain to be spelled out; no typical ambiguity.
 
 ## 2) Inductive Types and Eliminators

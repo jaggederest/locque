@@ -1,0 +1,12 @@
+# Expected type error: missing true-case.
+
+module test::typecheck::match_missing_true contains
+  define transparent bad-match as
+    match false of-type Boolean as ignored returns Natural
+      false-case as 0
+    end
+
+  define transparent main as compute
+    return tt
+  end
+end

@@ -1,12 +1,16 @@
 # Main test entry point
-# Runs only the prelude basics rollup
+# Runs the prelude, arithmetic, and list rollups
 
 import test::prelude as test_prelude
+import test::arithmetic as test_arithmetic
+import test::list as test_list
 
 module test::main contains
   define transparent main as compute
-    bind ignored from perform test_prelude::main then
-      return tt
+    sequence
+      test_prelude::main
+      test_arithmetic::main
+      test_list::main
     end
   end
 end

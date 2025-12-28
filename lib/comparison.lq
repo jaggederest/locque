@@ -1,16 +1,16 @@
 import prelude as P
 
 module comparison contains
-  define opaque lt-nat as lt-nat-prim
-  define opaque le-nat as le-nat-prim
-  define opaque gt-nat as gt-nat-prim
-  define opaque ge-nat as ge-nat-prim
-  define opaque eq-nat as eq-nat-prim
+  define transparent lt-nat as lt-nat-prim
+  define transparent le-nat as le-nat-prim
+  define transparent gt-nat as gt-nat-prim
+  define transparent ge-nat as ge-nat-prim
+  define transparent eq-nat as eq-nat-prim
 
   define transparent between as
     function low Natural high Natural val Natural returns Boolean value
-      P::if-bool (ge-nat val low)
-        (P::if-bool (le-nat val high) true false)
+      P::if-bool Boolean (ge-nat val low)
+        (P::if-bool Boolean (le-nat val high) true false)
         false
     end
 end

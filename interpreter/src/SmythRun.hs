@@ -23,23 +23,23 @@ runFile config file = do
       putStrLn $ "Parse error: " ++ parseErr
       exitFailure
     Right m -> do
-      -- Type check
+      -- Type check (native typeclass support on original module)
       tcResult <- (TC.typeCheckModuleWithImports (projectRoot config) contents m `catch` handleTypeCheckError)
       case tcResult of
         Left tcErr -> do
           putStrLn $ "Type error: " ++ show tcErr
           exitFailure
         Right env -> do
+          -- Transform: dictionary passing for evaluation
+          m' <- transformModuleWithEnvs (projectRoot config) m
           -- Annotate: wrap expressions with inferred types
-          case TC.annotateModule env m of
+          case TC.annotateModule env m' of
             Left annotErr -> do
               putStrLn $ "Annotation error: " ++ show annotErr
               exitFailure
             Right annotatedM -> do
-              -- Transform: dictionary passing for typeclasses
-              let m' = transformModuleWithEnvs annotatedM
               -- Run
-              _ <- (runModuleMain (projectRoot config) m' `catch` handleRuntimeError)
+              _ <- (runModuleMain (projectRoot config) annotatedM `catch` handleRuntimeError)
               exitSuccess
 
 -- | Handle type checking errors (including import loading failures)

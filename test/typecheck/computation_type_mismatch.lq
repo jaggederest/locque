@@ -1,0 +1,10 @@
+# Expected type error: computation type mismatch.
+
+module test::typecheck::computation_type_mismatch contains
+  define transparent bad-type as
+    of-type (compute return "hi" end) computation Natural
+
+  define transparent main as compute
+    return tt
+  end
+end

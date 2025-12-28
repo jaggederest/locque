@@ -6,7 +6,7 @@
 - Parser (M/S):
   - [x] Removed legacy forms (`lambda`, legacy `let … in`, `inspect`/`case`, `do … then …`, `perform io`).
   - [x] Added `let value … be … in … end`, `bind name from … then … end`, `perform` (single expr).
-  - [x] Implemented `function … returns … value|compute … end`, unified `match … of-type …` cases, `open … exposing … end`.
+  - [x] Implemented `function … returns … value|compute … end`, unified `match … of-type … as … returns …` cases, `open … exposing … end`.
   - [x] Switched `define … as <Value>` (no `as value|computation`) and added `compute … end` as explicit computation-value wrapper.
   - [x] Switched type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
   - [x] Require parenthesized non-atomic types in function params and match binders to avoid ambiguity.
@@ -15,7 +15,11 @@
   - [x] Enforce compute-wrapper semantics: computations are values (`compute <Comp> end`) and run only via `perform`.
   - [x] Drop legacy `lambda`/`inspect` paths; remove computation identifiers; adjust primitive types.
   - [x] Update import/open handling to `::`-only qualifiers and explicit-name `open`.
-  - [ ] Add dependent substitution/elaboration for `for-all`/`there-exists` (currently structural only).
+  - [x] Add dependent substitution/elaboration for `for-all`/`there-exists` (currently structural only).
+    - [x] Binder-aware substitution/free-vars (params/constraints/typeclass binders).
+    - [x] Binder-aware normalization (for-all/there-exists/functions/match).
+    - [x] Preserve dependent types on partial application in normalization.
+    - [x] Add typecheck-only shadowing test (global vs bound names).
 - Evaluator:
   - [x] Execute computation values only when performed; remove computation identifiers.
   - [x] Remove `match-prim`; keep `perform` as single bridge.
@@ -27,9 +31,12 @@
   - [x] Update core libs used by tests to new syntax (prelude/assert/io/string/comparison).
 
 ### 2. Type Classes (after alignment)
-- [ ] Design class/instance/constraint syntax that fits the new grammar.
-- [ ] Implement parser/typechecker/instance resolution + dictionary pass.
-- [ ] Refactor stdlib/tests to use type classes (e.g., unified `match` sugar).
+- [x] Design class/instance/constraint syntax that fits the new grammar.
+- [x] Parser support for `typeclass`, `instance`, `requires`.
+- [x] Dictionary pass: resolve constraints, insert method params, and resolve instances.
+- [x] Update stdlib/tests to use `Equality` + `assert-eq` (explicit type args).
+- [x] Typechecker native typeclass support (classes/instances/constraints); DictPass still used for dictionary insertion.
+- [ ] Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
 
 ### 3. Error Message Improvements
 - [x] Suggestions, SourceLoc/ErrorMsg infra, TypeError locations, runtime fuzzy matching, source threading
@@ -44,7 +51,11 @@
 
 ## Language Features
 - [ ] Dependent types in checker (universes, Pi/Sigma) per new grammar
-- [ ] Exhaustiveness checking for pattern matching
+- [x] Explicit universe lifting (`lift`/`up`/`down`) for strict universes
+- [x] there-exists intro/elim via `pack`/`unpack`
+- [x] Definitional equality: iota reduction for `match` and `unpack`
+- [ ] Definitional equality: eta reduction for functions (future)
+- [x] Exhaustiveness checking for pattern matching
 - [ ] Type holes; better inference; rows/records (future)
 
 ## Pattern Matching
@@ -63,6 +74,7 @@
 
 ## Documentation
 - [ ] Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`)
+- [x] Document `lift`/`up`/`down` in grammar and reference docs
 - [ ] Add type class migration guide once implemented
 
 ## Infrastructure

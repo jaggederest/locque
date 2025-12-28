@@ -4,54 +4,67 @@ import prelude as P
 import assert as A
 import arithmetic as Ar
 
-module LArithmeticTests contains
+open A exposing assert-eq Equality end
 
-  define transparent test-min-max as computation
-    bind perform io (A.assert-eq-nat (Ar.min 5 3) 3) as _ then
-    bind perform io (A.assert-eq-nat (Ar.min 2 8) 2) as _ then
-    bind perform io (A.assert-eq-nat (Ar.min 7 7) 7) as _ then
-    bind perform io (A.assert-eq-nat (Ar.max 5 3) 5) as _ then
-    bind perform io (A.assert-eq-nat (Ar.max 2 8) 8) as _ then
-    bind perform io (A.assert-eq-nat (Ar.max 7 7) 7) as _ then
-    return P.tt
+module test::arithmetic::basics contains
+  define transparent test-min-max as compute
+    sequence
+      (assert-eq Natural (Ar::min 5 3) 3)
+      (assert-eq Natural (Ar::min 2 8) 2)
+      (assert-eq Natural (Ar::min 7 7) 7)
+      (assert-eq Natural (Ar::max 5 3) 5)
+      (assert-eq Natural (Ar::max 2 8) 8)
+      (assert-eq Natural (Ar::max 7 7) 7)
+    end
+  end
 
-  define transparent test-abs-diff as computation
-    bind perform io (A.assert-eq-nat (Ar.abs-diff 10 3) 7) as _ then
-    bind perform io (A.assert-eq-nat (Ar.abs-diff 3 10) 7) as _ then
-    bind perform io (A.assert-eq-nat (Ar.abs-diff 5 5) 0) as _ then
-    return P.tt
+  define transparent test-abs-diff as compute
+    sequence
+      (assert-eq Natural (Ar::abs-diff 10 3) 7)
+      (assert-eq Natural (Ar::abs-diff 3 10) 7)
+      (assert-eq Natural (Ar::abs-diff 5 5) 0)
+    end
+  end
 
-  define transparent test-clamp as computation
-    bind perform io (A.assert-eq-nat (Ar.clamp 10 20 15) 15) as _ then
-    bind perform io (A.assert-eq-nat (Ar.clamp 10 20 5) 10) as _ then
-    bind perform io (A.assert-eq-nat (Ar.clamp 10 20 25) 20) as _ then
-    bind perform io (A.assert-eq-nat (Ar.clamp 10 20 10) 10) as _ then
-    bind perform io (A.assert-eq-nat (Ar.clamp 10 20 20) 20) as _ then
-    return P.tt
+  define transparent test-clamp as compute
+    sequence
+      (assert-eq Natural (Ar::clamp 10 20 15) 15)
+      (assert-eq Natural (Ar::clamp 10 20 5) 10)
+      (assert-eq Natural (Ar::clamp 10 20 25) 20)
+      (assert-eq Natural (Ar::clamp 10 20 10) 10)
+      (assert-eq Natural (Ar::clamp 10 20 20) 20)
+    end
+  end
 
-  define transparent test-even-odd as computation
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.even 0) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.even 2) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.even 1) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.even 42) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.odd 1) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.odd 2) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.odd 17) "yes" "no") "yes") as _ then
-    return P.tt
+  define transparent test-even-odd as compute
+    sequence
+      (assert-eq Boolean (Ar::even 0) true)
+      (assert-eq Boolean (Ar::even 2) true)
+      (assert-eq Boolean (Ar::even 1) false)
+      (assert-eq Boolean (Ar::even 42) true)
+      (assert-eq Boolean (Ar::odd 1) true)
+      (assert-eq Boolean (Ar::odd 2) false)
+      (assert-eq Boolean (Ar::odd 17) true)
+    end
+  end
 
-  define transparent test-is-zero-positive as computation
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.is-zero 0) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.is-zero 1) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.is-positive 0) "yes" "no") "no") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.is-positive 1) "yes" "no") "yes") as _ then
-    bind perform io (A.assert-eq-string (P.if-bool (Ar.is-positive 100) "yes" "no") "yes") as _ then
-    return P.tt
+  define transparent test-is-zero-positive as compute
+    sequence
+      (assert-eq Boolean (Ar::is-zero 0) true)
+      (assert-eq Boolean (Ar::is-zero 1) false)
+      (assert-eq Boolean (Ar::is-positive 0) false)
+      (assert-eq Boolean (Ar::is-positive 1) true)
+      (assert-eq Boolean (Ar::is-positive 100) true)
+    end
+  end
 
-  define transparent main as computation
-    bind test-min-max as _ then
-    bind test-abs-diff as _ then
-    bind test-clamp as _ then
-    bind test-even-odd as _ then
-    bind test-is-zero-positive as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      test-min-max
+      test-abs-diff
+      test-clamp
+      test-even-odd
+      test-is-zero-positive
+    end
+  end
 end

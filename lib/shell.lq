@@ -1,5 +1,5 @@
 # Shell utilities (UNSAFE: executes arbitrary shell commands)
 
 module shell contains
-  define opaque shell as value shell-prim
+  define opaque shell as shell-prim
 end

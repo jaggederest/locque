@@ -1,0 +1,4 @@
+module test::typecheck::lift_invalid_direction contains
+  define transparent bad as
+    lift Type0 from Type1 to Type0
+end

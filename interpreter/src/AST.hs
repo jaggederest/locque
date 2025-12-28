@@ -25,6 +25,11 @@ data Param = Param
   , paramType :: Expr
   } deriving (Show, Eq)
 
+data Constraint = Constraint
+  { constraintClass :: Text
+  , constraintType  :: Expr
+  } deriving (Show, Eq)
+
 data FunctionBody
   = FunctionValue Expr
   | FunctionCompute Comp
@@ -48,15 +53,22 @@ data Expr
   | EForAll Text Expr Expr
   | EThereExists Text Expr Expr
   | ECompType Expr
+  | EPack Text Expr Expr Expr Expr
+  | EUnpack Expr Text Text Expr
+  | ELift Expr Int Int
+  | EUp Expr Int Int Expr
+  | EDown Expr Int Int Expr
   | EApp Expr [Expr]
-  | EFunction [Param] Expr FunctionBody
+  | EFunction [Param] [Constraint] Expr FunctionBody
   | ELet Text Expr Expr
   | ECompute Comp
-  | EMatch Expr Expr [MatchCase]
+  | EMatch Expr Expr Text Expr [MatchCase]
   | EAnnot Expr Expr                 -- Explicit type annotation (of-type)
   | ETyped Expr Expr                 -- Inferred type wrapper (added by type checker)
   | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]
   | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
+  | ETypeClass Text [(Text, Expr)]     -- Param name, [(methodName, methodType)]
+  | EInstance Text Expr [(Text, Expr)] -- Class name, instance type, [(methodName, impl)]
   deriving (Show, Eq)
 
 -- Computations (effectful world)

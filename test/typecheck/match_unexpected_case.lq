@@ -1,0 +1,16 @@
+# Expected type error: unexpected true-case.
+
+import prelude as P
+
+module test::typecheck::match_unexpected_case contains
+  define transparent bad-match as
+    match (P::nil Natural) of-type (List Natural) as ignored returns Natural
+      empty-case as 0
+      cons-case with h Natural t (List Natural) as h
+      true-case as 1
+    end
+
+  define transparent main as compute
+    return tt
+  end
+end
