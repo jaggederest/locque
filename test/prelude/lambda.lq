@@ -3,17 +3,23 @@
 import prelude as P
 import assert as A
 
-module LLambdaTests contains
+module test::prelude::lambda contains
+  define transparent id as
+    function x String returns String value
+      x
+    end
 
-  define transparent id as value
-    function x of-type String produce x
+  define transparent apply-id as compute
+    bind res from return (id "hi") then
+      sequence
+        (A::assert-eq-string res "hi")
+      end
+    end
+  end
 
-  define transparent apply-id as computation
-    bind id "hi" as res then
-    bind perform io (A.assert-eq-string res "hi") as _ then
-    return P.tt
-
-  define transparent main as computation
-    bind apply-id as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      apply-id
+    end
+  end
 end

@@ -1,45 +1,21 @@
-# Test type family parsing and reduction
+# Type-level computation via match (type-family-like behavior)
 
-import prelude as P
-import assert as A
+module test::typecheck::type_family contains
+  define transparent HandlerType as
+    function b Boolean returns Type0 value
+      match b of-type Boolean as ignored returns Type0
+        false-case as Natural
+        true-case as String
+      end
+    end
 
-module type_family_test contains
-  # Simple type family - maps a type to a type
-  define transparent IsUnit as family (-> a a) where
-    IsUnit Unit equals Boolean
-    IsUnit a equals Unit
+  define transparent check-false as
+    of-type (HandlerType false) Type0
 
-  # Type family for Match handlers - empty case
-  define transparent EmptyHandler as family (-> a (-> b b)) where
-    EmptyHandler (List a) b equals (-> Unit b)
-    EmptyHandler Boolean b equals (-> Unit b)
-    EmptyHandler (Pair a b) c equals (-> Unit c)
+  define transparent check-true as
+    of-type (HandlerType true) Type0
 
-  # Test 1: Basic type family reduction
-  # EmptyHandler (List Natural) String should reduce to (-> Unit String)
-  # Using type inference - lambda -> creates a thunk of type Unit -> String
-  define transparent test-list-handler as value
-    lambda -> "empty list"
-
-  # Test 2: Different type family application
-  # EmptyHandler Boolean Natural should reduce to (-> Unit Natural)
-  define transparent test-bool-handler as value
-    lambda -> 42
-
-  # Test 3: Type family with polymorphic type variables in pattern
-  # EmptyHandler (Pair Natural String) Boolean should reduce to (-> Unit Boolean)
-  define transparent test-pair-handler as value
-    lambda -> true
-
-  # Test 4: Use the handler values to verify they work at runtime
-  define transparent run-list-handler as value
-    test-list-handler P.tt
-
-  define transparent run-bool-handler as value
-    test-bool-handler P.tt
-
-  define transparent main as computation
-    bind perform io (A.assert-eq-string run-list-handler "empty list") as _ then
-    bind perform io (A.assert-eq-nat run-bool-handler 42) as _ then
-    return P.tt
+  define transparent main as compute
+    return tt
+  end
 end

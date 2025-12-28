@@ -3,17 +3,18 @@
 import prelude as P
 import string as S
 
-module LTypeCheckFoldInline contains
-  define transparent has-item as value
-    function item of-type String produce
-      function xs of-type (List String) produce
-        P.fold
-          (function acc of-type Boolean produce
-            function x of-type String produce
-              P.if-bool acc true (S.eq item x))
-          false
-          xs
+module test::typecheck::fold_inline contains
+  define transparent has-item as
+    function item String xs (List String) returns Boolean value
+      P::fold String Boolean
+        (function acc Boolean x String returns Boolean value
+          P::if-bool Boolean acc true (S::eq item x)
+        end)
+        false
+        xs
+    end
 
-  define transparent main as computation
-    return P.tt
+  define transparent main as compute
+    return tt
+  end
 end

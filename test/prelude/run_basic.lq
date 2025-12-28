@@ -1,18 +1,17 @@
 # Test: smyth run - basic execution
 # This file tests that `smyth run` can execute a simple program
 
-import prelude as P
 import assert as A
-import io as IO
 
-module LSmythRunBasic contains
+module test::prelude::run_basic contains
+  define transparent test-run-basic as compute
+    sequence
+      (A::assert-eq-nat 1 1)
+      (A::assert-eq-string "hello" "hello")
+    end
+  end
 
-  define transparent test-run-basic as computation
-    bind perform io (A.assert-eq-nat 1 1) as _ then
-    bind perform io (A.assert-eq-string "hello" "hello") as _ then
-    return P.tt
-
-  define transparent main as computation
-    perform io test-run-basic
-
+  define transparent main as compute
+    perform test-run-basic
+  end
 end

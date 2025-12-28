@@ -13,6 +13,10 @@ import test::shell as test_shell
 import test::testimport as test_testimport
 import test::typeclass as test_typeclass
 import test::logic as test_logic
+import test::typecheck as test_typecheck
+import test::syntax as test_syntax
+import test::tools as test_tools
+import test::new_syntax_test as test_new_syntax_test
 
 module test::main contains
   define transparent main as compute
@@ -29,6 +33,10 @@ module test::main contains
       test_testimport::main
       test_typeclass::main
       test_logic::main
+      test_typecheck::main
+      test_syntax::main
+      test_tools::main
+      test_new_syntax_test::main
     end
   end
 end

@@ -6,6 +6,8 @@
 #
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 
+import prelude as P
+
 module typeclass::order contains
   # Less-than typeclass
   define transparent LessThan as typeclass A where
@@ -20,7 +22,7 @@ module typeclass::order contains
 
   define transparent LessThan-Boolean as instance LessThan Boolean where
     lt as function x Boolean y Boolean returns Boolean value
-      if-bool-prim Boolean x false y
+      P::if-bool Boolean x false y
     end
   end
 
@@ -37,7 +39,7 @@ module typeclass::order contains
 
   define transparent LessOrEqual-Boolean as instance LessOrEqual Boolean where
     le as function x Boolean y Boolean returns Boolean value
-      if-bool-prim Boolean x y true
+      P::if-bool Boolean x y true
     end
   end
 
@@ -54,7 +56,7 @@ module typeclass::order contains
 
   define transparent GreaterThan-Boolean as instance GreaterThan Boolean where
     gt as function x Boolean y Boolean returns Boolean value
-      if-bool-prim Boolean x (not-prim y) false
+      P::if-bool Boolean x (not-prim y) false
     end
   end
 
@@ -71,7 +73,7 @@ module typeclass::order contains
 
   define transparent GreaterOrEqual-Boolean as instance GreaterOrEqual Boolean where
     ge as function x Boolean y Boolean returns Boolean value
-      if-bool-prim Boolean x true (not-prim y)
+      P::if-bool Boolean x true (not-prim y)
     end
   end
 

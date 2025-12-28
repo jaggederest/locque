@@ -1,14 +1,16 @@
 # Migrated from ../99_typecheck_primitives.lq
 
-module LTypeCheckPrimitives contains
-  define transparent five as value 5
+module test::typecheck::primitives contains
+  define transparent five as 5
 
-  define transparent hello as value "hello world"
+  define transparent hello as "hello world"
 
-  define transparent my-bool as value true
+  define transparent my-bool as true
 
-  define transparent my-list as value cons-prim 1 (cons-prim 2 nil-prim)
+  define transparent my-list as
+    cons-prim Natural 1 (cons-prim Natural 2 (nil-prim Natural))
 
-  define transparent main as computation
+  define transparent main as compute
     return five
+  end
 end

@@ -94,5 +94,17 @@ module SmythConfig contains
                                         (P::pair String String
                                           "test/typecheck/rewrite_non_equality.lq"
                                           "Expected equality type")
-                                        (P::nil (Pair String String)))))))))))))))))))
+                                        (P::cons (Pair String String)
+                                          (P::pair String String
+                                            "test/typecheck/typeclass_no_instance.lq"
+                                            "No matching instance for Show")
+                                          (P::cons (Pair String String)
+                                            (P::pair String String
+                                              "test/errors/fuzzy_match_type.lq"
+                                              "Variable not in scope: P::add-natt")
+                                            (P::cons (Pair String String)
+                                              (P::pair String String
+                                                "test/errors/fuzzy_match_unqualified.lq"
+                                                "Variable not in scope: my-functoin")
+                                              (P::nil (Pair String String))))))))))))))))))))))
 end

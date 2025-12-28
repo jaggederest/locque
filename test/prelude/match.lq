@@ -3,18 +3,32 @@
 import prelude as P
 import assert as A
 
-module LMatchTests contains
+module test::prelude::match contains
+  define transparent bool-match as compute
+    sequence
+      (A::assert-eq-string
+        (P::if-bool String (P::not false) "true-branch" "false-branch")
+        "true-branch")
+    end
+  end
 
-  define transparent bool-match as computation
-    bind perform io (A.assert-eq-string (P.if-bool (P.not false) "true-branch" "false-branch") "true-branch") as _ then
-    return P.tt
+  define transparent list-match as compute
+    bind result from return
+      (match (P::cons String "x" (P::nil String)) of-type (List String) as ignored returns String
+        empty-case as "empty"
+        cons-case with h String t (List String) as h
+      end)
+    then
+      sequence
+        (A::assert-eq-string result "x")
+      end
+    end
+  end
 
-  define transparent list-match as computation
-    bind perform io (A.assert-eq-string (P.match-list (P.cons "x" P.nil) (lambda -> "empty") (lambda h -> lambda t -> h)) "x") as _ then
-    return P.tt
-
-  define transparent main as computation
-    bind bool-match as _ then
-    bind list-match as _ then
-    return P.tt
+  define transparent main as compute
+    sequence
+      bool-match
+      list-match
+    end
+  end
 end

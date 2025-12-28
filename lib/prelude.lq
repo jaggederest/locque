@@ -3,18 +3,46 @@ module prelude contains
   define transparent sub-nat as sub-nat-prim
   define transparent nil as nil-prim
   define transparent cons as cons-prim
-  define transparent head as head-prim
-  define transparent tail as tail-prim
+  define transparent head as
+    function A Type0 xs (List A) returns A value
+      match xs of-type (List A) as ignored returns A
+        empty-case as error-prim A "head expects a non-empty list"
+        cons-case with h A t (List A) as h
+      end
+    end
+  define transparent tail as
+    function A Type0 xs (List A) returns (List A) value
+      match xs of-type (List A) as ignored returns (List A)
+        empty-case as nil A
+        cons-case with h A t (List A) as t
+      end
+    end
   define transparent length-list as length-list-prim
   define transparent append as append-prim
   define transparent filter as filter-prim
   define transparent fold as fold-prim
   define transparent map as map-prim
   define transparent not as not-prim
-  define transparent if-bool as if-bool-prim
+  define transparent if-bool as
+    function A Type0 cond Boolean true-value A false-value A returns A value
+      match cond of-type Boolean as ignored returns A
+        false-case as false-value
+        true-case as true-value
+      end
+    end
   define transparent pair as pair-prim
-  define transparent fst as fst-prim
-  define transparent snd as snd-prim
+  define transparent fst as
+    function A Type0 B Type0 p (Pair A B) returns A value
+      match p of-type (Pair A B) as ignored returns A
+        pair-case with a A b B as a
+      end
+    end
+  define transparent snd as
+    function A Type0 B Type0 p (Pair A B) returns B value
+      match p of-type (Pair A B) as ignored returns B
+        pair-case with a A b B as b
+      end
+    end
   define transparent pair-to-list as pair-to-list-prim
   define transparent decide-eq-nat as decide-eq-nat-prim
   define transparent decide-eq-string as decide-eq-string-prim

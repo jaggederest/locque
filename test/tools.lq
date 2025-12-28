@@ -1,0 +1,14 @@
+# Test rollup for tools modules
+# Runs all tests in test/tools/
+
+import test::tools::tokenizer as tokenizer
+import test::tools::validator as validator
+
+module test::tools contains
+  define transparent main as compute
+    sequence
+      tokenizer::main
+      validator::main
+    end
+  end
+end

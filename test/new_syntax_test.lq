@@ -1,31 +1,40 @@
 import prelude as P
-open P (add-nat, cons, nil, tt)
+import assert as A
 
-module new_syntax_test contains
-  # Test zero-param lambda
-  define transparent const-five as value
-    function x of-type Natural produce
-      let f as (lambda -> 5) in
-      f tt
+module test::new_syntax_test contains
+  define transparent const-five as
+    function ignored Natural returns Natural value
+      5
+    end
 
-  # Test multi-param lambda (use nested function annotations)
-  define transparent add-wrapper as value
-    function x of-type Natural produce
-      function y of-type Natural produce
-        add-nat x y
+  define transparent add-wrapper as
+    function x Natural y Natural returns Natural value
+      P::add-nat x y
+    end
 
-  # Test let with as
-  define transparent test-let as value
-    function x of-type Natural produce
-      let y as add-nat x 10 in
-      let z as add-nat y 5 in
-      z
+  define transparent test-let as
+    function x Natural returns Natural value
+      let value y be (P::add-nat x 10) in
+        let value z be (P::add-nat y 5) in
+          z
+        end
+      end
+    end
 
-  # Test bind with new syntax
-  define transparent test-bind as computation
-    return 42
+  define transparent test-bind as compute
+    bind result from return 42 then
+      sequence
+        (A::assert-eq-nat result 42)
+      end
+    end
+  end
 
-  define transparent main as computation
-    bind test-bind as result then
-    return tt
+  define transparent main as compute
+    sequence
+      (A::assert-eq-nat (const-five 0) 5)
+      (A::assert-eq-nat (add-wrapper 3 4) 7)
+      (A::assert-eq-nat (test-let 1) 16)
+      test-bind
+    end
+  end
 end

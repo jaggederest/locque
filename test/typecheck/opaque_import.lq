@@ -2,17 +2,16 @@
 
 import prelude as P
 
-module LTestOpaqueImport contains
-  define opaque my-take as value take-prim
-  define opaque my-drop as value drop-prim
+module test::typecheck::opaque_import contains
+  define opaque my-take as take-prim
+  define opaque my-drop as drop-prim
 
-  define transparent my-slice as value
-    function start of-type Natural produce
-      function len of-type Natural produce
-        function xs of-type (List a) produce
-          my-take len (my-drop start xs)
+  define transparent my-slice as
+    function A Type0 start Natural len Natural xs (List A) returns List A value
+      my-take A len (my-drop A start xs)
+    end
 
-  define transparent main as computation
-    bind my-slice 1 2 (P.cons 10 (P.cons 20 (P.cons 30 P.nil))) as result then
-    return P.tt
+  define transparent main as compute
+    return tt
+  end
 end

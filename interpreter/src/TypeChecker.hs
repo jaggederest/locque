@@ -1493,8 +1493,6 @@ buildPrimitiveEnv = Map.fromList
 
   , ("nil-prim", EForAll "A" (tType 0) (tList (EVar "A")))
   , ("cons-prim", EForAll "A" (tType 0) (tFun (EVar "A") (tFun (tList (EVar "A")) (tList (EVar "A")))))
-  , ("head-prim", EForAll "A" (tType 0) (tFun (tList (EVar "A")) (EVar "A")))
-  , ("tail-prim", EForAll "A" (tType 0) (tFun (tList (EVar "A")) (tList (EVar "A"))))
   , ("length-list-prim", EForAll "A" (tType 0) (tFun (tList (EVar "A")) tNat))
   , ("append-prim", EForAll "A" (tType 0) (tFun (tList (EVar "A")) (tFun (tList (EVar "A")) (tList (EVar "A")))))
   , ("nth-prim", EForAll "A" (tType 0) (tFun tNat (tFun (tList (EVar "A")) (EVar "A"))))
@@ -1517,17 +1515,9 @@ buildPrimitiveEnv = Map.fromList
               (tFun (EVar "B") (tFun (tList (EVar "A")) (EVar "B"))))))
 
   , ("not-prim", tFun tBool tBool)
-  , ("if-bool-prim", EForAll "A" (tType 0)
-      (tFun tBool (tFun (EVar "A") (tFun (EVar "A") (EVar "A")))))
   , ("pair-prim", EForAll "A" (tType 0)
       (EForAll "B" (tType 0)
         (tFun (EVar "A") (tFun (EVar "B") (tPair (EVar "A") (EVar "B"))))))
-  , ("fst-prim", EForAll "A" (tType 0)
-      (EForAll "B" (tType 0)
-        (tFun (tPair (EVar "A") (EVar "B")) (EVar "A"))))
-  , ("snd-prim", EForAll "A" (tType 0)
-      (EForAll "B" (tType 0)
-        (tFun (tPair (EVar "A") (EVar "B")) (EVar "B"))))
   , ("pair-to-list-prim", EForAll "A" (tType 0)
       (tFun (tPair (EVar "A") (EVar "A")) (tList (EVar "A"))))
 

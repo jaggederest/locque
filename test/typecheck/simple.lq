@@ -1,11 +1,14 @@
 # Migrated from ../99_typecheck_simple.lq
 
-module LTypeCheckSimple contains
-  define transparent five as value 5
+module test::typecheck::simple contains
+  define transparent five as 5
 
-  define transparent add-five as value
-    function x of-type Natural produce add-nat-prim x five
+  define transparent add-five as
+    function x Natural returns Natural value
+      add-nat-prim x five
+    end
 
-  define transparent main as computation
-    return add-five 10
+  define transparent main as compute
+    return (add-five 10)
+  end
 end

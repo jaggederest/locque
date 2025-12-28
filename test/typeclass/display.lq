@@ -25,7 +25,7 @@ module test::typeclass::display contains
   # Instance: Boolean
   define transparent Display-Boolean as instance Display Boolean where
     display as function b Boolean returns String value
-      if-bool-prim String b "true" "false"
+      P::if-bool String b "true" "false"
     end
   end
 

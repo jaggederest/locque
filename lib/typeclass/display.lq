@@ -2,6 +2,8 @@
 #
 # Similar to Haskell's Show typeclass.
 
+import prelude as P
+
 module typeclass::display contains
   # Display typeclass definition
   define transparent Display as typeclass A where
@@ -25,7 +27,7 @@ module typeclass::display contains
   # Instance: Boolean
   define transparent Display-Boolean as instance Display Boolean where
     display as function b Boolean returns String value
-      if-bool-prim String b "true" "false"
+      P::if-bool String b "true" "false"
     end
   end
 

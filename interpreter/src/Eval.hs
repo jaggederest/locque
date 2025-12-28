@@ -113,17 +113,12 @@ primEnv = Map.fromList
   , (T.pack "tt", BVal VUnit)
   , (T.pack "nil-prim", BVal (VPrim primNil))
   , (T.pack "cons-prim", BVal (VPrim primCons))
-  , (T.pack "head-prim", BVal (VPrim primHead))
-  , (T.pack "tail-prim", BVal (VPrim primTail))
   , (T.pack "length-list-prim", BVal (VPrim primLengthList))
   , (T.pack "append-prim", BVal (VPrim primAppend))
   , (T.pack "map-prim", BVal (VPrim primMap)) -- TODO: drop when map is written in locque
   , (T.pack "not-prim", BVal (VPrim primNot))
-  , (T.pack "if-bool-prim", BVal (VPrim primIfBool))
   , (T.pack "drop-until-prim", BVal (VPrim primDropUntil))
   , (T.pack "pair-prim", BVal (VPrim primPair))
-  , (T.pack "fst-prim", BVal (VPrim primFst))
-  , (T.pack "snd-prim", BVal (VPrim primSnd))
   , (T.pack "pair-to-list-prim", BVal (VPrim primPairToList))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
   -- Comparison operators
@@ -298,20 +293,6 @@ primPair [tyA, tyB, a, b] = do
   pure $ VPair a b
 primPair _ = error "pair-prim expects (Type, Type, a, b)"
 
-primFst :: [Value] -> IO Value
-primFst [tyA, tyB, VPair a _] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  pure a
-primFst _ = error "fst-prim expects (Type, Type, pair)"
-
-primSnd :: [Value] -> IO Value
-primSnd [tyA, tyB, VPair _ b] = do
-  expectTypeArg tyA
-  expectTypeArg tyB
-  pure b
-primSnd _ = error "snd-prim expects (Type, Type, pair)"
-
 primPairToList :: [Value] -> IO Value
 primPairToList [tyA, VPair a b] = do
   expectTypeArg tyA
@@ -324,7 +305,7 @@ primValidate [VString s] = do
   let s' = if T.isSuffixOf (T.pack "\n") s then s else s <> T.pack "\n"
   case checkParens "<inline>" s' of
     Left _ -> pure (VBoolean False)
-    Right _ -> case parseModuleFile "<inline>" s' of
+    Right _ -> case parseMExprFile "<inline>" s' of
       Left _ -> pure (VBoolean False)
       Right m -> case validateModule m of
         Left _ -> pure (VBoolean False)
@@ -408,24 +389,6 @@ primCons [ty, h, VList t] = do
   pure $ VList (h:t)
 primCons _ = error "cons-prim expects (Type, head, list)"
 
-primHead :: [Value] -> IO Value
-primHead [ty, VList (h:_)] = do
-  expectTypeArg ty
-  pure h
-primHead [ty, VList []] = do
-  expectTypeArg ty
-  pure (VList [])
-primHead _ = error "head-prim expects (Type, list)"
-
-primTail :: [Value] -> IO Value
-primTail [ty, VList (_:t)] = do
-  expectTypeArg ty
-  pure (VList t)
-primTail [ty, VList []] = do
-  expectTypeArg ty
-  pure (VList [])
-primTail _ = error "tail-prim expects (Type, list)"
-
 primLengthList :: [Value] -> IO Value
 primLengthList [ty, VList xs] = do
   expectTypeArg ty
@@ -449,12 +412,6 @@ primNot :: [Value] -> IO Value
 primNot [VBoolean b] = pure $ VBoolean (not b)
 primNot [v] = pure $ VBoolean (not (isTruthy v))
 primNot _ = error "not-prim expects 1 arg"
-
-primIfBool :: [Value] -> IO Value
-primIfBool [ty, cond, t, f] = do
-  expectTypeArg ty
-  pure $ if isTruthy cond then t else f
-primIfBool _ = error "if-bool-prim expects (Type, cond, then, else)"
 
 primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
 primCompareNat op [a, b] = do

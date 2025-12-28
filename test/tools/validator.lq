@@ -1,0 +1,16 @@
+import assert as A
+
+module test::tools::validator contains
+  define transparent valid-source as
+    "module sample::ok contains\n  define transparent main as compute\n    return tt\n  end\nend\n"
+
+  define transparent invalid-source as
+    "module sample::bad contains\n  define transparent main as compute\n    return tt\n  end\n"
+
+  define transparent main as compute
+    sequence
+      (A::assert-eq-bool (validate-prim valid-source) true)
+      (A::assert-eq-bool (validate-prim invalid-source) false)
+    end
+  end
+end

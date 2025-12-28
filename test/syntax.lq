@@ -1,0 +1,12 @@
+# Test rollup for syntax modules
+# Runs all tests in test/syntax/
+
+import test::syntax::comments as comments
+
+module test::syntax contains
+  define transparent main as compute
+    sequence
+      comments::main
+    end
+  end
+end

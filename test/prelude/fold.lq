@@ -3,24 +3,41 @@
 import prelude as P
 import assert as A
 
-module LFoldTests contains
+module test::prelude::fold contains
+  define transparent list123 as
+    P::cons String "1"
+      (P::cons String "2"
+        (P::cons String "3" (P::nil String)))
 
-  define transparent list123 as value
-    P.cons "1" (P.cons "2" (P.cons "3" P.nil))
+  define transparent sum-total as
+    P::fold String String concat-string-prim "" list123
 
-  define transparent sum-list as computation
-    bind P.fold concat-string-prim "" list123 as total then
-    bind perform io (A.assert-eq-string total "123") as _ then
-    return P.tt
+  define transparent sum-list as compute
+    sequence
+      (A::assert-eq-string sum-total "123")
+    end
+  end
 
-  define transparent map-upper as computation
-    bind P.map (function x of-type String produce concat-string-prim x "!") list123 as mapped then
-    bind P.fold concat-string-prim "" mapped as total then
-    bind perform io (A.assert-eq-string total "1!2!3!") as _ then
-    return P.tt
+  define transparent map-upper-list as
+    P::map String String
+      (function x String returns String value
+        concat-string-prim x "!"
+      end)
+      list123
 
-  define transparent main as computation
-    bind sum-list as _ then
-    bind map-upper as _ then
-    return P.tt
+  define transparent map-upper-total as
+    P::fold String String concat-string-prim "" map-upper-list
+
+  define transparent map-upper as compute
+    sequence
+      (A::assert-eq-string map-upper-total "1!2!3!")
+    end
+  end
+
+  define transparent main as compute
+    sequence
+      sum-list
+      map-upper
+    end
+  end
 end

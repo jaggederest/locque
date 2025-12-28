@@ -1,19 +1,39 @@
 # Test rollup for prelude basics only
 
+import test::prelude::assertion_count as assertion_count
 import test::prelude::basics as basics
-import test::prelude::lift as lift
-import test::prelude::exists as exists
-import test::prelude::iota as iota
 import test::prelude::equality as equality
+import test::prelude::exists as exists
+import test::prelude::fold as fold
+import test::prelude::imports as imports
+import test::prelude::iota as iota
+import test::prelude::lambda as lambda
+import test::prelude::let_binding as let_binding
+import test::prelude::lift as lift
+import test::prelude::match as match
+import test::prelude::match_semantics as match_semantics
+import test::prelude::new_primitives as new_primitives
+import test::prelude::primitives as primitives
+import test::prelude::run_basic as run_basic
 
 module test::prelude contains
   define transparent main as compute
     sequence
+      assertion_count::main
       basics::main
+      equality::main
       lift::main
       exists::main
+      fold::main
+      imports::main
       iota::main
-      equality::main
+      lambda::main
+      let_binding::main
+      match::main
+      match_semantics::main
+      new_primitives::main
+      primitives::main
+      run_basic::main
     end
   end
 end

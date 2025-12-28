@@ -1,0 +1,15 @@
+import prelude as P
+import assert as A
+
+module test::tools::tokenizer contains
+  define transparent main as compute
+    sequence
+      (A::assert-eq-nat
+        (P::length-list String (string-to-list-prim "hi"))
+        2)
+      (A::assert-eq-string
+        (P::head String (string-to-list-prim "hi"))
+        "h")
+    end
+  end
+end

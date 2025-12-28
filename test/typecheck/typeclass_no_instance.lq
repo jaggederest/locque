@@ -1,18 +1,27 @@
 # Test error when no instance exists
-import prelude as P
 
-module typeclass_no_instance_test contains
-  define transparent Show as typeclass a where
-    show of-type (-> a String)
+module test::typecheck::typeclass_no_instance contains
+  define transparent Show as typeclass A where
+    show of-type for-all x as A to String
+  end
 
   # Only instance for Natural, NOT for String
   define transparent Show-Natural as instance Show Natural where
-    show produce lambda x -> "nat"
+    show as function x Natural returns String value
+      "nat"
+    end
+  end
+
+  define transparent show-string as
+    function x String requires Show String returns String value
+      show x
+    end
 
   # This should fail - no instance of Show for String
-  define transparent bad as value
-    show "hello"
+  define transparent bad as
+    show-string "hello"
 
-  define transparent main as computation
-    return P.tt
+  define transparent main as compute
+    return bad
+  end
 end

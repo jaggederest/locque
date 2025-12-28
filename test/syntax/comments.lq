@@ -3,30 +3,35 @@
 # Line comments start with #
 # Block comments use /* */
 
-import prelude as P
 import assert as A
-import io as IO
 
-module LCommentsTest contains
-
+module test::syntax::comments contains
   # This is a line comment
-  define transparent test-line-comment as computation
+  define transparent test-line-comment as compute
     # Comments can appear anywhere
-    bind return 1 as x then # Even at end of line
-    bind perform io (A.assert-eq-nat x 1) as _ then
-    return P.tt
+    bind x from return 1 then # Even at end of line
+      sequence
+        (A::assert-eq-nat x 1)
+      end
+    end
+  end
 
   /*
   This is a block comment
   It can span multiple lines
   */
-  define transparent test-block-comment as computation
-    bind return /* inline comment */ 2 as y then
-    bind perform io (A.assert-eq-nat y 2) as _ then
-    return P.tt
+  define transparent test-block-comment as compute
+    bind y from return /* inline comment */ 2 then
+      sequence
+        (A::assert-eq-nat y 2)
+      end
+    end
+  end
 
-  define transparent main as computation
-    bind perform io test-line-comment as _ then
-    perform io test-block-comment
-
+  define transparent main as compute
+    sequence
+      test-line-comment
+      test-block-comment
+    end
+  end
 end
