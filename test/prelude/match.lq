@@ -8,8 +8,8 @@ module test::prelude::match contains
     sequence
       (A::assert-eq-string
         (match (P::not false) of-type Boolean as ignored returns String
-          false-case as "false-branch"
-          true-case as "true-branch"
+          case Boolean::false as "false-branch"
+          case Boolean::true as "true-branch"
         end)
         "true-branch")
     end
@@ -18,8 +18,8 @@ module test::prelude::match contains
   define transparent list-match as compute
     bind result from return
       (match (P::cons String "x" (P::nil String)) of-type (List String) as ignored returns String
-        empty-case as "empty"
-        cons-case with h String t (List String) as h
+        case List::empty as "empty"
+        case List::cons with h String t (List String) as h
       end)
     then
       sequence

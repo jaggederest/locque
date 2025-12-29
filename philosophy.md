@@ -70,9 +70,9 @@ define Character as
 **Current discriminators**:
 - `typeclass` - overloading mechanism
 - `instance` - typeclass implementation
+- `data` - algebraic data types
 
 **Future discriminators** (syntax TBD, not in current grammar):
-- `data` - algebraic data types (for when we add user-defined types)
 - `family` - type-level functions (type families)
 - `effect` - effect definitions
 - `protocol` - session types (if we add them)
@@ -91,19 +91,14 @@ define Character as
 **Examples of current extensions**:
 ```locque
 # Type class (overloading)
-define Match as typeclass where
-  match of-type (for-all a as Type0 to
-    for-all b as Type0 to
-      for-all ignored as Unit to
-        for-all ignored as a to
-          for-all ignored as a to
-            b)
+define transparent Equality as typeclass A where
+  eq of-type for-all x as A to for-all y as A to Boolean
 end
 
 # Instance (typeclass implementation)
-define Match-List as instance Match (List a) where
-  match returns for-all ignored as List a to b value
-    ...
+define transparent Equality-Natural as instance Equality Natural where
+  eq as function x Natural y Natural returns Boolean value
+    eq-nat-prim x y
   end
 end
 ```

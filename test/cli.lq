@@ -1,0 +1,12 @@
+# Test rollup for cli module
+# Runs all tests in test/cli/
+
+import test::cli::basics as basics
+
+module test::cli contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

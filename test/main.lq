@@ -11,6 +11,7 @@ import test::comparison as test_comparison
 import test::string as test_string
 import test::io as test_io
 import test::file as test_file
+import test::cli as test_cli
 import test::path as test_path
 import test::shell as test_shell
 import test::testimport as test_testimport
@@ -34,6 +35,7 @@ module test::main contains
       test_string::main
       test_io::main
       test_file::main
+      test_cli::main
       test_path::main
       test_shell::main
       test_testimport::main

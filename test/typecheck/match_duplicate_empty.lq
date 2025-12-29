@@ -1,13 +1,13 @@
-# Expected type error: duplicate empty-case.
+# Expected type error: duplicate case List::empty.
 
 import prelude as P
 
 module test::typecheck::match_duplicate_empty contains
   define transparent bad-match as
     match (P::nil Natural) of-type (List Natural) as ignored returns Natural
-      empty-case as 0
-      empty-case as 1
-      cons-case with h Natural t (List Natural) as h
+      case List::empty as 0
+      case List::empty as 1
+      case List::cons with h Natural t (List Natural) as h
     end
 
   define transparent main as compute

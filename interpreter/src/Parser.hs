@@ -214,6 +214,8 @@ fromExpr path (SList [SAtom "down", ty, from, to, body]) = do
   toLevel <- fromUniverse path "down" to
   body' <- fromExpr path body
   pure (EDown ty' fromLevel toLevel body')
+fromExpr path (SList (SAtom "data" : rest)) =
+  fromData path rest
 fromExpr path (SList [SAtom "compute", comp]) = ECompute <$> fromComp path comp
 fromExpr path (SList [SAtom "let", SList [SAtom name, val], body]) = do
   val' <- fromExpr path val
@@ -263,6 +265,28 @@ fromFunctionBody path (SList [SAtom "compute", body]) =
   FunctionCompute <$> fromComp path body
 fromFunctionBody path other =
   Left (path ++ ": function body must be (value <expr>) or (compute <comp>), found " ++ renderHead other)
+
+fromData :: FilePath -> [SExpr] -> Either String Expr
+fromData path parts = do
+  let (paramForms, rest) = span isParamForm parts
+  params <- mapM (fromParam path) paramForms
+  case rest of
+    (universeExpr : caseForms) -> do
+      level <- fromUniverse path "data" universeExpr
+      cases <- mapM (fromDataCase path) caseForms
+      pure (EData params (ETypeUniverse level) cases)
+    _ ->
+      Left (path ++ ": data expects (data <params...> <TypeN> <cases...>)")
+  where
+    isParamForm (SList [SAtom _, _]) = True
+    isParamForm _ = False
+
+fromDataCase :: FilePath -> SExpr -> Either String DataCase
+fromDataCase path (SList [SAtom "case", SAtom name, ty]) = do
+  ty' <- fromType path ty
+  pure (DataCase name ty')
+fromDataCase path other =
+  Left (path ++ ": data case must be (case <Constructor> <Type>), found " ++ renderHead other)
 
 fromParam :: FilePath -> SExpr -> Either String Param
 fromParam path (SList [SAtom name, ty]) = do
@@ -328,22 +352,16 @@ mkApp (EApp f existing) more = EApp f (existing ++ more)
 mkApp f more                 = EApp f more
 
 fromMatchCase :: FilePath -> SExpr -> Either String MatchCase
-fromMatchCase path (SList [SAtom "empty-case", body]) =
-  MatchEmpty <$> fromExpr path body
-fromMatchCase path (SList [SAtom "cons-case", SList [SAtom h, hTy], SList [SAtom t, tTy], body]) = do
-  hTy' <- fromType path hTy
-  tTy' <- fromType path tTy
-  body' <- fromExpr path body
-  pure (MatchCons h hTy' t tTy' body')
-fromMatchCase path (SList [SAtom "false-case", body]) =
-  MatchFalse <$> fromExpr path body
-fromMatchCase path (SList [SAtom "true-case", body]) =
-  MatchTrue <$> fromExpr path body
-fromMatchCase path (SList [SAtom "pair-case", SList [SAtom a, aTy], SList [SAtom b, bTy], body]) = do
-  aTy' <- fromType path aTy
-  bTy' <- fromType path bTy
-  body' <- fromExpr path body
-  pure (MatchPair a aTy' b bTy' body')
+fromMatchCase path (SList (SAtom "case" : rest)) =
+  case rest of
+    (SAtom ctor : more) ->
+      case reverse more of
+        [] -> Left (path ++ ": case expects body")
+        (bodyExpr : revBinders) -> do
+          binders <- mapM (fromParam path) (reverse revBinders)
+          body <- fromExpr path bodyExpr
+          pure (MatchCase ctor binders body)
+    _ -> Left (path ++ ": case expects (case <Constructor> <binders...> <body>)")
 fromMatchCase path other =
   Left (path ++ ": invalid match case " ++ renderHead other)
 
@@ -472,8 +490,25 @@ pDefinition = mLexeme $ do
   tr <- (Transparent <$ keyword "transparent") <|> (Opaque <$ keyword "opaque")
   name <- pIdentifier
   keyword "as"
-  body <- pTypeclassDef <|> pInstanceDef <|> pValue
+  body <- pDataDef <|> pTypeclassDef <|> pInstanceDef <|> pValue
   pure (Definition tr name body)
+
+pDataDef :: Parser Expr
+pDataDef = M.try $ do
+  keyword "data"
+  params <- manyTill pParam (keyword "in")
+  level <- pUniverseLevel
+  let universe = ETypeUniverse level
+  cases <- manyTill pDataCase (keyword "end")
+  pure (EData params universe cases)
+
+pDataCase :: Parser DataCase
+pDataCase = M.try $ do
+  keyword "case"
+  name <- pIdentifier
+  keyword "of-type"
+  ty <- pType
+  pure (DataCase name ty)
 
 pTypeclassDef :: Parser Expr
 pTypeclassDef = M.try $ do
@@ -572,6 +607,12 @@ pLet = M.try $ do
   keyword "end"
   pure (ELet v val body)
 
+pParam :: Parser Param
+pParam = do
+  name <- pIdentifier
+  ty <- pTypeParam
+  pure (Param name ty)
+
 pFunction :: Parser Expr
 pFunction = M.try $ do
   keyword "function"
@@ -583,11 +624,6 @@ pFunction = M.try $ do
       <|> (FunctionCompute <$> (keyword "compute" *> pComp))
   keyword "end"
   pure (EFunction params constraints retTy body)
-  where
-    pParam = do
-      name <- pIdentifier
-      ty <- pTypeParam
-      pure (Param name ty)
 
 pConstraints :: Parser [Constraint]
 pConstraints = M.try $ do
@@ -705,45 +741,18 @@ pMatch = M.try $ do
   pure (EMatch scrut scrutTy scrutName retTy cases)
 
 pMatchCase :: Parser MatchCase
-pMatchCase =
-      pEmptyCase
-  <|> pConsCase
-  <|> pFalseCase
-  <|> pTrueCase
-  <|> pPairCase
-  where
-    pEmptyCase = M.try $ do
-      keyword "empty-case"
-      keyword "as"
-      MatchEmpty <$> pValue
-    pConsCase = M.try $ do
-      keyword "cons-case"
-      keyword "with"
-      h <- pIdentifier
-      hTy <- pTypeParam
-      t <- pIdentifier
-      tTy <- pTypeParam
+pMatchCase = M.try $ do
+  keyword "case"
+  ctor <- pIdentifier
+  binders <- optional (keyword "with" *> someTill pParam (keyword "as"))
+  case binders of
+    Nothing -> do
       keyword "as"
       body <- pValue
-      pure (MatchCons h hTy t tTy body)
-    pFalseCase = M.try $ do
-      keyword "false-case"
-      keyword "as"
-      MatchFalse <$> pValue
-    pTrueCase = M.try $ do
-      keyword "true-case"
-      keyword "as"
-      MatchTrue <$> pValue
-    pPairCase = M.try $ do
-      keyword "pair-case"
-      keyword "with"
-      a <- pIdentifier
-      aTy <- pTypeParam
-      b <- pIdentifier
-      bTy <- pTypeParam
-      keyword "as"
+      pure (MatchCase ctor [] body)
+    Just params -> do
       body <- pValue
-      pure (MatchPair a aTy b bTy body)
+      pure (MatchCase ctor params body)
 
 pApp :: Parser Expr
 pApp = do
@@ -881,7 +890,7 @@ reservedWords =
   [ "module", "contains", "import", "open", "define", "transparent", "opaque"
   , "as", "function", "returns", "value", "compute", "let", "bind", "from", "then"
   , "perform", "return", "sequence", "match", "of-type", "exposing", "end", "be", "in", "with"
-  , "empty-case", "cons-case", "false-case", "true-case", "pair-case"
+  , "data", "case"
   , "for-all", "there-exists", "computation", "to", "lift", "up", "down", "pack", "unpack"
   , "equal", "reflexive", "rewrite"
   , "typeclass", "instance", "where", "requires", "and"
@@ -1012,6 +1021,8 @@ renderExpr expr = case expr of
     "(match (of-type " <> renderExpr scrut <> " " <> T.typeToSExpr scrutTy <> ") "
       <> scrutName <> " " <> T.typeToSExpr retTy <> " "
       <> DT.unwords (map renderMatchCase cases) <> ")"
+  EData params universe cases ->
+    "(data " <> DT.unwords (map renderParam params ++ [renderExpr universe] ++ map renderDataCase cases) <> ")"
   EAnnot e ty -> "(of-type " <> renderExpr e <> " " <> T.typeToSExpr ty <> ")"
   ETyped e _ -> renderExpr e
   EDict className impls ->
@@ -1050,16 +1061,12 @@ renderFunctionBody body = case body of
   FunctionCompute c -> "(compute " <> renderComp c <> ")"
 
 renderMatchCase :: MatchCase -> DT.Text
-renderMatchCase mc = case mc of
-  MatchEmpty body -> "(empty-case " <> renderExpr body <> ")"
-  MatchCons h hTy t tTy body ->
-    "(cons-case (" <> h <> " " <> T.typeToSExpr hTy <> ") (" <> t <> " "
-      <> T.typeToSExpr tTy <> ") " <> renderExpr body <> ")"
-  MatchFalse body -> "(false-case " <> renderExpr body <> ")"
-  MatchTrue body -> "(true-case " <> renderExpr body <> ")"
-  MatchPair a aTy b bTy body ->
-    "(pair-case (" <> a <> " " <> T.typeToSExpr aTy <> ") (" <> b <> " "
-      <> T.typeToSExpr bTy <> ") " <> renderExpr body <> ")"
+renderMatchCase (MatchCase ctor binders body) =
+  "(case " <> ctor <> " " <> DT.unwords (map renderParam binders ++ [renderExpr body]) <> ")"
+
+renderDataCase :: DataCase -> DT.Text
+renderDataCase (DataCase ctor ty) =
+  "(case " <> ctor <> " " <> T.typeToSExpr ty <> ")"
 
 renderComp :: Comp -> DT.Text
 renderComp comp = case comp of
@@ -1155,6 +1162,9 @@ renderMExpr expr = case expr of
     "match " <> renderMExpr scrut <> " of-type " <> T.prettyType scrutTy
       <> " as " <> scrutName <> " returns " <> T.prettyType retTy <> " "
       <> DT.unwords (map renderMatchCaseM cases) <> " end"
+  EData params universe cases ->
+    "data " <> renderParams params <> (if null params then "" else " ")
+      <> "in " <> renderMExpr universe <> " " <> DT.unwords (map renderDataCaseM cases) <> " end"
   EAnnot e ty -> "of-type " <> renderMExpr e <> " " <> T.prettyType ty
   ETyped e _ -> renderMExpr e
   EDict className impls ->
@@ -1196,16 +1206,15 @@ renderInstanceMethodM (name, body) =
   name <> " as " <> renderMExpr body
 
 renderMatchCaseM :: MatchCase -> DT.Text
-renderMatchCaseM mc = case mc of
-  MatchEmpty body -> "empty-case as " <> renderMExpr body
-  MatchCons h hTy t tTy body ->
-    "cons-case with " <> h <> " " <> T.prettyTypeAtom hTy <> " "
-      <> t <> " " <> T.prettyTypeAtom tTy <> " as " <> renderMExpr body
-  MatchFalse body -> "false-case as " <> renderMExpr body
-  MatchTrue body -> "true-case as " <> renderMExpr body
-  MatchPair a aTy b bTy body ->
-    "pair-case with " <> a <> " " <> T.prettyTypeAtom aTy <> " "
-      <> b <> " " <> T.prettyTypeAtom bTy <> " as " <> renderMExpr body
+renderMatchCaseM (MatchCase ctor binders body) =
+  case binders of
+    [] -> "case " <> ctor <> " as " <> renderMExpr body
+    _ ->
+      "case " <> ctor <> " with " <> renderParams binders <> " as " <> renderMExpr body
+
+renderDataCaseM :: DataCase -> DT.Text
+renderDataCaseM (DataCase ctor ty) =
+  "case " <> ctor <> " of-type " <> T.prettyType ty
 
 renderMComp :: Comp -> DT.Text
 renderMComp comp = case comp of

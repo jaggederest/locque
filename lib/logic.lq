@@ -11,8 +11,8 @@ module logic contains
     function P Type0 returns Type0 value
       there-exists b as Boolean in
         match b of-type Boolean as ignored returns Type0
-          false-case as Not P
-          true-case as P
+          case Boolean::false as Not P
+          case Boolean::true as P
         end
     end
 

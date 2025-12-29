@@ -30,11 +30,11 @@ module test::file::helpers contains
   define transparent find-is-directory as
     function target String entries (List (Pair String Boolean)) returns Boolean value
       match entries of-type (List (Pair String Boolean)) as ignored returns Boolean
-        empty-case as false
-        cons-case with h (Pair String Boolean) t (List (Pair String Boolean)) as
+        case List::empty as false
+        case List::cons with h (Pair String Boolean) t (List (Pair String Boolean)) as
           match (S::eq (File::walk-path h) target) of-type Boolean as ignored returns Boolean
-            true-case as File::walk-is-directory h
-            false-case as recur target t
+            case Boolean::true as File::walk-is-directory h
+            case Boolean::false as recur target t
           end
       end
     end

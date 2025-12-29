@@ -1,27 +1,135 @@
 # Prelude tests for iota reductions
 
+import prelude as P
+import assert as A
+
+open A exposing assert-eq Equality end
+
 module test::prelude::iota contains
+  define transparent Flagged as data b Boolean in Type0
+    case Flagged::false of-type Flagged false
+    case Flagged::true of-type Flagged true
+  end
+
+  define transparent Test as data b Boolean in Type0
+    case Test::make of-type
+      for-all x as
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+      to Test b
+  end
+
+  define transparent flag-false as
+    Test::make false 7
+
+  define transparent flag-true as
+    Test::make true "ok"
+
+  define transparent check-false-type as
+    of-type flag-false (Test false)
+
+  define transparent check-true-type as
+    of-type flag-true (Test true)
+
+  define transparent pick as
+    function b Boolean x (Test b) returns
+      (match b of-type Boolean as ignored returns Type0
+        case Boolean::false as Natural
+        case Boolean::true as String
+      end)
+    value
+      match x of-type (Test b) as ignored returns
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+        case Test::make with x
+          (match b of-type Boolean as ignored returns Type0
+            case Boolean::false as Natural
+            case Boolean::true as String
+          end)
+        as x
+      end
+    end
+
+  define transparent Unreachable as data b Boolean in Type0
+    case Unreachable::make of-type
+      for-all x as
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+      to Unreachable b
+  end
+
+  define transparent unreachable-value as
+    Unreachable::make true "ok"
+
+  define transparent unreachable-bad as
+    function b Boolean x (Unreachable b) returns
+      (match b of-type Boolean as ignored returns Type0
+        case Boolean::false as Natural
+        case Boolean::true as String
+      end)
+    value
+      match x of-type (Unreachable b) as ignored returns
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+        case Unreachable::make with x
+          (match b of-type Boolean as ignored returns Type0
+            case Boolean::false as Natural
+            case Boolean::true as String
+          end)
+        as (P::add-nat x 1)
+      end
+    end
+
+  define transparent unreachable-pick as
+    function b Boolean x (Unreachable b) returns
+      (match b of-type Boolean as ignored returns Type0
+        case Boolean::false as Natural
+        case Boolean::true as String
+      end)
+    value
+      match x of-type (Unreachable b) as ignored returns
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+        case Unreachable::make with x
+          (match b of-type Boolean as ignored returns Type0
+            case Boolean::false as Natural
+            case Boolean::true as String
+          end)
+        as x
+      end
+    end
+
   define transparent bool-branch-type as
     match true of-type Boolean as ignored returns Type0
-      false-case as String
-      true-case as Natural
+      case Boolean::false as String
+      case Boolean::true as Natural
     end
 
   define transparent check-bool-branch-type as
     of-type 0 bool-branch-type
 
   define transparent list-branch-type as
-    match (cons-prim Natural 1 (nil-prim Natural)) of-type (List Natural) as ignored returns Type0
-      empty-case as String
-      cons-case with h Natural t (List Natural) as Natural
+    match (P::cons Natural 1 (P::nil Natural)) of-type (List Natural) as ignored returns Type0
+      case List::empty as String
+      case List::cons with h Natural t (List Natural) as Natural
     end
 
   define transparent check-list-branch-type as
     of-type 0 list-branch-type
 
   define transparent pair-branch-type as
-    match (pair-prim Natural String 3 "hi") of-type (Pair Natural String) as ignored returns Type0
-      pair-case with a Natural b String as Natural
+    match (P::pair Natural String 3 "hi") of-type (Pair Natural String) as ignored returns Type0
+      case Pair::pair with a Natural b String as Natural
     end
 
   define transparent check-pair-branch-type as
@@ -34,6 +142,10 @@ module test::prelude::iota contains
     of-type 0 unpack-branch-type
 
   define transparent main as compute
-    return tt
+    sequence
+      (A::assert-eq Natural (pick false flag-false) 7)
+      (A::assert-eq String (pick true flag-true) "ok")
+      (A::assert-eq String (unreachable-pick true unreachable-value) "ok")
+    end
   end
 end

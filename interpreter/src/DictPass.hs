@@ -385,6 +385,10 @@ transformExpr ctx expr = case expr of
     let ctx' = ctx { ctxBound = Set.insert scrutName (ctxBound ctx) }
     in EMatch (transformExpr ctx scrut) (transformType scrutTy) scrutName (transformType retTy)
       (map (transformMatchCase ctx') cases)
+  EData params universe cases ->
+    let params' = [Param name (transformType ty) | Param name ty <- params]
+        cases' = map transformDataCase cases
+    in EData params' (transformType universe) cases'
   EAnnot e ty -> EAnnot (transformExpr ctx e) (transformType ty)
   ETyped e ty -> ETyped (transformExpr ctx e) (transformType ty)
   EDict className impls ->
@@ -410,18 +414,15 @@ transformComp ctx comp = case comp of
   CSeq c1 c2 -> CSeq (transformComp ctx c1) (transformComp ctx c2)
 
 transformMatchCase :: TransformCtx -> MatchCase -> MatchCase
-transformMatchCase ctx caseExpr = case caseExpr of
-  MatchEmpty body -> MatchEmpty (transformExpr ctx body)
-  MatchFalse body -> MatchFalse (transformExpr ctx body)
-  MatchTrue body -> MatchTrue (transformExpr ctx body)
-  MatchCons h hTy t tTy body ->
-    let bound' = Set.insert h (Set.insert t (ctxBound ctx))
-        ctx' = ctx { ctxBound = bound' }
-    in MatchCons h (transformType hTy) t (transformType tTy) (transformExpr ctx' body)
-  MatchPair a aTy b bTy body ->
-    let bound' = Set.insert a (Set.insert b (ctxBound ctx))
-        ctx' = ctx { ctxBound = bound' }
-    in MatchPair a (transformType aTy) b (transformType bTy) (transformExpr ctx' body)
+transformMatchCase ctx (MatchCase ctor binders body) =
+  let binders' = [Param name (transformType ty) | Param name ty <- binders]
+      bound' = ctxBound ctx `Set.union` Set.fromList (map paramName binders)
+      ctx' = ctx { ctxBound = bound' }
+  in MatchCase ctor binders' (transformExpr ctx' body)
+
+transformDataCase :: DataCase -> DataCase
+transformDataCase (DataCase ctor ty) =
+  DataCase ctor (transformType ty)
 
 transformType :: Expr -> Expr
 transformType = id

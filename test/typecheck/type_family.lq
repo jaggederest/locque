@@ -4,8 +4,8 @@ module test::typecheck::type_family contains
   define transparent HandlerType as
     function b Boolean returns Type0 value
       match b of-type Boolean as ignored returns Type0
-        false-case as Natural
-        true-case as String
+        case Boolean::false as Natural
+        case Boolean::true as String
       end
     end
 

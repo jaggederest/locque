@@ -21,13 +21,13 @@ module file contains
   define transparent walk-path as
     function entry (Pair String Boolean) returns String value
       match entry of-type (Pair String Boolean) as ignored returns String
-        pair-case with path String isdir Boolean as path
+        case Pair::pair with path String isdir Boolean as path
       end
     end
   define transparent walk-is-directory as
     function entry (Pair String Boolean) returns Boolean value
       match entry of-type (Pair String Boolean) as ignored returns Boolean
-        pair-case with path String isdir Boolean as isdir
+        case Pair::pair with path String isdir Boolean as isdir
       end
     end
 
@@ -35,24 +35,24 @@ module file contains
   define transparent stat-type as
     function info (Pair String (Pair Natural Natural)) returns String value
       match info of-type (Pair String (Pair Natural Natural)) as ignored returns String
-        pair-case with kind String rest (Pair Natural Natural) as kind
+        case Pair::pair with kind String rest (Pair Natural Natural) as kind
       end
     end
   define transparent stat-size as
     function info (Pair String (Pair Natural Natural)) returns Natural value
       match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
-        pair-case with kind String rest (Pair Natural Natural) as
+        case Pair::pair with kind String rest (Pair Natural Natural) as
           match rest of-type (Pair Natural Natural) as ignored returns Natural
-            pair-case with size Natural mtime Natural as size
+            case Pair::pair with size Natural mtime Natural as size
           end
       end
     end
   define transparent stat-mtime as
     function info (Pair String (Pair Natural Natural)) returns Natural value
       match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
-        pair-case with kind String rest (Pair Natural Natural) as
+        case Pair::pair with kind String rest (Pair Natural Natural) as
           match rest of-type (Pair Natural Natural) as ignored returns Natural
-            pair-case with size Natural mtime Natural as mtime
+            case Pair::pair with size Natural mtime Natural as mtime
           end
       end
     end
@@ -79,20 +79,20 @@ module file contains
         compute
           perform
             (match (S::is-empty suffix) of-type Boolean as ignored returns (computation Unit)
-              true-case as compute return tt end
-              false-case as
+              case Boolean::true as compute return tt end
+              case Boolean::false as
                 compute
                   bind exists from perform (path-exists path) then
                     perform
                       (match exists of-type Boolean as ignored returns (computation Unit)
-                        false-case as write-file path suffix
-                        true-case as
+                        case Boolean::false as write-file path suffix
+                        case Boolean::true as
                           compute
                             bind contents from perform (read-file path) then
                               perform
                                 (match (S::is-empty contents) of-type Boolean as ignored returns (computation Unit)
-                                  true-case as append-file path suffix
-                                  false-case as append-file path (S::concat "\n" suffix)
+                                  case Boolean::true as append-file path suffix
+                                  case Boolean::false as append-file path (S::concat "\n" suffix)
                                 end)
                             end
                           end

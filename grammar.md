@@ -21,7 +21,7 @@ One canonical surface, no arrows or symbolic sugar. Qualification uses `::` only
 ```
 import Prelude
 import Tools::String as S
-open Prelude exposing map nil cons end
+open Prelude exposing map List::empty List::cons end
 
 module my::module contains
   ...
@@ -30,6 +30,7 @@ end
 
 - Imports precede opens; opens precede the module.
 - `open Alias exposing name1 name2 ... end` (explicit list only; no wildcard).
+- `open` names may include `::` (e.g., `Option::some`) to drop only the module qualifier while keeping the type-qualified constructor name. `open` never introduces bare constructor names.
 - `end` is mandatory for `open` and `module` blocks in M-expr.
 
 ## Definitions
@@ -37,12 +38,25 @@ end
 ```
 define transparent <name> as <Value>
 define opaque       <name> as <Value>
+define transparent <TypeName> as data p1 TypeParam p2 TypeParam ... in TypeN
+  case <TypeName::Constructor> of-type <Type>
+  ...
+end
 ```
 
 - Opacity: `transparent` or `opaque` on the binding.
 - Definitions are values by default.
 - Computation values are explicit: `compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr); they run only when performed.
 - Functions are values; effectful functions return `computation T`.
+- `data` defines a type constructor and its constructors (values) as `TypeName::Constructor`.
+- Data parameters use the same `name Type` binder rules as functions; they may live in any universe (`TypeN`) and are in scope in constructor types.
+- Data parameters may be empty.
+- The `data` result must be a universe (`Type0`, `Type1`, ...). The type constructor has the corresponding Pi type.
+- Each constructor type must return the data type with the same arity as the header, but arguments may be refined (indices). The checker enforces this.
+- Constructor applications include only the data parameters that appear free in the constructor type, in header order; unused data parameters are implicit. Example:
+  `define transparent Tagged as data n Natural in Type0 ... case Tagged::zero of-type Tagged 0 ... end` makes `Tagged::zero` nullary.
+- Constructor field types may include `computation T` (since computations are values), but constructor results must be pure data (not `computation (Type ...)`).
+- A `data` definition may declare zero constructors (an empty type).
 
 ## Typeclasses and constraints
 
@@ -77,8 +91,9 @@ S-expr sketches:
 ## Block termination (M-expr)
 
 `end` is mandatory for any construct that can be multiline: `function`, `compute`,
-`let value`, `bind`, `match`, `pack`, `unpack`, `module`, `open`. `end` is never
-optional in M-expr, even for single-line bodies.
+`let value`, `bind`, `match`, `sequence`, `pack`, `unpack`, `typeclass`,
+`instance`, `data`, `module`, `open`. `end` is never optional in M-expr, even
+for single-line bodies.
 
 ## Values
 
@@ -140,25 +155,58 @@ may depend on the binder.
 ```
 -- List
 match xs of-type List A as ignored returns List A
-  empty-case as <Value>
-  cons-case with h A t (List A) as <Value>
+  case List::empty as <Value>
+  case List::cons with h A t (List A) as <Value>
 end
 
 -- Boolean
 match flag of-type Boolean as ignored returns Natural
-  false-case as <Value>
-  true-case  as <Value>
+  case Boolean::false as <Value>
+  case Boolean::true  as <Value>
 end
 
 -- Pair
 match p of-type Pair A B as ignored returns A
-  pair-case with a A b B as <Value>
+  case Pair::pair with a A b B as <Value>
 end
 ```
 
 Handlers use value bodies (pure); no lambdas.
 Case binders use the same `TypeParam` rule as function params; parenthesize non-atomic types.
-Matches must be exhaustive and may not repeat or mix case kinds.
+Matches must be exhaustive over the constructors for the scrutinee type; no duplicates or mixed-constructor sets.
+Dependent motives refine the return type per case by unifying constructor results with the scrutinee type; the case body is checked under the resulting index substitution.
+If a constructor result cannot unify with the scrutinee type (e.g., index mismatch), that case is treated as unreachable and its body is not checked.
+Built-in constructor names:
+- `List::empty`, `List::cons`
+- `Boolean::false`, `Boolean::true`
+- `Pair::pair`
+- `Unit::tt`
+Case labels always use the `Type::Constructor` form, even if the corresponding literal can appear elsewhere (e.g., `tt`).
+For empty types, a match with zero cases is exhaustive.
+
+### Built-in data sketches (spec)
+
+These show the surface syntax clients should expect; built-ins may still be implemented primitively.
+
+```
+define transparent Boolean as data in TypeN
+  case Boolean::false of-type Boolean
+  case Boolean::true of-type Boolean
+end
+
+define transparent Unit as data in TypeN
+  case Unit::tt of-type Unit
+end
+
+define transparent List as data A TypeN in TypeN
+  case List::empty of-type List A
+  case List::cons of-type for-all h as A to for-all t as List A to List A
+end
+
+define transparent Pair as data A TypeN B TypeN in TypeN
+  case Pair::pair of-type for-all a as A to for-all b as B to Pair A B
+end
+```
 
 ## Types
 
@@ -247,6 +295,7 @@ rewrite P p as t
 
 - No `lambda`, no arrows (`->`), no `<-`.
 - No `inspect … with … end`, no `match-prim`.
+- No `*-case` variants (`empty-case`, `cons-case`, etc.); use `case <Constructor>`.
 - No multi-binding `let` or tuple binding sugar.
 - No wildcard `open`; no qualification with `.`.
 
@@ -256,9 +305,11 @@ rewrite P p as t
 - S-expr uses the same keyword vocabulary but **bans** M-expr infix separators (`as`, `returns`, `from`, `then`, `with`, `in`, `be`). Structure is purely positional via parentheses.
 - S-expr uses `value` and `compute` nodes to mark function body kind.
 - `define` binds a value directly in S-expr (no outer `value` wrapper).
+- S-expr `data` form is `(data <params...> <TypeN> <cases...>)` where each case is `(case <Constructor> <Type>)`.
 - S-expr represents computation values as `(compute <Computation>)`.
 - S-expr uses `(of-type <expr> <Type>)` for explicit type annotations.
 - S-expr match shape is `(match (of-type <expr> <Type>) <binder> <Type> <cases...>)`.
+- S-expr case form is `(case <Constructor> <binders...> <body>)`, where binders are `(x Type)` and omitted for nullary constructors.
 - S-expr sequence form is `(sequence <expr> <expr> ...)`.
 - S-expr equality/transport: `(equal <Type> <expr> <expr>)`, `(reflexive <Type> <expr>)`, `(rewrite <expr> <expr> <expr>)`.
 - S-expr binders are always parenthesized: `(x Type)`; M-expr requires parentheses only for non-atomic types.

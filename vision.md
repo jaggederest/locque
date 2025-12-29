@@ -18,12 +18,12 @@ Value vs computation (CBPV-flavored)
     define transparent read-two as compute
       bind a from perform read-number then
         bind b from perform read-number then
-          return pair a b
+          return Pair::pair a b
         end
       end
     end
     ```
-  - S: `(define transparent read-two (compute (bind (a (perform read-number)) (bind (b (perform read-number)) (return (pair a b))))))`
+  - S: `(define transparent read-two (compute (bind (a (perform read-number)) (bind (b (perform read-number)) (return (Pair::pair a b))))))`
 
 Opacity and unfolding
 
@@ -88,36 +88,37 @@ Pattern matching (current surface)
   - M:
     ```
     match xs of-type List A as ignored returns List A
-      empty-case as nil
-      cons-case with h A t (List A) as cons h t
+      case List::empty as List::empty
+      case List::cons with h A t (List A) as List::cons h t
     end
     ```
-  - S: `(match (of-type xs (List A)) ignored (List A) (empty-case nil) (cons-case (h A) (t (List A)) (cons h t)))`
+  - S: `(match (of-type xs (List A)) ignored (List A) (case List::empty List::empty) (case List::cons (h A) (t (List A)) (List::cons h t)))`
 
 - Boolean:
   - M:
     ```
     match flag of-type Boolean as ignored returns Natural
-      false-case as 0
-      true-case as 1
+      case Boolean::false as 0
+      case Boolean::true as 1
     end
     ```
-  - S: `(match (of-type flag Boolean) ignored Natural (false-case 0) (true-case 1))`
+  - S: `(match (of-type flag Boolean) ignored Natural (case Boolean::false 0) (case Boolean::true 1))`
 
 - Pair:
   - M:
     ```
     match p of-type Pair A B as ignored returns A
-      pair-case with a A b B as a
+      case Pair::pair with a A b B as a
     end
     ```
-  - S: `(match (of-type p (Pair A B)) ignored A (pair-case (a A) (b B) a))`
+  - S: `(match (of-type p (Pair A B)) ignored A (case Pair::pair (a A) (b B) a))`
 
-Future inductives and recursors (not in current grammar)
+Inductives and recursors (current + planned)
 
-- Planned: explicit inductive definitions with recursors; pattern matching remains deterministic sugar over recursors.
+- Current: `data ... in TypeN ... end` introduces user-defined inductives; constructors are `Type::Ctor`; pattern matching is the eliminator.
+- Planned: explicit recursors (and/or syntax sugar) and strict positivity checks; match remains deterministic sugar over recursors.
 - Candidate core: Natural, Boolean, Unit, Empty, equal, List, Pair, Either/Option, Vec/Fin.
-- Positivity and termination: strict positivity and structural recursion; effects stay out of eliminators.
+- Termination: structural recursion is enforced for `recur`; effects stay out of eliminators.
 
 Total values vs. effectful computations
 
@@ -159,8 +160,8 @@ Termination and coverage illustrations
     define transparent sum-list as
       function xs (List Natural) returns Natural value
         match xs of-type List Natural as ignored returns Natural
-          empty-case as 0
-          cons-case with h Natural t (List Natural) as add-nat h (sum-list t)
+          case List::empty as 0
+          case List::cons with h Natural t (List Natural) as add-nat h (sum-list t)
         end
       end
     ```
@@ -180,10 +181,10 @@ Termination and coverage illustrations
   - Missing case example (reject):
     ```
     match b of-type Boolean as ignored returns Natural
-      true-case as 0
+      case Boolean::true as 0
     end
     ```
-  - Must include `false-case` for `Boolean`.
+  - Must include `case Boolean::false` for `Boolean`.
 
 CBPV small-step semantics (informal rules)
 
@@ -195,7 +196,7 @@ CBPV small-step semantics (informal rules)
   - Application β (value world): `(function x A returns B value body end) v → body[x := v]`
   - Return/bind: `bind x from (return v) then d end → d[x := v]`
   - Bind step: if `c → c'` then `bind x from c then d end → bind x from c' then d end`
-  - Match ι rules: `match ctor ... of-type ... as binder returns Type ...` steps to the selected branch with pattern vars bound.
+  - Match ι rules: `match ... case Type::Ctor ...` steps to the selected branch with pattern vars bound.
   - Perform: `perform v → effect-step(v)` (abstract; handled by runtime/host).
 
 - Evaluation contexts (computations):
@@ -215,7 +216,7 @@ Namespaces and modules (current)
   - M:
     ```
     import Tools::String as S
-    open Prelude exposing map nil cons end
+    open Prelude exposing map List::empty List::cons end
 
     module My::Module contains
       define transparent add2 as

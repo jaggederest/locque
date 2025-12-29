@@ -1,0 +1,40 @@
+# Expected type error: wrong dependent return type in cons case.
+
+import prelude as P
+
+module test::typecheck::vec_bad_motive contains
+  define transparent Peano as data in Type0
+    case Peano::zero of-type Peano
+    case Peano::succ of-type for-all n as Peano to Peano
+  end
+
+  define transparent Vec as data A Type0 n Peano in Type0
+    case Vec::nil of-type Vec A Peano::zero
+    case Vec::cons of-type
+      for-all n as Peano to
+      for-all h as A to
+      for-all t as Vec A n to
+      Vec A (Peano::succ n)
+  end
+
+  define transparent bad as
+    function A Type0 n Peano xs (Vec A n) returns
+      (match n of-type Peano as ignored returns Type0
+        case Peano::zero as Unit
+        case Peano::succ with k Peano as A
+      end)
+    value
+      match xs of-type (Vec A n) as ignored returns
+        (match n of-type Peano as ignored returns Type0
+          case Peano::zero as Unit
+          case Peano::succ with k Peano as A
+        end)
+        case Vec::nil as tt
+        case Vec::cons with k Peano h A t (Vec A k) as tt
+      end
+    end
+
+  define transparent main as compute
+    return tt
+  end
+end

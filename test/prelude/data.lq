@@ -1,0 +1,139 @@
+# Data definition and match tests
+
+import prelude as P
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::prelude::data contains
+  define transparent Option as data A Type0 in Type0
+    case Option::none of-type Option A
+    case Option::some of-type for-all x as A to Option A
+  end
+
+  define transparent Empty as data in Type0
+  end
+
+  define transparent Wrapper as data A Type0 n Natural in Type0
+    case Wrapper::wrap of-type for-all x as A to Wrapper A n
+  end
+
+  define transparent Tagged as data n Natural in Type0
+    case Tagged::zero of-type Tagged 0
+    case Tagged::one of-type Tagged 1
+  end
+
+  define transparent Flagged as data b Boolean in Type0
+    case Flagged::false of-type Flagged false
+    case Flagged::true of-type Flagged true
+  end
+
+  define transparent Peano as data in Type0
+    case Peano::zero of-type Peano
+    case Peano::succ of-type for-all n as Peano to Peano
+  end
+
+  define transparent Vec as data A Type0 n Peano in Type0
+    case Vec::nil of-type Vec A Peano::zero
+    case Vec::cons of-type
+      for-all n as Peano to
+      for-all h as A to
+      for-all t as Vec A n to
+      Vec A (Peano::succ n)
+  end
+
+  define transparent option-default as
+    function A Type0 fallback A opt (Option A) returns A value
+      match opt of-type (Option A) as ignored returns A
+        case Option::none as fallback
+        case Option::some with x A as x
+      end
+    end
+
+  define transparent absurd as
+    function A Type0 e Empty returns A value
+      match e of-type Empty as ignored returns A
+      end
+    end
+
+  define transparent unwrap as
+    function A Type0 n Natural w (Wrapper A n) returns A value
+      match w of-type (Wrapper A n) as ignored returns A
+        case Wrapper::wrap with x A as x
+      end
+    end
+
+  define transparent tag0 as Tagged::zero
+  define transparent tag1 as Tagged::one
+  define transparent tag0-typed as of-type tag0 (Tagged 0)
+  define transparent tag1-typed as of-type tag1 (Tagged 1)
+
+  define transparent flagged-value as
+    function b Boolean x (Flagged b) returns
+      (match b of-type Boolean as ignored returns Type0
+        case Boolean::false as Natural
+        case Boolean::true as String
+      end)
+    value
+      match x of-type (Flagged b) as ignored returns
+        (match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Natural
+          case Boolean::true as String
+        end)
+        case Flagged::false as 0
+        case Flagged::true as "yes"
+      end
+    end
+
+  define transparent peano-zero as Peano::zero
+  define transparent vec-one as
+    Vec::cons Natural peano-zero 7 (Vec::nil Natural)
+
+  define transparent head-vec as
+    function A Type0 n Peano xs (Vec A (Peano::succ n)) returns A value
+      match xs of-type (Vec A (Peano::succ n)) as ignored returns A
+        case Vec::nil as error-prim A "unreachable"
+        case Vec::cons with n Peano h A t (Vec A n) as h
+      end
+    end
+
+  define transparent tail-vec as
+    function A Type0 n Peano xs (Vec A (Peano::succ n)) returns (Vec A n) value
+      match xs of-type (Vec A (Peano::succ n)) as ignored returns (Vec A n)
+        case Vec::nil as Vec::nil A
+        case Vec::cons with n Peano h A t (Vec A n) as t
+      end
+    end
+
+  define transparent map-vec as
+    function A Type0 B Type0 n Peano f (for-all x as A to B) xs (Vec A n) returns (Vec B n) value
+      match xs of-type (Vec A n) as ignored returns (Vec B n)
+        case Vec::nil as Vec::nil B
+        case Vec::cons with n Peano h A t (Vec A n) as
+          Vec::cons B n (f h) (recur A B n f t)
+      end
+    end
+
+  define transparent peano-one as Peano::succ peano-zero
+  define transparent peano-two as Peano::succ peano-one
+  define transparent vec-two as Vec::cons Natural peano-one 8 vec-one
+
+  define transparent inc as
+    function x Natural returns Natural value
+      P::add-nat x 1
+    end
+
+  define transparent main as compute
+    sequence
+      (A::assert-eq Natural (option-default Natural 1 (Option::none Natural)) 1)
+      (A::assert-eq Natural (option-default Natural 1 (Option::some Natural 2)) 2)
+      (A::assert-eq Natural (unwrap Natural 2 (Wrapper::wrap Natural 2 9)) 9)
+      (A::assert-eq Natural (flagged-value false Flagged::false) 0)
+      (A::assert-eq String (flagged-value true Flagged::true) "yes")
+      (A::assert-eq Natural (head-vec Natural peano-zero vec-one) 7)
+      (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one vec-two)) 7)
+      (A::assert-eq Natural (head-vec Natural peano-zero (map-vec Natural Natural peano-one inc vec-one)) 8)
+      (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one (map-vec Natural Natural peano-two inc vec-two))) 8)
+    end
+  end
+end

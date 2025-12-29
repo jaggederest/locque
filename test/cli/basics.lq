@@ -1,30 +1,70 @@
-# CLI arg and working directory checks
+# CLI argument and option checks
 
 import assert as A
-import fs as FS
+import cli as Cli
+import file as File
 import list as L
 import prelude as P
 import string as S
 
-module test::prelude::cli contains
-  define transparent check-cli-args as compute
-    bind args from perform P::cli-args then
+module test::cli::basics contains
+  define transparent check-args as compute
+    bind args from perform Cli::args then
       perform (A::assert-eq Boolean (L::is-empty String args) false)
     end
   end
 
   define transparent check-current-directory as compute
-    bind cwd from perform P::current-directory then
-      bind exists from perform (FS::path-exists (S::concat cwd "/Smythfile.lq")) then
+    bind cwd from perform (File::current-directory) then
+      bind exists from perform (File::path-exists (S::concat cwd "/Smythfile.lq")) then
         perform (A::assert-eq Boolean exists true)
       end
     end
   end
 
+  define transparent sample-args as
+    P::cons String "--name"
+      (P::cons String "locque"
+        (P::cons String "--flag"
+          (P::cons String "-x"
+            (P::cons String "pos1"
+              (P::cons String "--"
+                (P::cons String "--not-flag" (P::nil String)))))))
+
+  define transparent option-string as
+    function opt (Pair String String) returns String value
+      match opt of-type (Pair String String) as ignored returns String
+        case Pair::pair with key String val String as
+          S::concat key (S::concat "=" val)
+      end
+    end
+
+  define transparent options-string as
+    function opts (List (Pair String String)) returns String value
+      S::join-with "," (P::map (Pair String String) String option-string opts)
+    end
+
+  define transparent sample-options as
+    Cli::parse-options sample-args
+
+  define transparent sample-positionals as
+    Cli::options-positionals sample-options
+
+  define transparent sample-flags as
+    Cli::options-flags sample-options
+
+  define transparent check-options as compute
+    sequence
+      (A::assert-eq String (S::join-with "," sample-positionals) "pos1,--not-flag")
+      (A::assert-eq String (options-string sample-flags) "name=locque,flag=true,x=true")
+    end
+  end
+
   define transparent main as compute
     sequence
-      check-cli-args
+      check-args
       check-current-directory
+      check-options
     end
   end
 end

@@ -24,32 +24,32 @@ module test::prelude::new_primitives contains
     sequence
       (A::assert-eq-string
         (match (S::string-ends-with "" "hello") of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq-string
         (match (S::string-ends-with "lo" "hello") of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq-string
         (match (S::string-ends-with "hello" "hello") of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq-string
         (match (S::string-ends-with "hi" "hello") of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "no")
       (A::assert-eq-string
         (match (S::string-ends-with "ello" "hello") of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "yes")
     end

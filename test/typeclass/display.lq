@@ -26,8 +26,8 @@ module test::typeclass::display contains
   define transparent Display-Boolean as instance Display Boolean where
     display as function b Boolean returns String value
       match b of-type Boolean as ignored returns String
-        false-case as "false"
-        true-case as "true"
+        case Boolean::false as "false"
+        case Boolean::true as "true"
       end
     end
   end

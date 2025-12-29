@@ -59,38 +59,46 @@ module SmythConfig contains
                         "test/typecheck/perform_bind_result_mismatch.lq"
                         "Type mismatch")
                       (P::cons (Pair String String)
-                        (P::pair String String
-                          "test/typecheck/match_missing_false.lq"
-                          "Match error: missing false-case")
+                      (P::pair String String
+                        "test/typecheck/match_missing_false.lq"
+                        "Match error: missing case Boolean::false")
                         (P::cons (Pair String String)
                           (P::pair String String
                             "test/typecheck/match_missing_true.lq"
-                            "Match error: missing true-case")
+                            "Match error: missing case Boolean::true")
                           (P::cons (Pair String String)
                             (P::pair String String
                               "test/typecheck/match_missing_empty.lq"
-                              "Match error: missing empty-case")
+                              "Match error: missing case List::empty")
                             (P::cons (Pair String String)
                               (P::pair String String
                                 "test/typecheck/match_missing_cons.lq"
-                                "Match error: missing cons-case")
+                                "Match error: missing case List::cons")
                               (P::cons (Pair String String)
                                 (P::pair String String
                                   "test/typecheck/match_missing_pair.lq"
-                                  "Match error: missing pair-case")
+                                  "Match error: missing case Pair::pair")
                                 (P::cons (Pair String String)
                                   (P::pair String String
                                     "test/typecheck/match_duplicate_empty.lq"
-                                    "Match error: duplicate empty-case")
+                                    "Match error: duplicate case List::empty")
                                   (P::cons (Pair String String)
                                     (P::pair String String
                                       "test/typecheck/match_unexpected_case.lq"
-                                      "Match error: unexpected true-case")
+                                      "Match error: unexpected case Boolean::true")
                                     (P::cons (Pair String String)
                                       (P::pair String String
                                         "test/typecheck/recursion_non_decreasing.lq"
                                         "Recursion error: recur must use a structurally smaller argument")
                                       (P::cons (Pair String String)
+                                        (P::pair String String
+                                          "test/typecheck/vec_bad_motive.lq"
+                                          "Type mismatch")
+                                        (P::cons (Pair String String)
+                                          (P::pair String String
+                                            "test/typecheck/vec_bad_binder.lq"
+                                            "Type mismatch")
+                                          (P::cons (Pair String String)
                                         (P::pair String String
                                           "test/typecheck/rewrite_non_equality.lq"
                                           "Expected equality type")
@@ -106,5 +114,5 @@ module SmythConfig contains
                                               (P::pair String String
                                                 "test/errors/fuzzy_match_unqualified.lq"
                                                 "Variable not in scope: my-functoin")
-                                              (P::nil (Pair String String))))))))))))))))))))))
+                                              (P::nil (Pair String String))))))))))))))))))))))))
 end

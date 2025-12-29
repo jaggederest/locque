@@ -7,8 +7,8 @@ module test::typecheck::match contains
   define transparent test-list-match as compute
     bind result from return
       (match (P::cons String "first" (P::nil String)) of-type (List String) as ignored returns String
-        empty-case as "empty"
-        cons-case with h String t (List String) as h
+        case List::empty as "empty"
+        case List::cons with h String t (List String) as h
       end)
     then
       sequence
@@ -20,8 +20,8 @@ module test::typecheck::match contains
   define transparent test-bool-match as compute
     bind result from return
       (match true of-type Boolean as ignored returns String
-        false-case as "false"
-        true-case as "true"
+        case Boolean::false as "false"
+        case Boolean::true as "true"
       end)
     then
       sequence
@@ -33,7 +33,7 @@ module test::typecheck::match contains
   define transparent test-pair-match as compute
     bind result from return
       (match (P::pair String Natural "hello" 42) of-type (Pair String Natural) as ignored returns Natural
-        pair-case with s String n Natural as n
+        case Pair::pair with s String n Natural as n
       end)
     then
       sequence

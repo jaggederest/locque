@@ -4,11 +4,11 @@ import prelude as P
 import assert as A
 
 module test::prelude::match_semantics contains
-  define transparent test-list-empty-case as compute
+  define transparent test-list-empty as compute
     bind result from return
       (match (P::nil String) of-type (List String) as ignored returns String
-        empty-case as "empty"
-        cons-case with h String t (List String) as "cons"
+        case List::empty as "empty"
+        case List::cons with h String t (List String) as "cons"
       end)
     then
       sequence
@@ -17,12 +17,12 @@ module test::prelude::match_semantics contains
     end
   end
 
-  define transparent test-list-cons-case as compute
+  define transparent test-list-cons as compute
     bind result from return
       (match (P::cons String "first" (P::cons String "second" (P::nil String)))
         of-type (List String) as ignored returns String
-        empty-case as "empty"
-        cons-case with h String t (List String) as h
+        case List::empty as "empty"
+        case List::cons with h String t (List String) as h
       end)
     then
       sequence
@@ -31,11 +31,11 @@ module test::prelude::match_semantics contains
     end
   end
 
-  define transparent test-bool-false-case as compute
+  define transparent test-bool-false as compute
     bind result from return
       (match false of-type Boolean as ignored returns String
-        false-case as "false-branch"
-        true-case as "true-branch"
+        case Boolean::false as "false-branch"
+        case Boolean::true as "true-branch"
       end)
     then
       sequence
@@ -44,11 +44,11 @@ module test::prelude::match_semantics contains
     end
   end
 
-  define transparent test-bool-true-case as compute
+  define transparent test-bool-true as compute
     bind result from return
       (match true of-type Boolean as ignored returns String
-        false-case as "false-branch"
-        true-case as "true-branch"
+        case Boolean::false as "false-branch"
+        case Boolean::true as "true-branch"
       end)
     then
       sequence
@@ -57,10 +57,10 @@ module test::prelude::match_semantics contains
     end
   end
 
-  define transparent test-pair-case as compute
+  define transparent test-pair as compute
     bind result from return
       (match (P::pair String String "left" "right") of-type (Pair String String) as ignored returns String
-        pair-case with a String b String as a
+        case Pair::pair with a String b String as a
       end)
     then
       sequence
@@ -71,11 +71,11 @@ module test::prelude::match_semantics contains
 
   define transparent main as compute
     sequence
-      test-list-empty-case
-      test-list-cons-case
-      test-bool-false-case
-      test-bool-true-case
-      test-pair-case
+      test-list-empty
+      test-list-cons
+      test-bool-false
+      test-bool-true
+      test-pair
     end
   end
 end

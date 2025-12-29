@@ -10,6 +10,7 @@
   - [x] Switched `define … as <Value>` (no `as value|computation`) and added `compute … end` as explicit computation-value wrapper.
   - [x] Switched type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
   - [x] Require parenthesized non-atomic types in function params and match binders to avoid ambiguity.
+  - [x] Add `data … in TypeN … end` definitions and `case <Type::Ctor>` match syntax (M/S), remove legacy `*-case`.
 - Types/TypeChecker:
   - [x] Replace `TFun` with Pi (`for-all`); add Sigma (`there-exists`) and explicit universes.
   - [x] Enforce compute-wrapper semantics: computations are values (`compute <Comp> end`) and run only via `perform`.
@@ -51,7 +52,7 @@
 - [ ] `smyth validate <file>`; `smyth convert <file>`; `smyth fmt <file>`; `smyth doc`
 
 ## Language Features
-- [ ] Dependent types in checker (universes, Pi/Sigma) per new grammar
+  - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar
 - [x] Equality types + transport (`equal`, `reflexive`, `rewrite`)
 - [x] Decidable equality / refinement tooling (e.g., Character length 1)
 - [x] Explicit universe lifting (`lift`/`up`/`down`) for strict universes
@@ -63,11 +64,12 @@
 
 ## Pattern Matching
 - [x] Type-specific primitives (current impl)
-- [ ] Unified `match` sugar over typed eliminators; exhaustiveness; guards; nested patterns; as-patterns
+  - [x] Unified `match` over constructors (data + built-ins); exhaustiveness by constructor set; guards/nested patterns later
 
 ## Standard Library
 - [x] Core: Prelude, List, String, IO, Assert; List.slice
-- [x] Filesystem primitives + fs module (helpers, walk, stat)
+- [x] File primitives + file module (helpers, walk, stat)
+- [x] CLI helpers (args/options)
 - [x] Path utilities (join/dirname/basename/ext/is-absolute)
 - [ ] Result/Option/Either
 - [ ] More string/list ops; JSON; HTTP (future)

@@ -12,8 +12,8 @@ module test::project contains
   define transparent is-lq-entry as
     function entry (Pair String Boolean) returns Boolean value
       match (File::walk-is-directory entry) of-type Boolean as ignored returns Boolean
-        true-case as false
-        false-case as S::string-ends-with ".lq" (File::walk-path entry)
+        case Boolean::true as false
+        case Boolean::false as S::string-ends-with ".lq" (File::walk-path entry)
       end
     end
 

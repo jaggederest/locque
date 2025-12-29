@@ -6,8 +6,8 @@ module test::typecheck::recursion_non_decreasing contains
   define transparent bad as
     function xs (List Natural) returns Natural value
       match xs of-type (List Natural) as ignored returns Natural
-        empty-case as 0
-        cons-case with h Natural t (List Natural) as
+        case List::empty as 0
+        case List::cons with h Natural t (List Natural) as
           P::add-nat h (recur xs)
       end
     end

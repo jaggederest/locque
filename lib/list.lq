@@ -6,66 +6,66 @@ module list contains
   define transparent drop-until as
     function target String xs (List String) returns (List String) value
       match xs of-type (List String) as ignored returns (List String)
-        empty-case as P::nil String
-        cons-case with h String t (List String) as
+        case List::empty as P::nil String
+        case List::cons with h String t (List String) as
           match (S::eq target h) of-type Boolean as ignored returns (List String)
-            false-case as recur target t
-            true-case as P::cons String h t
+            case Boolean::false as recur target t
+            case Boolean::true as P::cons String h t
           end
       end
     end
   define transparent nth as
     function A Type0 idx Natural xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        empty-case as error-prim A "nth expects index in bounds"
-        cons-case with h A t (List A) as
+        case List::empty as error-prim A "nth expects index in bounds"
+        case List::cons with h A t (List A) as
           match (C::eq-nat idx 0) of-type Boolean as ignored returns A
-            false-case as recur A (P::sub-nat idx 1) t
-            true-case as h
+            case Boolean::false as recur A (P::sub-nat idx 1) t
+            case Boolean::true as h
           end
       end
     end
   define transparent take as
     function A Type0 n Natural xs (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as P::nil A
-        cons-case with h A t (List A) as
+        case List::empty as P::nil A
+        case List::cons with h A t (List A) as
           match (C::eq-nat n 0) of-type Boolean as ignored returns (List A)
-            false-case as P::cons A h (recur A (P::sub-nat n 1) t)
-            true-case as P::nil A
+            case Boolean::false as P::cons A h (recur A (P::sub-nat n 1) t)
+            case Boolean::true as P::nil A
           end
       end
     end
   define transparent drop as
     function A Type0 n Natural xs (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as P::nil A
-        cons-case with h A t (List A) as
+        case List::empty as P::nil A
+        case List::cons with h A t (List A) as
           match (C::eq-nat n 0) of-type Boolean as ignored returns (List A)
-            false-case as recur A (P::sub-nat n 1) t
-            true-case as P::cons A h t
+            case Boolean::false as recur A (P::sub-nat n 1) t
+            case Boolean::true as P::cons A h t
           end
       end
     end
   define transparent list-last as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        empty-case as error-prim A "last expects a non-empty list"
-        cons-case with h A t (List A) as
+        case List::empty as error-prim A "last expects a non-empty list"
+        case List::cons with h A t (List A) as
           match t of-type (List A) as ignored returns A
-            empty-case as h
-            cons-case with head2 A tail2 (List A) as recur A t
+            case List::empty as h
+            case List::cons with head2 A tail2 (List A) as recur A t
           end
       end
     end
   define transparent list-init as
     function A Type0 xs (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as P::nil A
-        cons-case with h A t (List A) as
+        case List::empty as P::nil A
+        case List::cons with h A t (List A) as
           match t of-type (List A) as ignored returns (List A)
-            empty-case as P::nil A
-            cons-case with head2 A tail2 (List A) as
+            case List::empty as P::nil A
+            case List::cons with head2 A tail2 (List A) as
               P::cons A h (recur A t)
           end
       end
@@ -74,8 +74,8 @@ module list contains
   define transparent is-empty as
     function A Type0 xs (List A) returns Boolean value
       match xs of-type (List A) as ignored returns Boolean
-        empty-case as true
-        cons-case with h A t (List A) as false
+        case List::empty as true
+        case List::cons with h A t (List A) as false
       end
     end
 
@@ -102,8 +102,8 @@ module list contains
   define transparent contains-string-fn as
     function item String acc Boolean x String returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
-        false-case as S::eq item x
-        true-case as true
+        case Boolean::false as S::eq item x
+        case Boolean::true as true
       end
     end
 
@@ -115,8 +115,8 @@ module list contains
   define transparent any-fn as
     function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
-        false-case as predicate x
-        true-case as true
+        case Boolean::false as predicate x
+        case Boolean::true as true
       end
     end
 
@@ -128,8 +128,8 @@ module list contains
   define transparent all-fn as
     function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
-        false-case as false
-        true-case as predicate x
+        case Boolean::false as false
+        case Boolean::true as predicate x
       end
     end
 
@@ -168,20 +168,20 @@ module list contains
       let value step be
         function acc (Pair (List A) Boolean) y A returns (Pair (List A) Boolean) value
           match acc of-type (Pair (List A) Boolean) as ignored returns (Pair (List A) Boolean)
-            pair-case with built (List A) inserted Boolean as
+            case Pair::pair with built (List A) inserted Boolean as
               match inserted of-type Boolean as ignored returns (Pair (List A) Boolean)
-                false-case as
+                case Boolean::false as
                   match (cmp x y) of-type Boolean as ignored returns (Pair (List A) Boolean)
-                    false-case as
+                    case Boolean::false as
                       P::pair (List A) Boolean
                         (P::append A built (P::cons A y (P::nil A)))
                         false
-                    true-case as
+                    case Boolean::true as
                       P::pair (List A) Boolean
                         (P::append A built (P::cons A x (P::cons A y (P::nil A))))
                         true
                   end
-                true-case as
+                case Boolean::true as
                   P::pair (List A) Boolean
                     (P::append A built (P::cons A y (P::nil A)))
                     inserted
@@ -192,10 +192,10 @@ module list contains
         let value initial be P::pair (List A) Boolean (P::nil A) false in
           let value result be P::fold A (Pair (List A) Boolean) step initial xs in
             match result of-type (Pair (List A) Boolean) as ignored returns (List A)
-              pair-case with built (List A) inserted Boolean as
+              case Pair::pair with built (List A) inserted Boolean as
                 match inserted of-type Boolean as ignored returns (List A)
-                  false-case as P::append A built (P::cons A x (P::nil A))
-                  true-case as built
+                  case Boolean::false as P::append A built (P::cons A x (P::nil A))
+                  case Boolean::true as built
                 end
             end
           end

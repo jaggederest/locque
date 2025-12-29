@@ -5,6 +5,7 @@ module TypeChecker
   , annotateModule
   , TypeError(..)
   , TypeEnv
+  , freeVars
   ) where
 
 import Control.Monad (foldM, when)
@@ -24,13 +25,20 @@ import SourceLoc
 import ErrorMsg
 import Utils (modNameToPath, qualifyName)
 
-data MatchKind
-  = CaseEmpty
-  | CaseCons
-  | CaseFalse
-  | CaseTrue
-  | CasePair
-  deriving (Eq, Ord)
+data DataInfo = DataInfo
+  { dataName :: Text
+  , dataParams :: [Param]
+  , dataUniverse :: Int
+  , dataCtors :: [CtorInfo]
+  } deriving (Show, Eq)
+
+data CtorInfo = CtorInfo
+  { ctorName :: Text
+  , ctorData :: Text
+  , ctorParams :: [Param]
+  , ctorResult :: Expr
+  , ctorType :: Expr
+  } deriving (Show, Eq)
 
 data ClassInfo = ClassInfo
   { className    :: Text
@@ -147,6 +155,8 @@ data TCEnv = TCEnv
   , tcLocals :: Set.Set Text
   , tcClasses :: Map.Map Text ClassInfo
   , tcInstances :: Map.Map Text [InstanceInfo]
+  , tcData :: Map.Map Text DataInfo
+  , tcCtors :: Map.Map Text CtorInfo
   }
 
 type TypeCheckM a = StateT Int (Either TypeError) a
@@ -206,8 +216,8 @@ tDecidable :: Expr -> Expr
 tDecidable p =
   EThereExists "b" tBool
     (EMatch (EVar "b") tBool "ignored" (tType 0)
-      [ MatchFalse (tNot p)
-      , MatchTrue p
+      [ MatchCase "Boolean::false" [] (tNot p)
+      , MatchCase "Boolean::true" [] p
       ])
 
 tDecider :: Expr -> Expr
@@ -219,11 +229,89 @@ tDecider ty =
 mkPi :: [Param] -> Expr -> Expr
 mkPi params ret = foldr (\(Param name ty) acc -> EForAll name ty acc) ret params
 
+closeCtorType :: [Param] -> Expr -> Expr
+closeCtorType params ctorType =
+  foldr (\(Param name ty) acc -> EForAll name ty acc) ctorType params
+
+splitForAll :: Expr -> ([Param], Expr)
+splitForAll expr = case expr of
+  EForAll v dom cod ->
+    let (params, result) = splitForAll cod
+    in (Param v dom : params, result)
+  _ -> ([], expr)
+
+collectApp :: Expr -> (Expr, [Expr])
+collectApp expr = case expr of
+  EApp f args ->
+    let (headExpr, more) = collectApp f
+    in (headExpr, more ++ args)
+  _ -> (expr, [])
+
+mkCtorInfo :: Text -> Text -> Expr -> CtorInfo
+mkCtorInfo dataTy ctorName ctorTy =
+  let (params, result) = splitForAll ctorTy
+  in CtorInfo
+      { ctorName = ctorName
+      , ctorData = dataTy
+      , ctorParams = params
+      , ctorResult = result
+      , ctorType = ctorTy
+  }
+
+dataParamsForCtor :: DataInfo -> CtorInfo -> [Param]
+dataParamsForCtor info ctor =
+  let free = freeVars (ctorType ctor)
+  in filter (\(Param name _) -> name `Set.member` free) (dataParams info)
+
+builtinDataInfos :: [DataInfo]
+builtinDataInfos =
+  [ DataInfo
+      { dataName = "Boolean"
+      , dataParams = []
+      , dataUniverse = 0
+      , dataCtors =
+          [ mkCtorInfo "Boolean" "Boolean::false" tBool
+          , mkCtorInfo "Boolean" "Boolean::true" tBool
+          ]
+      }
+  , DataInfo
+      { dataName = "Unit"
+      , dataParams = []
+      , dataUniverse = 0
+      , dataCtors =
+          [ mkCtorInfo "Unit" "Unit::tt" tUnit
+          ]
+      }
+  , DataInfo
+      { dataName = "List"
+      , dataParams = [Param "A" (tType 0)]
+      , dataUniverse = 0
+      , dataCtors =
+          [ mkCtorInfo "List" "List::empty" (tList (EVar "A"))
+          , mkCtorInfo "List" "List::cons"
+              (EForAll "h" (EVar "A") (EForAll "t" (tList (EVar "A")) (tList (EVar "A"))))
+          ]
+      }
+  , DataInfo
+      { dataName = "Pair"
+      , dataParams = [Param "A" (tType 0), Param "B" (tType 0)]
+      , dataUniverse = 0
+      , dataCtors =
+          [ mkCtorInfo "Pair" "Pair::pair"
+              (EForAll "a" (EVar "A") (EForAll "b" (EVar "B") (tPair (EVar "A") (EVar "B"))))
+          ]
+      }
+  ]
+
 classType :: Text -> Expr
 classType param = EForAll param (tType 0) (tType 0)
 
 emptyEnv :: TCEnv
-emptyEnv = TCEnv buildPrimitiveEnv Map.empty Set.empty Map.empty Map.empty
+emptyEnv =
+  let dataInfos = builtinDataInfos
+      dataMap = Map.fromList [(dataName info, info) | info <- dataInfos]
+      ctorMap = Map.fromList [(ctorName ctor, ctor) | info <- dataInfos, ctor <- dataCtors info]
+  in TCEnv buildPrimitiveEnv Map.empty Set.empty Map.empty Map.empty dataMap ctorMap
 
 extendLocal :: TCEnv -> Text -> Expr -> TCEnv
 extendLocal env name ty =
@@ -248,6 +336,30 @@ extendInstance env name info instTy =
   env { tcTypes = Map.insert name instTy (tcTypes env)
       , tcInstances = Map.insertWith (++) (instClass info) [info] (tcInstances env)
       }
+
+extendType :: TCEnv -> Text -> Expr -> TCEnv
+extendType env name ty =
+  env { tcTypes = Map.insert name ty (tcTypes env) }
+
+extendCtor :: TCEnv -> Text -> Expr -> CtorInfo -> TCEnv
+extendCtor env name ty info =
+  env { tcTypes = Map.insert name ty (tcTypes env)
+      , tcCtors = Map.insert name info (tcCtors env)
+      }
+
+extendData :: TCEnv -> Text -> Expr -> DataInfo -> TCEnv
+extendData env name ty info =
+  let envWithType = env
+        { tcTypes = Map.insert name ty (tcTypes env)
+        , tcData = Map.insert name info (tcData env)
+        }
+      envWithCtors = foldl
+        (\e ctor ->
+            let fullTy = closeCtorType (dataParamsForCtor info ctor) (ctorType ctor)
+            in extendCtor e (ctorName ctor) fullTy ctor)
+        envWithType
+        (dataCtors info)
+  in envWithCtors
 
 lookupVar :: SrcLoc -> TCEnv -> Text -> TypeCheckM Expr
 lookupVar loc env v =
@@ -347,6 +459,11 @@ freeVarsWithBound bound expr = case expr of
         retFree = freeVarsWithBound (Set.insert scrutName bound) retTy
         casesFree = Set.unions (map (freeVarsCase (Set.insert scrutName bound)) cases)
     in scrutFree `Set.union` tyFree `Set.union` retFree `Set.union` casesFree
+  EData params universe cases ->
+    let (bound', paramsFree) = freeVarsParamsSeq bound params
+        universeFree = freeVarsWithBound bound universe
+        casesFree = Set.unions [freeVarsWithBound bound' (dataCaseType c) | c <- cases]
+    in paramsFree `Set.union` universeFree `Set.union` casesFree
   EAnnot e ty -> freeVarsWithBound bound e `Set.union` freeVarsWithBound bound ty
   ETyped e ty -> freeVarsWithBound bound e `Set.union` freeVarsWithBound bound ty
   EDict _ impls -> Set.unions [freeVarsWithBound bound e | (_, e) <- impls]
@@ -371,19 +488,18 @@ freeVarsComp bound comp = case comp of
   CSeq c1 c2 ->
     freeVarsComp bound c1 `Set.union` freeVarsComp bound c2
 
+freeVarsParamsSeq :: Set.Set Text -> [Param] -> (Set.Set Text, Set.Set Text)
+freeVarsParamsSeq bound params =
+  foldl step (bound, Set.empty) params
+  where
+    step (b, acc) (Param name ty) =
+      let acc' = acc `Set.union` freeVarsWithBound b ty
+      in (Set.insert name b, acc')
+
 freeVarsCase :: Set.Set Text -> MatchCase -> Set.Set Text
-freeVarsCase bound caseExpr = case caseExpr of
-  MatchEmpty body -> freeVarsWithBound bound body
-  MatchFalse body -> freeVarsWithBound bound body
-  MatchTrue body -> freeVarsWithBound bound body
-  MatchCons h hTy t tTy body ->
-    freeVarsWithBound bound hTy
-      `Set.union` freeVarsWithBound bound tTy
-      `Set.union` freeVarsWithBound (Set.insert h (Set.insert t bound)) body
-  MatchPair a aTy b bTy body ->
-    freeVarsWithBound bound aTy
-      `Set.union` freeVarsWithBound bound bTy
-      `Set.union` freeVarsWithBound (Set.insert a (Set.insert b bound)) body
+freeVarsCase bound (MatchCase _ binders body) =
+  let (bound', paramsFree) = freeVarsParamsSeq bound binders
+  in paramsFree `Set.union` freeVarsWithBound bound' body
 
 --------------------------------------------------------------------------------
 -- Substitution (capture-avoiding)
@@ -476,6 +592,10 @@ subst name replacement expr = go Set.empty expr
             (scrutName', retTy') <- refreshBinder bound scrutName retTy
             cases' <- mapM (goCase (Set.insert scrutName' bound)) cases
             pure (EMatch scrut' scrutTy' scrutName' retTy' cases')
+      EData params universe cases -> do
+        universe' <- go bound universe
+        (params', cases') <- goDataParams bound params cases
+        pure (EData params' universe' cases')
       EAnnot e1 ty -> EAnnot <$> go bound e1 <*> go bound ty
       ETyped e1 ty -> ETyped <$> go bound e1 <*> go bound ty
       EDict cls impls -> do
@@ -592,32 +712,75 @@ subst name replacement expr = go Set.empty expr
             pure (CBind v' c1' c2'')
       CSeq c1 c2 -> CSeq <$> goComp bound c1 <*> goComp bound c2
 
-    goCase bound caseExpr = case caseExpr of
-      MatchEmpty body -> MatchEmpty <$> go bound body
-      MatchFalse body -> MatchFalse <$> go bound body
-      MatchTrue body -> MatchTrue <$> go bound body
-      MatchCons h hTy t tTy body -> do
-        hTy' <- go bound hTy
-        tTy' <- go bound tTy
-        if h == name || t == name
-          then pure (MatchCons h hTy' t tTy' body)
+    goCase bound (MatchCase ctor binders body) = do
+      (binders', body') <- goCaseBinders bound binders body
+      pure (MatchCase ctor binders' body')
+
+    goCaseBinders bound binders body = case binders of
+      [] -> do
+        body' <- go bound body
+        pure ([], body')
+      (Param v ty) : rest -> do
+        ty' <- go bound ty
+        if v == name
+          then do
+            (rest', body') <- goCaseBinders (Set.insert v bound) rest body
+            pure (Param v ty' : rest', body')
           else do
-            (h', body1) <- refreshBinder bound h body
-            let bound' = Set.insert h' bound
-            (t', body2) <- refreshBinder bound' t body1
-            body' <- go (Set.insert t' bound') body2
-            pure (MatchCons h' hTy' t' tTy' body')
-      MatchPair a aTy b bTy body -> do
-        aTy' <- go bound aTy
-        bTy' <- go bound bTy
-        if a == name || b == name
-          then pure (MatchPair a aTy' b bTy' body)
+            (v', rest', body') <- refreshCaseBinder bound v rest body
+            (restFinal, bodyFinal) <- goCaseBinders (Set.insert v' bound) rest' body'
+            pure (Param v' ty' : restFinal, bodyFinal)
+
+    refreshCaseBinder bound v rest body =
+      if v `Set.member` replacementFree
+        then do
+          let avoid = Set.unions
+                [ replacementFree
+                , Set.unions [freeVars (paramType p) | p <- rest]
+                , freeVars body
+                , bound
+                ]
+          v' <- freshNameAvoid v avoid
+          rest' <- mapM (renameParam v v') rest
+          body' <- subst v (EVar v') body
+          pure (v', rest', body')
+        else pure (v, rest, body)
+
+    goDataParams bound params cases = case params of
+      [] -> do
+        cases' <- mapM (goDataCase bound) cases
+        pure ([], cases')
+      (Param v ty) : rest -> do
+        ty' <- go bound ty
+        if v == name
+          then do
+            (rest', cases') <- goDataParams (Set.insert v bound) rest cases
+            pure (Param v ty' : rest', cases')
           else do
-            (a', body1) <- refreshBinder bound a body
-            let bound' = Set.insert a' bound
-            (b', body2) <- refreshBinder bound' b body1
-            body' <- go (Set.insert b' bound') body2
-            pure (MatchPair a' aTy' b' bTy' body')
+            (v', rest', cases') <- refreshDataBinder bound v rest cases
+            (restFinal, casesFinal) <- goDataParams (Set.insert v' bound) rest' cases'
+            pure (Param v' ty' : restFinal, casesFinal)
+
+    goDataCase bound (DataCase ctor ty) =
+      DataCase ctor <$> go bound ty
+
+    refreshDataBinder bound v rest cases =
+      if v `Set.member` replacementFree
+        then do
+          let avoid = Set.unions
+                [ replacementFree
+                , Set.unions [freeVars (paramType p) | p <- rest]
+                , Set.unions [freeVars (dataCaseType c) | c <- cases]
+                , bound
+                ]
+          v' <- freshNameAvoid v avoid
+          rest' <- mapM (renameParam v v') rest
+          cases' <- mapM (renameDataCase v v') cases
+          pure (v', rest', cases')
+        else pure (v, rest, cases)
+
+    renameDataCase old newName (DataCase ctor ty) =
+      DataCase ctor <$> subst old (EVar newName) ty
 
     refreshBinderComp bound v comp =
       if v `Set.member` replacementFree
@@ -714,25 +877,22 @@ normalize env expr = do
       retTy' <- normalize env' retTy
       cases' <- mapM (normalizeCase env') cases
       pure (EMatch scrut' scrutTy' scrutName retTy' cases')
+    EData params universe cases -> do
+      universe' <- normalize env universe
+      (env', params') <- normalizeParams env params
+      cases' <- mapM (normalizeDataCase env') cases
+      pure (EData params' universe' cases')
     _ -> pure wh
 
 normalizeCase :: TCEnv -> MatchCase -> TypeCheckM MatchCase
-normalizeCase env caseExpr = case caseExpr of
-  MatchEmpty body -> MatchEmpty <$> normalize env body
-  MatchFalse body -> MatchFalse <$> normalize env body
-  MatchTrue body -> MatchTrue <$> normalize env body
-  MatchCons h hTy t tTy body -> do
-    hTy' <- normalize env hTy
-    tTy' <- normalize env tTy
-    let env' = extendLocal (extendLocal env h hTy') t tTy'
-    body' <- normalize env' body
-    pure (MatchCons h hTy' t tTy' body')
-  MatchPair a aTy b bTy body -> do
-    aTy' <- normalize env aTy
-    bTy' <- normalize env bTy
-    let env' = extendLocal (extendLocal env a aTy') b bTy'
-    body' <- normalize env' body
-    pure (MatchPair a aTy' b bTy' body')
+normalizeCase env (MatchCase ctor binders body) = do
+  (env', binders') <- normalizeParams env binders
+  body' <- normalize env' body
+  pure (MatchCase ctor binders' body')
+
+normalizeDataCase :: TCEnv -> DataCase -> TypeCheckM DataCase
+normalizeDataCase env (DataCase ctor ty) =
+  DataCase ctor <$> normalize env ty
 
 normalizeParams :: TCEnv -> [Param] -> TypeCheckM (TCEnv, [Param])
 normalizeParams env [] = pure (env, [])
@@ -770,28 +930,58 @@ whnf env expr = case expr of
             else subst scrutName scrut' body
           body'' <- foldM (\acc (name, val) -> subst name val acc) body' substs
           whnf env body''
+        reduceCtor ctorName argExprs =
+          case [(binders, body) | MatchCase name binders body <- cases, name == ctorName] of
+            ((binders, body):_) ->
+              if length binders == length argExprs
+                then
+                  let names = map paramName binders
+                      substs = zip names argExprs
+                  in reduceWith body names substs
+                else noReduction
+            [] -> noReduction
+        reduceCtorFromScrut ctorName args =
+          case Map.lookup ctorName (tcCtors env) of
+            Nothing -> noReduction
+            Just ctorInfo ->
+              case Map.lookup (ctorData ctorInfo) (tcData env) of
+                Nothing -> noReduction
+                Just dataInfo ->
+                  let dataParamCount = length (dataParamsForCtor dataInfo ctorInfo)
+                      total = dataParamCount + length (ctorParams ctorInfo)
+                  in if length args == total
+                    then reduceCtor ctorName (drop dataParamCount args)
+                    else noReduction
         noReduction = pure (EMatch scrut' scrutTy scrutName retTy cases)
     case scrut' of
       ELit (LBoolean False) ->
-        case [body | MatchFalse body <- cases] of
-          (body:_) -> reduceWith body [] []
-          [] -> noReduction
+        reduceCtor "Boolean::false" []
       ELit (LBoolean True) ->
-        case [body | MatchTrue body <- cases] of
-          (body:_) -> reduceWith body [] []
-          [] -> noReduction
+        reduceCtor "Boolean::true" []
+      EVar "Boolean::false" ->
+        reduceCtor "Boolean::false" []
+      EVar "Boolean::true" ->
+        reduceCtor "Boolean::true" []
+      ELit LUnit ->
+        reduceCtor "Unit::tt" []
+      EVar "Unit::tt" ->
+        reduceCtor "Unit::tt" []
       EApp (EVar "nil-prim") [_elemTy] ->
-        case [body | MatchEmpty body <- cases] of
-          (body:_) -> reduceWith body [] []
-          [] -> noReduction
+        reduceCtor "List::empty" []
+      EApp (EVar "List::empty") [_elemTy] ->
+        reduceCtor "List::empty" []
       EApp (EVar "cons-prim") [_elemTy, headExpr, tailExpr] ->
-        case [(h, t, body) | MatchCons h _ t _ body <- cases] of
-          ((h, t, body):_) -> reduceWith body [h, t] [(h, headExpr), (t, tailExpr)]
-          [] -> noReduction
+        reduceCtor "List::cons" [headExpr, tailExpr]
+      EApp (EVar "List::cons") [_elemTy, headExpr, tailExpr] ->
+        reduceCtor "List::cons" [headExpr, tailExpr]
       EApp (EVar "pair-prim") [_aTy, _bTy, leftExpr, rightExpr] ->
-        case [(a, b, body) | MatchPair a _ b _ body <- cases] of
-          ((a, b, body):_) -> reduceWith body [a, b] [(a, leftExpr), (b, rightExpr)]
-          [] -> noReduction
+        reduceCtor "Pair::pair" [leftExpr, rightExpr]
+      EApp (EVar "Pair::pair") [_aTy, _bTy, leftExpr, rightExpr] ->
+        reduceCtor "Pair::pair" [leftExpr, rightExpr]
+      EVar name ->
+        reduceCtorFromScrut name []
+      EApp (EVar name) args ->
+        reduceCtorFromScrut name args
       _ -> noReduction
   ELift ty fromLevel toLevel ->
     if fromLevel == toLevel
@@ -840,6 +1030,63 @@ conv env a b = do
   a' <- normalize env a
   b' <- normalize env b
   pure (alphaEq Map.empty a' b')
+
+type UnifySubst = Map.Map Text Expr
+
+applyUnifySubst :: UnifySubst -> Expr -> TypeCheckM Expr
+applyUnifySubst sub expr =
+  foldM (\acc (name, val) -> subst name val acc) expr (Map.toList sub)
+
+applyUnifySubstMap :: Text -> Expr -> UnifySubst -> TypeCheckM UnifySubst
+applyUnifySubstMap name replacement sub =
+  Map.traverseWithKey (\_ ty -> subst name replacement ty) sub
+
+unifyIndices :: TCEnv -> Set.Set Text -> Expr -> Expr -> TypeCheckM (Maybe UnifySubst)
+unifyIndices env solvables left right = go Map.empty left right
+  where
+    go sub a b = do
+      a' <- applyUnifySubst sub a >>= whnf env
+      b' <- applyUnifySubst sub b >>= whnf env
+      case (a', b') of
+        (EVar v, _) | v `Set.member` solvables -> bindVar sub v b'
+        (_, EVar v) | v `Set.member` solvables -> bindVar sub v a'
+        _ -> unifyRigid sub a' b'
+
+    unifyRigid sub a b = case (a, b) of
+      (EVar v1, EVar v2) | v1 == v2 -> pure (Just sub)
+      (ELit l1, ELit l2) | l1 == l2 -> pure (Just sub)
+      (ETypeConst c1, ETypeConst c2) | c1 == c2 -> pure (Just sub)
+      (ETypeUniverse n1, ETypeUniverse n2) | n1 == n2 -> pure (Just sub)
+      (EApp f1 args1, EApp f2 args2)
+        | length args1 == length args2 -> do
+            res <- go sub f1 f2
+            case res of
+              Nothing -> pure Nothing
+              Just sub' -> unifyArgs sub' args1 args2
+      _ -> do
+        ok <- conv env a b
+        pure (if ok then Just sub else Nothing)
+
+    unifyArgs sub [] [] = pure (Just sub)
+    unifyArgs sub (x:xs) (y:ys) = do
+      res <- go sub x y
+      case res of
+        Nothing -> pure Nothing
+        Just sub' -> unifyArgs sub' xs ys
+    unifyArgs _ _ _ = pure Nothing
+
+    bindVar sub v expr = do
+      expr' <- applyUnifySubst sub expr >>= whnf env
+      case Map.lookup v sub of
+        Just existing -> go sub existing expr'
+        Nothing ->
+          if expr' == EVar v
+            then pure (Just sub)
+            else if v `Set.member` freeVars expr'
+              then pure Nothing
+              else do
+                sub' <- applyUnifySubstMap v expr' sub
+                pure (Just (Map.insert v expr' sub'))
 
 alphaEq :: Map.Map Text Text -> Expr -> Expr -> Bool
 alphaEq env a b = case (a, b) of
@@ -892,6 +1139,16 @@ alphaEq env a b = case (a, b) of
       && alphaEq env ty1 ty2
       && alphaEq (Map.insert n1 n2 env) r1 r2
       && alphaEqCases (Map.insert n1 n2 env) c1 c2
+  (EData ps1 u1 cs1, EData ps2 u2 cs2) ->
+    length ps1 == length ps2
+      && alphaEq env u1 u2
+      && let (env', ok) =
+               foldl
+                 (\(e, acc) (Param n1 t1, Param n2 t2) ->
+                     (Map.insert n1 n2 e, acc && alphaEq e t1 t2))
+                 (env, True)
+                 (zip ps1 ps2)
+         in ok && alphaEqDataCases env' cs1 cs2
   (EAnnot e1 t1, EAnnot e2 t2) ->
     alphaEq env e1 e2 && alphaEq env t1 t2
   (ETyped e1 t1, ETyped e2 t2) ->
@@ -934,19 +1191,24 @@ alphaEqCases env xs ys =
   length xs == length ys && and (zipWith (alphaEqCase env) xs ys)
 
 alphaEqCase :: Map.Map Text Text -> MatchCase -> MatchCase -> Bool
-alphaEqCase env c1 c2 = case (c1, c2) of
-  (MatchEmpty b1, MatchEmpty b2) -> alphaEq env b1 b2
-  (MatchFalse b1, MatchFalse b2) -> alphaEq env b1 b2
-  (MatchTrue b1, MatchTrue b2) -> alphaEq env b1 b2
-  (MatchCons h1 hTy1 t1 tTy1 b1, MatchCons h2 hTy2 t2 tTy2 b2) ->
-    alphaEq env hTy1 hTy2
-      && alphaEq env tTy1 tTy2
-      && alphaEq (Map.insert t1 t2 (Map.insert h1 h2 env)) b1 b2
-  (MatchPair a1 aTy1 b1 bTy1 body1, MatchPair a2 aTy2 b2 bTy2 body2) ->
-    alphaEq env aTy1 aTy2
-      && alphaEq env bTy1 bTy2
-      && alphaEq (Map.insert b1 b2 (Map.insert a1 a2 env)) body1 body2
-  _ -> False
+alphaEqCase env (MatchCase c1 bs1 b1) (MatchCase c2 bs2 b2) =
+  c1 == c2
+    && length bs1 == length bs2
+    && let (env', ok) =
+             foldl
+               (\(e, acc) (Param n1 t1, Param n2 t2) ->
+                   (Map.insert n1 n2 e, acc && alphaEq e t1 t2))
+               (env, True)
+               (zip bs1 bs2)
+       in ok && alphaEq env' b1 b2
+
+alphaEqDataCases :: Map.Map Text Text -> [DataCase] -> [DataCase] -> Bool
+alphaEqDataCases env xs ys =
+  length xs == length ys && and (zipWith (alphaEqDataCase env) xs ys)
+
+alphaEqDataCase :: Map.Map Text Text -> DataCase -> DataCase -> Bool
+alphaEqDataCase env (DataCase n1 t1) (DataCase n2 t2) =
+  n1 == n2 && alphaEq env t1 t2
 
 ensureConv :: TCEnv -> Expr -> Expr -> TypeCheckM ()
 ensureConv env actual expected = do
@@ -966,26 +1228,36 @@ ensureLiftLevels env ty fromLevel toLevel = do
 --------------------------------------------------------------------------------
 -- Structural recursion checks (value-level only)
 
-data StructInfo = StructInfo
+data StructParam = StructParam
   { structName :: Text
   , structIndex :: Int
+  , structData :: Text
   } deriving (Show, Eq)
 
-isListType :: TCEnv -> Expr -> TypeCheckM Bool
-isListType env ty = do
+dataTypeOf :: TCEnv -> Expr -> TypeCheckM (Maybe Text)
+dataTypeOf env ty = do
   tyWhnf <- whnf env ty
-  pure $ case tyWhnf of
-    EApp (ETypeConst TCList) [_] -> True
-    _ -> False
+  let (headExpr, _) = collectApp tyWhnf
+  pure $ case headExpr of
+    ETypeConst TCBoolean -> Just "Boolean"
+    ETypeConst TCUnit -> Just "Unit"
+    ETypeConst TCList -> Just "List"
+    ETypeConst TCPair -> Just "Pair"
+    EVar name ->
+      if Map.member name (tcData env)
+        then Just name
+        else Nothing
+    _ -> Nothing
 
-findStructuralParam :: TCEnv -> [Param] -> TypeCheckM (Maybe StructInfo)
-findStructuralParam env params =
-  let go _ [] = pure Nothing
+findStructuralParams :: TCEnv -> [Param] -> TypeCheckM [StructParam]
+findStructuralParams env params =
+  let go _ [] = pure []
       go idx (Param name ty : rest) = do
-        isList <- isListType env ty
-        if isList
-          then pure (Just (StructInfo name idx))
-          else go (idx + 1) rest
+        rest' <- go (idx + 1) rest
+        mData <- dataTypeOf env ty
+        case mData of
+          Just dataName -> pure (StructParam name idx dataName : rest')
+          Nothing -> pure rest'
   in go 0 params
 
 checkStructuralRecursion :: TCEnv -> [Param] -> FunctionBody -> TypeCheckM ()
@@ -993,113 +1265,120 @@ checkStructuralRecursion env params body = case body of
   FunctionValue expr -> do
     when (any ((== "recur") . paramName) params) $
       lift (Left (RecursionError noLoc "recur is reserved and cannot be a parameter name"))
-    structInfo <- findStructuralParam env params
-    checkExprRec env structInfo Set.empty True expr
+    structParams <- findStructuralParams env params
+    checkExprRec env structParams Set.empty True expr
   FunctionCompute comp ->
-    checkCompRec env Nothing Set.empty False comp
+    checkCompRec env [] Set.empty False comp
 
-checkExprRec :: TCEnv -> Maybe StructInfo -> Set.Set Text -> Bool -> Expr -> TypeCheckM ()
-checkExprRec env structInfo allowed allowRecur expr = case expr of
+checkExprRec :: TCEnv -> [StructParam] -> Set.Set Text -> Bool -> Expr -> TypeCheckM ()
+checkExprRec env structParams allowed allowRecur expr = case expr of
   EVar v | v == "recur" ->
     if allowRecur
       then lift (Left (RecursionError noLoc "recur must be applied"))
       else lift (Left (RecursionError noLoc "recur is only allowed in value recursion"))
   EApp (EVar "recur") args -> do
     if allowRecur
-      then checkRecurCall structInfo allowed args
+      then checkRecurCall structParams allowed args
       else lift (Left (RecursionError noLoc "recur is only allowed in value recursion"))
-    mapM_ (checkExprRec env structInfo allowed allowRecur) args
+    mapM_ (checkExprRec env structParams allowed allowRecur) args
   EApp f args -> do
-    checkExprRec env structInfo allowed allowRecur f
-    mapM_ (checkExprRec env structInfo allowed allowRecur) args
+    checkExprRec env structParams allowed allowRecur f
+    mapM_ (checkExprRec env structParams allowed allowRecur) args
   ELet name val body -> do
-    checkExprRec env structInfo allowed allowRecur val
+    checkExprRec env structParams allowed allowRecur val
     let allowedShadow = Set.delete name allowed
         allowed' = case val of
           EVar v | v `Set.member` allowedShadow -> Set.insert name allowedShadow
           _ -> allowedShadow
-    checkExprRec env structInfo allowed' allowRecur body
+    checkExprRec env structParams allowed' allowRecur body
   ECompute comp ->
-    checkCompRec env structInfo allowed False comp
+    checkCompRec env structParams allowed False comp
   EMatch scrut scrutTy scrutName _retTy cases -> do
     let allowedBase = Set.delete scrutName allowed
-    checkExprRec env structInfo allowedBase allowRecur scrut
-    canDecrease <- case structInfo of
-      Nothing -> pure False
-      Just (StructInfo name _) -> do
-        listScrut <- isListType env scrutTy
-        pure $ listScrut && case scrut of
-          EVar v -> v == name || v `Set.member` allowed
+    checkExprRec env structParams allowedBase allowRecur scrut
+    mData <- dataTypeOf env scrutTy
+    let canDecrease = case (mData, scrut) of
+          (Just dataName, EVar v) ->
+            v `Set.member` allowed ||
+            any (\p -> structName p == v && structData p == dataName) structParams
           _ -> False
-    mapM_ (checkCaseRec env structInfo allowedBase allowRecur canDecrease) cases
+        caseData = if canDecrease then mData else Nothing
+    mapM_ (checkCaseRec env structParams allowedBase allowRecur caseData) cases
   EUnpack packed x y body -> do
-    checkExprRec env structInfo allowed allowRecur packed
+    checkExprRec env structParams allowed allowRecur packed
     let allowed' = Set.delete y (Set.delete x allowed)
-    checkExprRec env structInfo allowed' allowRecur body
+    checkExprRec env structParams allowed' allowRecur body
   EPack _ _ _ witness body -> do
-    checkExprRec env structInfo allowed allowRecur witness
-    checkExprRec env structInfo allowed allowRecur body
+    checkExprRec env structParams allowed allowRecur witness
+    checkExprRec env structParams allowed allowRecur body
   EFunction _ _ _ nestedBody -> case nestedBody of
     FunctionValue nestedExpr ->
-      checkExprRec env structInfo allowed False nestedExpr
+      checkExprRec env structParams allowed False nestedExpr
     FunctionCompute nestedComp ->
-      checkCompRec env structInfo allowed False nestedComp
+      checkCompRec env structParams allowed False nestedComp
   EEqual ty lhs rhs -> do
-    checkExprRec env structInfo allowed allowRecur ty
-    checkExprRec env structInfo allowed allowRecur lhs
-    checkExprRec env structInfo allowed allowRecur rhs
+    checkExprRec env structParams allowed allowRecur ty
+    checkExprRec env structParams allowed allowRecur lhs
+    checkExprRec env structParams allowed allowRecur rhs
   EReflexive ty term -> do
-    checkExprRec env structInfo allowed allowRecur ty
-    checkExprRec env structInfo allowed allowRecur term
+    checkExprRec env structParams allowed allowRecur ty
+    checkExprRec env structParams allowed allowRecur term
   ERewrite family proof body -> do
-    checkExprRec env structInfo allowed allowRecur family
-    checkExprRec env structInfo allowed allowRecur proof
-    checkExprRec env structInfo allowed allowRecur body
-  EAnnot e1 _ -> checkExprRec env structInfo allowed allowRecur e1
-  ETyped e1 _ -> checkExprRec env structInfo allowed allowRecur e1
+    checkExprRec env structParams allowed allowRecur family
+    checkExprRec env structParams allowed allowRecur proof
+    checkExprRec env structParams allowed allowRecur body
+  EAnnot e1 _ -> checkExprRec env structParams allowed allowRecur e1
+  ETyped e1 _ -> checkExprRec env structParams allowed allowRecur e1
   _ -> pure ()
 
-checkCaseRec :: TCEnv -> Maybe StructInfo -> Set.Set Text -> Bool -> Bool -> MatchCase -> TypeCheckM ()
-checkCaseRec env structInfo allowed allowRecur canDecrease caseExpr = case caseExpr of
-  MatchEmpty body ->
-    checkExprRec env structInfo allowed allowRecur body
-  MatchFalse body ->
-    checkExprRec env structInfo allowed allowRecur body
-  MatchTrue body ->
-    checkExprRec env structInfo allowed allowRecur body
-  MatchCons h _ t tTy body -> do
-    let allowedShadow = Set.delete t (Set.delete h allowed)
-    tailOk <- if canDecrease then isListType env tTy else pure False
-    let allowed' = if tailOk then Set.insert t allowedShadow else allowedShadow
-    checkExprRec env structInfo allowed' allowRecur body
-  MatchPair a _ b _ body -> do
-    let allowed' = Set.delete b (Set.delete a allowed)
-    checkExprRec env structInfo allowed' allowRecur body
+checkCaseRec :: TCEnv -> [StructParam] -> Set.Set Text -> Bool -> Maybe Text -> MatchCase -> TypeCheckM ()
+checkCaseRec env structParams allowed allowRecur caseData (MatchCase ctor binders body) = do
+  let binderNames = map paramName binders
+      allowedShadow = foldr Set.delete allowed binderNames
+  case caseData of
+    Nothing ->
+      checkExprRec env structParams allowedShadow allowRecur body
+    Just dataName ->
+      case Map.lookup ctor (tcCtors env) of
+        Just info | ctorData info == dataName -> do
+          allowed' <- foldM
+            (\acc (Param name ty) -> do
+                mData <- dataTypeOf env ty
+                pure (if mData == Just dataName then Set.insert name acc else acc))
+            allowedShadow
+            binders
+          checkExprRec env structParams allowed' allowRecur body
+        _ ->
+          checkExprRec env structParams allowedShadow allowRecur body
 
-checkCompRec :: TCEnv -> Maybe StructInfo -> Set.Set Text -> Bool -> Comp -> TypeCheckM ()
-checkCompRec env structInfo allowed allowRecur comp = case comp of
+checkCompRec :: TCEnv -> [StructParam] -> Set.Set Text -> Bool -> Comp -> TypeCheckM ()
+checkCompRec env structParams allowed allowRecur comp = case comp of
   CReturn e1 ->
-    checkExprRec env structInfo allowed allowRecur e1
+    checkExprRec env structParams allowed allowRecur e1
   CBind name c1 c2 -> do
-    checkCompRec env structInfo allowed allowRecur c1
+    checkCompRec env structParams allowed allowRecur c1
     let allowed' = Set.delete name allowed
-    checkCompRec env structInfo allowed' allowRecur c2
+    checkCompRec env structParams allowed' allowRecur c2
   CPerform e1 ->
-    checkExprRec env structInfo allowed allowRecur e1
+    checkExprRec env structParams allowed allowRecur e1
   CSeq c1 c2 -> do
-    checkCompRec env structInfo allowed allowRecur c1
-    checkCompRec env structInfo allowed allowRecur c2
+    checkCompRec env structParams allowed allowRecur c1
+    checkCompRec env structParams allowed allowRecur c2
 
-checkRecurCall :: Maybe StructInfo -> Set.Set Text -> [Expr] -> TypeCheckM ()
-checkRecurCall structInfo allowed args = case structInfo of
-  Nothing ->
-    lift (Left (RecursionError noLoc "recur requires a list parameter to decrease"))
-  Just (StructInfo _ idx) ->
-    if length args <= idx
+checkRecurCall :: [StructParam] -> Set.Set Text -> [Expr] -> TypeCheckM ()
+checkRecurCall structParams allowed args = do
+  let indices = map structIndex structParams
+      validIndices = filter (< length args) indices
+      ok = any (\idx -> case args !! idx of
+                          EVar v | v `Set.member` allowed -> True
+                          _ -> False) validIndices
+  if null structParams
+    then lift (Left (RecursionError noLoc "recur requires a data parameter to decrease"))
+    else if null validIndices
       then lift (Left (RecursionError noLoc "recur must be applied to the structural argument"))
-      else case args !! idx of
-        EVar v | v `Set.member` allowed -> pure ()
-        _ -> lift (Left (RecursionError noLoc "recur must use a structurally smaller argument"))
+      else if ok
+        then pure ()
+        else lift (Left (RecursionError noLoc "recur must use a structurally smaller argument"))
 
 --------------------------------------------------------------------------------
 -- Type inference/checking
@@ -1221,6 +1500,15 @@ infer env expr = case expr of
   ECompute comp -> do
     compTy <- inferComp env comp
     pure (ECompType compTy)
+  EData params universe cases -> do
+    level <- case universe of
+      ETypeUniverse n -> pure n
+      _ -> lift (Left (ExpectedType noLoc universe))
+    envParams <- foldM (\e (Param n ty) -> do
+                          _ <- inferUniverse e ty
+                          pure (extendLocal e n ty)) env params
+    mapM_ (\(DataCase _ ty) -> inferUniverse envParams ty) cases
+    pure (mkPi params (ETypeUniverse level))
   EMatch scrut scrutTy scrutName retTy cases -> do
     scrutInferred <- infer env scrut
     ensureConv env scrutInferred scrutTy
@@ -1291,110 +1579,115 @@ inferComp env comp = case comp of
 
 checkMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
 checkMatch env scrutName retTy scrutTy cases = do
+  (dataInfo, dataArgs) <- lookupDataInfo env scrutTy
+  resolved <- mapM (resolveCase env dataInfo) cases
+  ensureCaseSet dataInfo resolved
+  mapM_ (checkCase env scrutName retTy scrutTy dataInfo dataArgs) resolved
+
+resolveCase :: TCEnv -> DataInfo -> MatchCase -> TypeCheckM (CtorInfo, [Param], Expr)
+resolveCase env dataInfo (MatchCase ctor binders body) = do
+  ctorInfo <- lookupCtor env ctor
+  when (ctorData ctorInfo /= dataName dataInfo) $
+    lift (Left (MatchCaseError noLoc ("unexpected case " <> ctor)))
+  pure (ctorInfo, binders, body)
+
+lookupCtor :: TCEnv -> Text -> TypeCheckM CtorInfo
+lookupCtor env name =
+  case Map.lookup name (tcCtors env) of
+    Just info -> pure info
+    Nothing -> lift (Left (MatchCaseError noLoc ("unknown constructor " <> name)))
+
+lookupDataInfo :: TCEnv -> Expr -> TypeCheckM (DataInfo, [Expr])
+lookupDataInfo env scrutTy = do
   scrutTy' <- whnf env scrutTy
   case scrutTy' of
-    ETypeConst TCBoolean -> do
-      ensureCaseSet [CaseFalse, CaseTrue] cases
-      checkBoolMatch env scrutName retTy cases
-    EApp (ETypeConst TCList) [elemTy] -> do
-      ensureCaseSet [CaseEmpty, CaseCons] cases
-      checkListMatch env scrutName retTy elemTy cases
-    EApp (ETypeConst TCPair) [a, b] -> do
-      ensureCaseSet [CasePair] cases
-      checkPairMatch env scrutName retTy a b cases
-    _ -> lift (Left (MatchCaseError noLoc "unsupported scrutinee type"))
+    ETypeConst TCBoolean -> lookupBuiltin "Boolean" []
+    ETypeConst TCUnit -> lookupBuiltin "Unit" []
+    EApp (ETypeConst TCList) [elemTy] -> lookupBuiltin "List" [elemTy]
+    EApp (ETypeConst TCPair) [a, b] -> lookupBuiltin "Pair" [a, b]
+    _ ->
+      case collectApp scrutTy' of
+        (EVar name, args) ->
+          case Map.lookup name (tcData env) of
+            Just info -> do
+              let expected = length (dataParams info)
+              when (length args /= expected) $
+                lift (Left (MatchCaseError noLoc ("scrutinee type expects " <> T.pack (show expected) <> " arguments")))
+              pure (info, args)
+            Nothing -> lift (Left (MatchCaseError noLoc "unsupported scrutinee type"))
+        _ -> lift (Left (MatchCaseError noLoc "unsupported scrutinee type"))
+  where
+    lookupBuiltin name args =
+      case Map.lookup name (tcData env) of
+        Just info -> pure (info, args)
+        Nothing -> lift (Left (MatchCaseError noLoc "unsupported scrutinee type"))
 
-ensureCaseSet :: [MatchKind] -> [MatchCase] -> TypeCheckM ()
-ensureCaseSet allowed cases =
-  let kinds = map caseKind cases
-      allowedSet = Set.fromList allowed
-      extras = filter (`Set.notMember` allowedSet) kinds
-      counts = Map.fromListWith (+) [(k, 1 :: Int) | k <- kinds]
+ensureCaseSet :: DataInfo -> [(CtorInfo, [Param], Expr)] -> TypeCheckM ()
+ensureCaseSet dataInfo cases = do
+  let expected = map ctorName (dataCtors dataInfo)
+      actual = map (\(ctorInfo, _, _) -> ctorName ctorInfo) cases
+      counts = Map.fromListWith (+) [(n, 1 :: Int) | n <- actual]
       duplicates = Map.keys (Map.filter (>1) counts)
-  in case extras of
-    (k:_) -> lift (Left (MatchCaseError noLoc ("unexpected " <> caseKindName k)))
-    [] -> case duplicates of
-      (k:_) -> lift (Left (MatchCaseError noLoc ("duplicate " <> caseKindName k)))
+      missing = filter (`notElem` actual) expected
+  case duplicates of
+    (name:_) -> lift (Left (MatchCaseError noLoc ("duplicate case " <> name)))
+    [] -> case missing of
+      (name:_) -> lift (Left (MatchCaseError noLoc ("missing case " <> name)))
       [] -> pure ()
 
-caseKind :: MatchCase -> MatchKind
-caseKind caseExpr = case caseExpr of
-  MatchEmpty _ -> CaseEmpty
-  MatchCons _ _ _ _ _ -> CaseCons
-  MatchFalse _ -> CaseFalse
-  MatchTrue _ -> CaseTrue
-  MatchPair _ _ _ _ _ -> CasePair
-
-caseKindName :: MatchKind -> Text
-caseKindName kind = case kind of
-  CaseEmpty -> "empty-case"
-  CaseCons -> "cons-case"
-  CaseFalse -> "false-case"
-  CaseTrue -> "true-case"
-  CasePair -> "pair-case"
+checkCase :: TCEnv -> Text -> Expr -> Expr -> DataInfo -> [Expr] -> (CtorInfo, [Param], Expr) -> TypeCheckM ()
+checkCase env scrutName retTy scrutTy dataInfo dataArgs (ctorInfo, binders, body) = do
+  let ctorParamsList = ctorParams ctorInfo
+  when (length ctorParamsList /= length binders) $
+    lift (Left (MatchCaseError noLoc ("case " <> ctorName ctorInfo <> " expects " <> T.pack (show (length ctorParamsList)) <> " binders")))
+  let dataSubsts = zip (map paramName (dataParams dataInfo)) dataArgs
+  (env', substs) <- foldM checkBinder (env, dataSubsts) (zip ctorParamsList binders)
+  ctorResult' <- substMany substs (ctorResult ctorInfo)
+  let scrutVars = freeVars scrutTy `Set.intersection` tcLocals env
+      binderNames = Set.fromList (map paramName binders)
+      solvables = Set.delete scrutName (scrutVars `Set.difference` binderNames)
+  unifyRes <- unifyIndices env' solvables ctorResult' scrutTy
+  case unifyRes of
+    Nothing ->
+      pure ()
+    Just indexSubsts -> do
+      let dataArgMap = Map.fromList (zip (map paramName (dataParams dataInfo)) dataArgs)
+          ctorDataArgs =
+            [ arg
+            | Param name _ <- dataParamsForCtor dataInfo ctorInfo
+            , Just arg <- [Map.lookup name dataArgMap]
+            ]
+          ctorTerm = EApp (EVar (ctorName ctorInfo)) (ctorDataArgs ++ map (EVar . paramName) binders)
+          indexSubstsList = Map.toList indexSubsts
+      ctorTerm' <- substMany indexSubstsList ctorTerm
+      expected <- subst scrutName ctorTerm' retTy
+      expected' <- substMany indexSubstsList expected
+      scrutTy' <- substMany indexSubstsList scrutTy
+      let envWithScrut = extendLocal env' scrutName scrutTy'
+      envCase <- substEnvTypes scrutName ctorTerm' envWithScrut
+      envCase' <- substEnvTypesMany indexSubstsList envCase
+      check envCase' body expected'
+  where
+    checkBinder (envAcc, substs) (Param ctorName' ctorTy, Param caseName caseTy) = do
+      let substsNoShadow = filter ((/= ctorName') . fst) substs
+      expectedTy <- substMany substsNoShadow ctorTy
+      ensureConv envAcc caseTy expectedTy
+      let env' = extendLocal envAcc caseName expectedTy
+          substs' = (ctorName', EVar caseName) : substsNoShadow
+      pure (env', substs')
 
 substEnvTypes :: Text -> Expr -> TCEnv -> TypeCheckM TCEnv
 substEnvTypes name replacement env = do
   types' <- Map.traverseWithKey (\_ ty -> subst name replacement ty) (tcTypes env)
   pure env { tcTypes = types' }
 
-checkBoolMatch :: TCEnv -> Text -> Expr -> [MatchCase] -> TypeCheckM ()
-checkBoolMatch env scrutName retTy cases = do
-  falseBody <- case [body | MatchFalse body <- cases] of
-    (body:_) -> pure body
-    [] -> lift (Left (MatchCaseError noLoc "missing false-case"))
-  trueBody <- case [body | MatchTrue body <- cases] of
-    (body:_) -> pure body
-    [] -> lift (Left (MatchCaseError noLoc "missing true-case"))
-  expectedFalse <- subst scrutName (ELit (LBoolean False)) retTy
-  expectedTrue <- subst scrutName (ELit (LBoolean True)) retTy
-  envFalse <- substEnvTypes scrutName (ELit (LBoolean False)) env
-  envTrue <- substEnvTypes scrutName (ELit (LBoolean True)) env
-  check envFalse falseBody expectedFalse
-  check envTrue trueBody expectedTrue
+substMany :: [(Text, Expr)] -> Expr -> TypeCheckM Expr
+substMany subs expr =
+  foldM (\acc (n, val) -> subst n val acc) expr subs
 
-checkListMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
-checkListMatch env scrutName retTy elemTy cases = do
-  emptyBody <- case [body | MatchEmpty body <- cases] of
-    (body:_) -> pure body
-    [] -> lift (Left (MatchCaseError noLoc "missing empty-case"))
-  consCase <- case [(h, hTy, t, tTy, body) | MatchCons h hTy t tTy body <- cases] of
-    (c:_) -> pure c
-    [] -> lift (Left (MatchCaseError noLoc "missing cons-case"))
-  let (h, hTy, t, tTy, consBody) = consCase
-      listTy = tList elemTy
-  ensureConv env hTy elemTy
-  ensureConv env tTy listTy
-  expectedEmpty <- subst scrutName (listNilTerm elemTy) retTy
-  expectedCons <- subst scrutName (listConsTerm elemTy h t) retTy
-  envEmpty <- substEnvTypes scrutName (listNilTerm elemTy) env
-  check envEmpty emptyBody expectedEmpty
-  envConsBase <- substEnvTypes scrutName (listConsTerm elemTy h t) env
-  let env' = extendLocal (extendLocal envConsBase h elemTy) t listTy
-  check env' consBody expectedCons
-
-checkPairMatch :: TCEnv -> Text -> Expr -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
-checkPairMatch env scrutName retTy aTy bTy cases = do
-  pairCase <- case [(x, xTy, y, yTy, body) | MatchPair x xTy y yTy body <- cases] of
-    (c:_) -> pure c
-    [] -> lift (Left (MatchCaseError noLoc "missing pair-case"))
-  let (x, xTy, y, yTy, body) = pairCase
-  ensureConv env xTy aTy
-  ensureConv env yTy bTy
-  expected <- subst scrutName (pairTerm aTy bTy x y) retTy
-  envPair <- substEnvTypes scrutName (pairTerm aTy bTy x y) env
-  check (extendLocal (extendLocal envPair x aTy) y bTy) body expected
-
-listNilTerm :: Expr -> Expr
-listNilTerm elemTy = EApp (EVar "nil-prim") [elemTy]
-
-listConsTerm :: Expr -> Text -> Text -> Expr
-listConsTerm elemTy h t =
-  EApp (EVar "cons-prim") [elemTy, EVar h, EVar t]
-
-pairTerm :: Expr -> Expr -> Text -> Text -> Expr
-pairTerm aTy bTy x y =
-  EApp (EVar "pair-prim") [aTy, bTy, EVar x, EVar y]
+substEnvTypesMany :: [(Text, Expr)] -> TCEnv -> TypeCheckM TCEnv
+substEnvTypesMany subs env =
+  foldM (\acc (n, val) -> substEnvTypes n val acc) env subs
 
 applyArg :: TCEnv -> Expr -> Expr -> TypeCheckM Expr
 applyArg env funTy argExpr = do
@@ -1485,6 +1778,14 @@ buildPrimitiveEnv = Map.fromList
   , ("pair-prim", EForAll "A" (tType 0)
       (EForAll "B" (tType 0)
         (tFun (EVar "A") (tFun (EVar "B") (tPair (EVar "A") (EVar "B"))))))
+  , ("List::empty", EForAll "A" (tType 0) (tList (EVar "A")))
+  , ("List::cons", EForAll "A" (tType 0) (tFun (EVar "A") (tFun (tList (EVar "A")) (tList (EVar "A")))))
+  , ("Pair::pair", EForAll "A" (tType 0)
+      (EForAll "B" (tType 0)
+        (tFun (EVar "A") (tFun (EVar "B") (tPair (EVar "A") (EVar "B"))))))
+  , ("Boolean::false", tBool)
+  , ("Boolean::true", tBool)
+  , ("Unit::tt", tUnit)
 
   , ("print-prim", tFun tString (tComp tUnit))
   , ("assert-hit-prim", tComp tUnit)
@@ -1535,6 +1836,9 @@ typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) =
 
 typeCheckDef :: TCEnv -> Definition -> TypeCheckM TCEnv
 typeCheckDef env (Definition tr name body) = case body of
+  EData params universe cases -> do
+    (info, ty) <- checkDataDef env name params universe cases
+    pure (extendData env name ty info)
   ETypeClass param methods -> do
     _ <- infer env body
     let info = ClassInfo
@@ -1557,6 +1861,47 @@ typeCheckDef env (Definition tr name body) = case body of
     ty <- infer env body
     pure (extendGlobal env name ty tr body)
 
+checkDataDef :: TCEnv -> Text -> [Param] -> Expr -> [DataCase] -> TypeCheckM (DataInfo, Expr)
+checkDataDef env name params universe cases = do
+  level <- case universe of
+    ETypeUniverse n -> pure n
+    _ -> lift (Left (ExpectedType noLoc universe))
+  let ctorNames = map dataCaseName cases
+      counts = Map.fromListWith (+) [(n, 1 :: Int) | n <- ctorNames]
+      duplicates = Map.keys (Map.filter (>1) counts)
+  case duplicates of
+    (dup:_) -> lift (Left (MatchCaseError noLoc ("duplicate constructor " <> dup)))
+    [] -> pure ()
+  envParams <- foldM (\e (Param n ty) -> do
+                        _ <- inferUniverse e ty
+                        pure (extendLocal e n ty)) env params
+  let dataTy = mkPi params (ETypeUniverse level)
+      envWithType = extendType envParams name dataTy
+  ctorInfos <- mapM (checkCtor envWithType) cases
+  let info = DataInfo
+        { dataName = name
+        , dataParams = params
+        , dataUniverse = level
+        , dataCtors = ctorInfos
+        }
+  pure (info, dataTy)
+  where
+    checkCtor env' (DataCase ctorName ctorTy) = do
+      let prefix = name <> "::"
+      when (not (prefix `T.isPrefixOf` ctorName)) $
+        lift (Left (MatchCaseError noLoc ("constructor must be type-qualified: " <> ctorName)))
+      _ <- inferUniverse env' ctorTy
+      let (_ctorParams, ctorResult) = splitForAll ctorTy
+          (headExpr, args) = collectApp ctorResult
+      case headExpr of
+        EVar headName | headName == name -> do
+          let expectedArgs = length params
+          when (length args /= expectedArgs) $
+            lift (Left (MatchCaseError noLoc ("constructor result arity mismatch: " <> ctorName)))
+          pure (mkCtorInfo name ctorName ctorTy)
+        _ ->
+          lift (Left (MatchCaseError noLoc ("constructor result must be " <> name)))
+
 annotateModule :: TypeEnv -> Module -> Either TypeError Module
 annotateModule _env m = Right m
 
@@ -1570,11 +1915,15 @@ loadTypeImports projectRoot (Module _ imports _ _) = do
       mergedDefs = Map.unions (tcDefs emptyEnv : map tcDefs envs)
       mergedClasses = Map.unions (tcClasses emptyEnv : map tcClasses envs)
       mergedInstances = Map.unionsWith (++) (tcInstances emptyEnv : map tcInstances envs)
+      mergedData = Map.unions (tcData emptyEnv : map tcData envs)
+      mergedCtors = Map.unions (tcCtors emptyEnv : map tcCtors envs)
   pure emptyEnv
     { tcTypes = mergedTypes
     , tcDefs = mergedDefs
     , tcClasses = mergedClasses
     , tcInstances = mergedInstances
+    , tcData = mergedData
+    , tcCtors = mergedCtors
     }
 
 loadTypeImport :: FilePath -> Import -> IO TCEnv
@@ -1607,11 +1956,13 @@ loadTypeImport projectRoot (Import modName alias) = do
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
     Right envSelf -> do
       let defNames = map defName defs
+          localDataNames = [defName d | d@(Definition _ _ body) <- defs, isData body]
           localClassNames = [defName d | d@(Definition _ _ body) <- defs, isClass body]
           localInstanceNames = [defName d | d@(Definition _ _ body) <- defs, isInstance body]
           localClassSet = Set.fromList localClassNames
           envValues = foldl (insertQualified alias envSelf) envWithOpens defNames
-          envClasses = foldl (insertQualifiedClass alias envSelf) envValues localClassNames
+          envData = foldl (insertQualifiedData alias envSelf) envValues localDataNames
+          envClasses = foldl (insertQualifiedClass alias envSelf) envData localClassNames
           envFinal = foldl (insertQualifiedInstance alias envSelf localClassSet) envClasses localInstanceNames
       pure envFinal
   where
@@ -1624,6 +1975,9 @@ loadTypeImport projectRoot (Import modName alias) = do
     isInstance expr = case expr of
       EInstance _ _ _ -> True
       _ -> False
+    isData expr = case expr of
+      EData _ _ _ -> True
+      _ -> False
 
 insertQualified :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
 insertQualified alias envSelf env name =
@@ -1635,6 +1989,35 @@ insertQualified alias envSelf env name =
           Just defn -> envWithType { tcDefs = Map.insert qualified defn (tcDefs envWithType) }
           Nothing -> envWithType
     Nothing -> env
+
+insertQualifiedData :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
+insertQualifiedData alias envSelf env name =
+  case Map.lookup name (tcData envSelf) of
+    Just info ->
+      let info' = qualifyDataInfo alias info
+          ty = mkPi (dataParams info') (ETypeUniverse (dataUniverse info'))
+      in extendData env (dataName info') ty info'
+    Nothing -> env
+
+qualifyDataInfo :: Text -> DataInfo -> DataInfo
+qualifyDataInfo alias info =
+  let qualifiedName = qualifyName alias (dataName info)
+      renameExpr expr =
+        case runTypeCheck (subst (dataName info) (EVar qualifiedName) expr) of
+          Left err -> error ("Failed to qualify data type: " ++ show err)
+          Right e -> e
+      params' = [Param n (renameExpr (paramType p)) | p@(Param n _) <- dataParams info]
+      ctors' = map (qualifyCtor qualifiedName renameExpr) (dataCtors info)
+  in info
+      { dataName = qualifiedName
+      , dataParams = params'
+      , dataCtors = ctors'
+      }
+  where
+    qualifyCtor qualifiedName renameExpr ctor =
+      let ctorTy' = renameExpr (ctorType ctor)
+          ctorName' = qualifyName alias (ctorName ctor)
+      in mkCtorInfo qualifiedName ctorName' ctorTy'
 
 insertQualifiedClass :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
 insertQualifiedClass alias envSelf env name =
@@ -1678,6 +2061,12 @@ processOpens opens env = foldl processOneOpen env opens
           withValue = case Map.lookup qualifiedName (tcTypes e) of
             Just scheme -> e { tcTypes = Map.insert name scheme (tcTypes e) }
             Nothing -> e
-      in case Map.lookup qualifiedName (tcClasses e) of
-          Just info -> withValue { tcClasses = Map.insert name info (tcClasses withValue) }
-          Nothing -> withValue
+          withData = case Map.lookup qualifiedName (tcData withValue) of
+            Just info -> withValue { tcData = Map.insert name info (tcData withValue) }
+            Nothing -> withValue
+          withCtors = case Map.lookup qualifiedName (tcCtors withData) of
+            Just info -> withData { tcCtors = Map.insert name info (tcCtors withData) }
+            Nothing -> withData
+      in case Map.lookup qualifiedName (tcClasses withCtors) of
+          Just info -> withCtors { tcClasses = Map.insert name info (tcClasses withCtors) }
+          Nothing -> withCtors

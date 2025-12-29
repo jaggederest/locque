@@ -5,9 +5,11 @@ module Eval
 
 import           AST
 import           Control.Exception (catch, IOException)
+import           Control.Monad (when)
 import           Data.IORef
 import           Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.FilePath ((</>), (<.>), takeExtension)
@@ -54,6 +56,7 @@ data Value
   | VBoolean Bool
   | VPair Value Value
   | VTypeConst TypeConst
+  | VTypeData Text
   | VTypeUniverse Int
   | VTypeForAll Text Expr Expr
   | VTypeThereExists Text Expr Expr
@@ -61,6 +64,8 @@ data Value
   | VTypeLift Expr Int Int
   | VTypeEqual Value Value Value
   | VTypeApp Value [Value]
+  | VConstructor Text Int Int [Value]
+  | VData Text [Value]
   | VClosure Env [Text] FunctionBody
   | VPrim ([Value] -> IO Value)
   | VComp (IO Value)
@@ -75,6 +80,7 @@ instance Show Value where
   show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
   show (VTypeConst tc) = T.unpack (Type.typeConstName tc)
+  show (VTypeData name) = T.unpack name
   show (VTypeUniverse n) = "Type" ++ show n
   show (VTypeForAll _ _ _) = "<for-all>"
   show (VTypeThereExists _ _ _) = "<there-exists>"
@@ -82,6 +88,8 @@ instance Show Value where
   show (VTypeLift _ _ _) = "<lift-type>"
   show (VTypeEqual _ _ _) = "<equal-type>"
   show (VTypeApp _ _) = "<type-app>"
+  show (VConstructor name _ _ _) = "<constructor:" ++ T.unpack name ++ ">"
+  show (VData name _) = "<data:" ++ T.unpack name ++ ">"
   show (VClosure _ _ _) = "<closure>"
   show (VPrim _)   = "<prim>"
   show (VComp _)   = "<computation>"
@@ -130,6 +138,12 @@ primEnv = Map.fromList
   , (T.pack "cons-prim", BVal (VPrim primCons))
   , (T.pack "pair-prim", BVal (VPrim primPair))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
+  , (T.pack "List::empty", BVal (VPrim primNil))
+  , (T.pack "List::cons", BVal (VPrim primCons))
+  , (T.pack "Pair::pair", BVal (VPrim primPair))
+  , (T.pack "Boolean::true", BVal (VBoolean True))
+  , (T.pack "Boolean::false", BVal (VBoolean False))
+  , (T.pack "Unit::tt", BVal VUnit)
   -- Comparison operators
   , (T.pack "lt-nat-prim", BVal (VPrim (primCompareNat (<))))
   , (T.pack "le-nat-prim", BVal (VPrim (primCompareNat (<=))))
@@ -539,9 +553,15 @@ primNatToString :: [Value] -> IO Value
 primNatToString [VNatural n] = pure $ VString (T.pack (show n))
 primNatToString _ = error "nat-to-string-prim expects 1 Natural arg"
 
+countForAll :: Expr -> Int
+countForAll expr = case expr of
+  EForAll _ _ body -> 1 + countForAll body
+  _ -> 0
+
 isTypeValue :: Value -> Bool
 isTypeValue v = case v of
   VTypeConst _ -> True
+  VTypeData _ -> True
   VTypeUniverse _ -> True
   VTypeForAll _ _ _ -> True
   VTypeThereExists _ _ _ -> True
@@ -574,9 +594,28 @@ expectString v           = error $ "expected String, got " ++ show v
 bindModule :: Module -> Env -> Env
 bindModule (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
-      addDef e (Definition _ name body) =
-        Map.insert name (BValueExpr env body) e
+      addDef e (Definition _ name body) = case body of
+        EData params _ cases ->
+          let e' = Map.insert name (BVal (VTypeData name)) e
+              ctorBindings = map (ctorBinding params) cases
+          in foldl (\acc (ctorName, ctorVal) -> Map.insert ctorName (BVal ctorVal) acc) e' ctorBindings
+        _ ->
+          Map.insert name (BValueExpr env body) e
   in env
+  where
+    ctorBinding params (DataCase ctorName ctorTy) =
+      let dataParamCount = countFreeDataParams params ctorTy
+          termParamCount = countForAll ctorTy
+          total = dataParamCount + termParamCount
+          ctorVal = if total == 0
+            then VData ctorName []
+            else VConstructor ctorName dataParamCount termParamCount []
+      in (ctorName, ctorVal)
+
+countFreeDataParams :: [Param] -> Expr -> Int
+countFreeDataParams params ctorTy =
+  let free = TC.freeVars ctorTy
+  in length [() | Param name _ <- params, name `Set.member` free]
 
 runModuleMain :: FilePath -> Module -> IO Int
 runModuleMain projectRoot m@(Module _modName _ _ _) = do
@@ -611,6 +650,7 @@ evalExpr env expr = case expr of
     LBoolean b   -> VBoolean b
     LUnit     -> VUnit
   ETypeConst tc -> pure (VTypeConst tc)
+  EData _ _ _ -> pure (VTypeData "<data>")
   ETypeUniverse n -> pure (VTypeUniverse n)
   EForAll v dom cod -> pure (VTypeForAll v dom cod)
   EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
@@ -675,9 +715,17 @@ apply :: Value -> [Value] -> IO Value
 apply v [] = pure v
 apply (VPrim f) args = f args
 apply (VTypeConst tc) args = pure (VTypeApp (VTypeConst tc) args)
+apply (VTypeData name) args = pure (VTypeApp (VTypeData name) args)
 apply (VTypeLift ty fromLevel toLevel) args =
   pure (VTypeApp (VTypeLift ty fromLevel toLevel) args)
 apply (VTypeApp f existing) args = pure (VTypeApp f (existing ++ args))
+apply (VConstructor name dataParamCount termParamCount existing) args = do
+  let applied = existing ++ args
+      total = dataParamCount + termParamCount
+  case compare (length applied) total of
+    LT -> pure (VConstructor name dataParamCount termParamCount applied)
+    EQ -> pure (VData name (drop dataParamCount applied))
+    GT -> error ("Constructor applied to too many arguments: " ++ T.unpack name)
 apply (VClosure cenv params body) args = do
   let (used, remaining) = splitAt (length params) args
   if length used < length params
@@ -704,31 +752,30 @@ evalMatch env scrut scrutName cases = do
   scrutVal <- evalExpr env scrut
   let envScrut = Map.insert scrutName (BVal scrutVal) env
   case scrutVal of
-    VList [] ->
-      case [body | MatchEmpty body <- cases] of
-        (body:_) -> evalExpr envScrut body
-        [] -> error "match: missing empty-case"
-    VList (h:t) ->
-      case [(hName, tName, body) | MatchCons hName _ tName _ body <- cases] of
-        ((hName, tName, body):_) -> do
-          let env' = Map.insert tName (BVal (VList t)) (Map.insert hName (BVal h) envScrut)
-          evalExpr env' body
-        [] -> error "match: missing cons-case"
-    VBoolean False ->
-      case [body | MatchFalse body <- cases] of
-        (body:_) -> evalExpr envScrut body
-        [] -> error "match: missing false-case"
-    VBoolean True ->
-      case [body | MatchTrue body <- cases] of
-        (body:_) -> evalExpr envScrut body
-        [] -> error "match: missing true-case"
-    VPair a b ->
-      case [(aName, bName, body) | MatchPair aName _ bName _ body <- cases] of
-        ((aName, bName, body):_) -> do
-          let env' = Map.insert bName (BVal b) (Map.insert aName (BVal a) envScrut)
-          evalExpr env' body
-        [] -> error "match: missing pair-case"
+    VList [] -> matchCtor "List::empty" [] envScrut
+    VList (h:t) -> matchCtor "List::cons" [h, VList t] envScrut
+    VBoolean False -> matchCtor "Boolean::false" [] envScrut
+    VBoolean True -> matchCtor "Boolean::true" [] envScrut
+    VPair a b -> matchCtor "Pair::pair" [a, b] envScrut
+    VUnit -> matchCtor "Unit::tt" [] envScrut
+    VData ctorName args -> matchCtor ctorName args envScrut
+    VConstructor ctorName dataParamCount termParamCount args ->
+      let total = dataParamCount + termParamCount
+      in if length args == total
+        then matchCtor ctorName (drop dataParamCount args) envScrut
+        else error ("match: scrutinee not fully applied: " ++ T.unpack ctorName)
     _ -> error "match: unsupported scrutinee value"
+  where
+    matchCtor ctorName args envScrut = do
+      case [ (binders, body) | MatchCase caseCtor binders body <- cases, caseCtor == ctorName ] of
+        ((binders, body):_) -> do
+          when (length binders /= length args) $
+            error ("match: case " ++ T.unpack ctorName ++ " expects " ++ show (length binders) ++ " binders")
+          let env' = foldl (\e (name, val) -> Map.insert name (BVal val) e)
+                          envScrut
+                          (zip (map paramName binders) args)
+          evalExpr env' body
+        [] -> error ("match: missing case " ++ T.unpack ctorName)
 
 runComp :: Env -> Comp -> IO Value
 runComp env comp = case comp of
@@ -796,7 +843,8 @@ loadImport projectRoot (Import modName alias) = do
   let envSelf = bindModule annotated envWithOpens
       -- Add qualified names for each definition using the alias
       defNames = map defName defs
-      envFinal = foldl (insertQualified alias envSelf) envWithOpens defNames
+      ctorNames = concatMap defCtorNames defs
+      envFinal = foldl (insertQualified alias envSelf) envWithOpens (defNames ++ ctorNames)
 
   pure envFinal
   where
@@ -812,6 +860,11 @@ loadImport projectRoot (Import modName alias) = do
           let qualifiedName = qualifyName aliasPrefix name
           in Map.insert qualifiedName binding env
         Nothing -> env  -- Definition not in environment
+
+    defCtorNames :: Definition -> [Text]
+    defCtorNames def = case defBody def of
+      EData _ _ cases -> map dataCaseName cases
+      _ -> []
 
 -- Process open statements to bring unqualified names into scope
 processOpens :: [Open] -> Env -> Env

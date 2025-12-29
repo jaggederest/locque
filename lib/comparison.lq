@@ -10,11 +10,11 @@ module comparison contains
   define transparent between as
     function low Natural high Natural val Natural returns Boolean value
       match (ge-nat val low) of-type Boolean as ignored returns Boolean
-        false-case as false
-        true-case as
+        case Boolean::false as false
+        case Boolean::true as
           match (le-nat val high) of-type Boolean as ignored returns Boolean
-            false-case as false
-            true-case as true
+            case Boolean::false as false
+            case Boolean::true as true
           end
       end
     end

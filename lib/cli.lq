@@ -12,14 +12,14 @@ module cli contains
   define transparent options-positionals as
     function result (Pair (List String) (List (Pair String String))) returns (List String) value
       match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List String)
-        pair-case with positionals (List String) ignored (List (Pair String String)) as positionals
+        case Pair::pair with positionals (List String) ignored (List (Pair String String)) as positionals
       end
     end
 
   define transparent options-flags as
     function result (Pair (List String) (List (Pair String String))) returns (List (Pair String String)) value
       match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List (Pair String String))
-        pair-case with ignored (List String) flags (List (Pair String String)) as flags
+        case Pair::pair with ignored (List String) flags (List (Pair String String)) as flags
       end
     end
 
@@ -28,7 +28,7 @@ module cli contains
              result (Pair (List String) (List (Pair String String)))
     returns (Pair (List String) (List (Pair String String))) value
       match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (Pair (List String) (List (Pair String String)))
-        pair-case with positionals (List String) flags (List (Pair String String)) as
+        case Pair::pair with positionals (List String) flags (List (Pair String String)) as
           P::pair (List String) (List (Pair String String))
             positionals
             (P::cons (Pair String String) opt flags)
@@ -40,7 +40,7 @@ module cli contains
              result (Pair (List String) (List (Pair String String)))
     returns (Pair (List String) (List (Pair String String))) value
       match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (Pair (List String) (List (Pair String String)))
-        pair-case with positionals (List String) flags (List (Pair String String)) as
+        case Pair::pair with positionals (List String) flags (List (Pair String String)) as
           P::pair (List String) (List (Pair String String))
             (P::cons String arg positionals)
             flags
@@ -74,33 +74,34 @@ module cli contains
   define transparent parse-options as
     function args (List String) returns (Pair (List String) (List (Pair String String))) value
       match args of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
-        empty-case as empty-options
-        cons-case with h String t (List String) as
+        case List::empty as empty-options
+        case List::cons with h String t (List String) as
           match (S::eq h "--") of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
-            true-case as P::pair (List String) (List (Pair String String)) t (P::nil (Pair String String))
-            false-case as
+            case Boolean::true as P::pair (List String) (List (Pair String String)) t (P::nil (Pair String String))
+            case Boolean::false as
               match (S::string-starts-with "--" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
-                true-case as
+                case Boolean::true as
                   let value without-prefix be drop-prefix "--" h in
                     match (S::string-contains "=" without-prefix) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
-                      true-case as add-option (split-on-equals without-prefix) (recur t)
-                      false-case as
+                      case Boolean::true as add-option (split-on-equals without-prefix) (recur t)
+                      case Boolean::false as
                         match t of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
-                          empty-case as add-option (P::pair String String without-prefix "true") empty-options
-                          cons-case with v String rest (List String) as
+                          case List::empty as add-option (P::pair String String without-prefix "true") empty-options
+                          case List::cons with v String rest (List String) as
                             match (S::string-starts-with "-" v) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
-                              true-case as add-option (P::pair String String without-prefix "true") (recur t)
-                              false-case as add-option (P::pair String String without-prefix v) (recur rest)
+                              case Boolean::true as add-option (P::pair String String without-prefix "true") (recur t)
+                              case Boolean::false as add-option (P::pair String String without-prefix v) (recur rest)
                             end
                         end
                     end
-                false-case as
+                  end
+                case Boolean::false as
                   match (S::string-starts-with "-" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
-                    true-case as
+                    case Boolean::true as
                       let value name be drop-prefix "-" h in
                         add-option (P::pair String String name "true") (recur t)
                       end
-                    false-case as add-positional h (recur t)
+                    case Boolean::false as add-positional h (recur t)
                   end
               end
           end
@@ -113,5 +114,4 @@ module cli contains
         return (parse-options argv)
       end
     end
-  end
 end

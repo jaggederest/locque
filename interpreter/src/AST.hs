@@ -35,13 +35,16 @@ data FunctionBody
   | FunctionCompute Comp
   deriving (Show, Eq)
 
-data MatchCase
-  = MatchEmpty Expr
-  | MatchCons Text Expr Text Expr Expr
-  | MatchFalse Expr
-  | MatchTrue Expr
-  | MatchPair Text Expr Text Expr Expr
-  deriving (Show, Eq)
+data DataCase = DataCase
+  { dataCaseName :: Text
+  , dataCaseType :: Expr
+  } deriving (Show, Eq)
+
+data MatchCase = MatchCase
+  { matchCaseCtor :: Text
+  , matchCaseBinders :: [Param]
+  , matchCaseBody :: Expr
+  } deriving (Show, Eq)
 
 -- Expressions (value world)
 
@@ -66,6 +69,7 @@ data Expr
   | ELet Text Expr Expr
   | ECompute Comp
   | EMatch Expr Expr Text Expr [MatchCase]
+  | EData [Param] Expr [DataCase]
   | EAnnot Expr Expr                 -- Explicit type annotation (of-type)
   | ETyped Expr Expr                 -- Inferred type wrapper (added by type checker)
   | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]

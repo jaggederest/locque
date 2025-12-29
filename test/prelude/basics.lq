@@ -93,8 +93,8 @@ module test::prelude::basics contains
     bind xs from perform (compute return nums end) then
       perform (A::assert-eq Natural
         (match xs of-type (List Natural) as ignored returns Natural
-          empty-case as 0
-          cons-case with h Natural t (List Natural) as h
+          case List::empty as 0
+          case List::cons with h Natural t (List Natural) as h
         end)
         1)
     end
@@ -104,7 +104,7 @@ module test::prelude::basics contains
     bind x from perform (compute return 1 end) then
       perform (A::assert-eq Natural
         (match (P::pair Natural Natural 2 x) of-type (Pair Natural Natural) as ignored returns Natural
-          pair-case with x Natural y Natural as x
+          case Pair::pair with x Natural y Natural as x
         end)
         2)
     end
@@ -114,8 +114,8 @@ module test::prelude::basics contains
     bind xs from perform (compute return nums end) then
       bind result from perform
         (match xs of-type (List Natural) as ignored returns computation Natural
-          empty-case as compute return 0 end
-          cons-case with h Natural t (List Natural) as compute return h end
+          case List::empty as compute return 0 end
+          case List::cons with h Natural t (List Natural) as compute return h end
         end)
       then
         perform (A::assert-eq Natural result 1)
@@ -126,8 +126,8 @@ module test::prelude::basics contains
   define transparent match-comp-shadow as
     function xs (List Natural) returns computation Natural value
       match xs of-type (List Natural) as ignored returns computation Natural
-        empty-case as compute return 0 end
-        cons-case with h Natural t (List Natural) as compute
+        case List::empty as compute return 0 end
+        case List::cons with h Natural t (List Natural) as compute
           bind h from perform (compute return (P::add-nat h 1) end) then
             return h
           end
@@ -210,8 +210,8 @@ module test::prelude::basics contains
   define transparent match-sigma as
     function A Type0 xs (List Natural) a (there-exists x as A in A) b (there-exists y as A in A) returns (there-exists z as A in A) value
       match xs of-type (List Natural) as ignored returns there-exists z as A in A
-        empty-case as a
-        cons-case with h Natural t (List Natural) as b
+        case List::empty as a
+        case List::cons with h Natural t (List Natural) as b
       end
     end
 
@@ -221,8 +221,8 @@ module test::prelude::basics contains
   define transparent match-sigma-comp as
     function A Type0 xs (List Natural) a (there-exists x as A in A) b (there-exists y as A in A) returns computation (there-exists z as A in A) value
       match xs of-type (List Natural) as ignored returns computation there-exists z as A in A
-        empty-case as compute return a end
-        cons-case with h Natural t (List Natural) as compute return b end
+        case List::empty as compute return a end
+        case List::cons with h Natural t (List Natural) as compute return b end
       end
     end
 
@@ -268,8 +268,8 @@ module test::prelude::basics contains
   define transparent check-match-comp-bool as compute
     bind result from perform
       (match true of-type Boolean as ignored returns computation Natural
-        false-case as compute return 0 end
-        true-case as compute return 1 end
+        case Boolean::false as compute return 0 end
+        case Boolean::true as compute return 1 end
       end)
     then
       perform (A::assert-eq Natural result 1)
@@ -339,15 +339,15 @@ module test::prelude::basics contains
     sequence
       (A::assert-eq String
         (match true of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq Boolean (P::not false) true)
       (A::assert-eq String
         (match false of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "no")
       (A::assert-eq Boolean (P::is-falsy false) true)
@@ -377,25 +377,25 @@ module test::prelude::basics contains
     sequence
       (A::assert-eq String
         (match nums of-type (List Natural) as ignored returns String
-          empty-case as "empty"
-          cons-case with h Natural t (List Natural) as "nonempty"
+          case List::empty as "empty"
+          case List::cons with h Natural t (List Natural) as "nonempty"
         end)
         "nonempty")
       (A::assert-eq String
         (match empty-nums of-type (List Natural) as ignored returns String
-          empty-case as "empty"
-          cons-case with h Natural t (List Natural) as "nonempty"
+          case List::empty as "empty"
+          case List::cons with h Natural t (List Natural) as "nonempty"
         end)
         "empty")
       (A::assert-eq String
         (match false of-type Boolean as ignored returns String
-          false-case as "no"
-          true-case as "yes"
+          case Boolean::false as "no"
+          case Boolean::true as "yes"
         end)
         "no")
       (A::assert-eq String
         (match sample-pair of-type (Pair Natural String) as ignored returns String
-          pair-case with a Natural b String as b
+          case Pair::pair with a Natural b String as b
         end)
         "three")
     end
@@ -445,8 +445,8 @@ module test::prelude::basics contains
   define transparent check-list-match as compute
     perform (A::assert-eq Natural
       (match nums of-type (List Natural) as ignored returns Natural
-        empty-case as 0
-        cons-case with h Natural t (List Natural) as h
+        case List::empty as 0
+        case List::cons with h Natural t (List Natural) as h
       end)
       1)
   end
@@ -465,7 +465,7 @@ module test::prelude::basics contains
   define transparent check-pair-match as compute
     perform (A::assert-eq Natural
       (match sample-pair of-type (Pair Natural String) as ignored returns Natural
-        pair-case with a Natural b String as a
+        case Pair::pair with a Natural b String as a
       end)
       3)
   end
@@ -473,8 +473,8 @@ module test::prelude::basics contains
   define transparent check-match as compute
     perform (A::assert-eq Natural
       (match true of-type Boolean as ignored returns Natural
-        false-case as 0
-        true-case as 1
+        case Boolean::false as 0
+        case Boolean::true as 1
       end)
       1)
   end

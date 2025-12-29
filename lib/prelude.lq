@@ -6,47 +6,47 @@ module prelude contains
   define transparent head as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        empty-case as error-prim A "head expects a non-empty list"
-        cons-case with h A t (List A) as h
+        case List::empty as error-prim A "head expects a non-empty list"
+        case List::cons with h A t (List A) as h
       end
     end
   define transparent tail as
     function A Type0 xs (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as nil A
-        cons-case with h A t (List A) as t
+        case List::empty as nil A
+        case List::cons with h A t (List A) as t
       end
     end
   define transparent not as
     function x Boolean returns Boolean value
       match x of-type Boolean as ignored returns Boolean
-        false-case as true
-        true-case as false
+        case Boolean::false as true
+        case Boolean::true as false
       end
     end
   define transparent length-list as
     function A Type0 xs (List A) returns Natural value
       match xs of-type (List A) as ignored returns Natural
-        empty-case as 0
-        cons-case with h A t (List A) as add-nat 1 (recur A t)
+        case List::empty as 0
+        case List::cons with h A t (List A) as add-nat 1 (recur A t)
       end
     end
   define transparent append as
     function A Type0 xs (List A) ys (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as ys
-        cons-case with h A t (List A) as cons A h (recur A t ys)
+        case List::empty as ys
+        case List::cons with h A t (List A) as cons A h (recur A t ys)
       end
     end
   define transparent filter as
     function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns (List A) value
       match xs of-type (List A) as ignored returns (List A)
-        empty-case as nil A
-        cons-case with h A t (List A) as
+        case List::empty as nil A
+        case List::cons with h A t (List A) as
           let value rest be recur A predicate t in
             match (predicate h) of-type Boolean as ignored returns (List A)
-              false-case as rest
-              true-case as cons A h rest
+              case Boolean::false as rest
+              case Boolean::true as cons A h rest
             end
           end
       end
@@ -54,34 +54,34 @@ module prelude contains
   define transparent fold as
     function A Type0 B Type0 f (for-all acc as B to for-all x as A to B) acc B xs (List A) returns B value
       match xs of-type (List A) as ignored returns B
-        empty-case as acc
-        cons-case with h A t (List A) as recur A B f (f acc h) t
+        case List::empty as acc
+        case List::cons with h A t (List A) as recur A B f (f acc h) t
       end
     end
   define transparent map as
     function A Type0 B Type0 f (for-all x as A to B) xs (List A) returns (List B) value
       match xs of-type (List A) as ignored returns (List B)
-        empty-case as nil B
-        cons-case with h A t (List A) as cons B (f h) (recur A B f t)
+        case List::empty as nil B
+        case List::cons with h A t (List A) as cons B (f h) (recur A B f t)
       end
     end
   define transparent pair as pair-prim
   define transparent fst as
     function A Type0 B Type0 p (Pair A B) returns A value
       match p of-type (Pair A B) as ignored returns A
-        pair-case with a A b B as a
+        case Pair::pair with a A b B as a
       end
     end
   define transparent snd as
     function A Type0 B Type0 p (Pair A B) returns B value
       match p of-type (Pair A B) as ignored returns B
-        pair-case with a A b B as b
+        case Pair::pair with a A b B as b
       end
     end
   define transparent pair-to-list as
     function A Type0 p (Pair A A) returns (List A) value
       match p of-type (Pair A A) as ignored returns (List A)
-        pair-case with a A b A as cons A a (cons A b (nil A))
+        case Pair::pair with a A b A as cons A a (cons A b (nil A))
       end
     end
   define transparent decide-eq-nat as decide-eq-nat-prim

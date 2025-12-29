@@ -19,9 +19,10 @@ Interpreter (Haskell, `interpreter/`)
 Libraries (`lib/`)
 - Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; id/is-falsy; tt.
 - Assert: assert-eq-nat/string/bool, assert-false.
-- IO: print/read-file/write-file/shell.
+- IO: print/shell.
 - String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/chars.
-- FS: read/write/append/copy/copy-tree/rename/list-dir/current-directory/path-exists/is-directory/is-file/make-directory/remove-file/remove-directory/walk/stat/lines helpers.
+- File: read/write/append/copy/copy-tree/rename/list-dir/current-directory/path-exists/is-directory/is-file/make-directory/remove-file/remove-directory/walk/stat/lines helpers.
+- CLI: args/options + simple flag parsing helpers.
 - Path: join/dirname/basename/ext/is-absolute.
 - Tools: tokenizer; validator (validate-string via validate-prim).
 - Note: primitives are Haskell scaffolding; aim to replace with locque implementations over time.

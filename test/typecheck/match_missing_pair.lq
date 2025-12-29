@@ -1,4 +1,4 @@
-# Expected type error: missing pair-case.
+# Expected type error: missing case Pair::pair.
 
 module test::typecheck::match_missing_pair contains
   define transparent bad-match as

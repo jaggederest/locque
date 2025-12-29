@@ -10,8 +10,8 @@ module assert contains
       compute
         perform
           match (C::eq-nat x y) of-type Boolean as ignored returns (computation Unit)
-            false-case as error-prim (computation Unit) "assert-eq-nat failed"
-            true-case as assert-hit
+            case Boolean::false as error-prim (computation Unit) "assert-eq-nat failed"
+            case Boolean::true as assert-hit
           end
       end
     end
@@ -20,8 +20,8 @@ module assert contains
       compute
         perform
           match (S::eq x y) of-type Boolean as ignored returns (computation Unit)
-            false-case as error-prim (computation Unit) "assert-eq-string failed"
-            true-case as assert-hit
+            case Boolean::false as error-prim (computation Unit) "assert-eq-string failed"
+            case Boolean::true as assert-hit
           end
       end
     end
@@ -30,15 +30,15 @@ module assert contains
       compute
         perform
           match x of-type Boolean as ignored returns (computation Unit)
-            false-case as
+            case Boolean::false as
               match y of-type Boolean as ignored returns (computation Unit)
-                false-case as assert-hit
-                true-case as error-prim (computation Unit) "assert-eq-bool failed"
+                case Boolean::false as assert-hit
+                case Boolean::true as error-prim (computation Unit) "assert-eq-bool failed"
               end
-            true-case as
+            case Boolean::true as
               match y of-type Boolean as ignored returns (computation Unit)
-                false-case as error-prim (computation Unit) "assert-eq-bool failed"
-                true-case as assert-hit
+                case Boolean::false as error-prim (computation Unit) "assert-eq-bool failed"
+                case Boolean::true as assert-hit
               end
           end
       end
@@ -59,8 +59,8 @@ module assert contains
   define transparent Equality-Boolean as instance Equality Boolean where
     eq as function x Boolean y Boolean returns Boolean value
       match x of-type Boolean as ignored returns Boolean
-        false-case as P::not y
-        true-case as y
+        case Boolean::false as P::not y
+        case Boolean::true as y
       end
     end
   end
@@ -77,8 +77,8 @@ module assert contains
       compute
         perform
           match cond of-type Boolean as ignored returns (computation Unit)
-            false-case as assert-hit
-            true-case as error-prim (computation Unit) msg
+            case Boolean::false as assert-hit
+            case Boolean::true as error-prim (computation Unit) msg
           end
       end
     end

@@ -27,8 +27,8 @@ module test::typeclass::equality contains
   define transparent Equality-Boolean as instance Equality Boolean where
     eq as function x Boolean y Boolean returns Boolean value
       match x of-type Boolean as ignored returns Boolean
-        false-case as P::not y
-        true-case as y
+        case Boolean::false as P::not y
+        case Boolean::true as y
       end
     end
   end
