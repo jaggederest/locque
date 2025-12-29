@@ -21,31 +21,31 @@ module test::prelude::primitives contains
 
   define transparent test-comparison as compute
     sequence
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (C::lt-nat 1 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (C::gt-nat 2 1) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (C::le-nat 2 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (C::ge-nat 3 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (C::eq-nat 5 5) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
@@ -56,51 +56,51 @@ module test::prelude::primitives contains
 
   define transparent test-arithmetic as compute
     sequence
-      (A::assert-eq-nat (Ar::mul-nat 3 4) 12)
-      (A::assert-eq-nat (Ar::mul-nat (Ar::mul-nat 2 5) 3) 30)
-      (A::assert-eq-nat (Ar::div-nat 10 3) 3)
-      (A::assert-eq-nat (Ar::mod-nat 10 3) 1)
-      (A::assert-eq-nat (Ar::add-nat 5 10) 15)
-      (A::assert-eq-nat (Ar::sub-nat 10 3) 7)
+      (A::assert-eq Natural (Ar::mul-nat 3 4) 12)
+      (A::assert-eq Natural (Ar::mul-nat (Ar::mul-nat 2 5) 3) 30)
+      (A::assert-eq Natural (Ar::div-nat 10 3) 3)
+      (A::assert-eq Natural (Ar::mod-nat 10 3) 1)
+      (A::assert-eq Natural (Ar::add-nat 5 10) 15)
+      (A::assert-eq Natural (Ar::sub-nat 10 3) 7)
     end
   end
 
   define transparent test-list-ops as compute
     sequence
-      (A::assert-eq-string (L::nth String 0 list-abc) "a")
-      (A::assert-eq-string (L::nth String 1 list-abc) "b")
-      (A::assert-eq-string (L::nth String 2 list-abc) "c")
-      (A::assert-eq-nat (P::length-list String taken-abc) 2)
-      (A::assert-eq-nat (P::length-list String dropped-abc) 2)
-      (A::assert-eq-string (L::nth String 0 dropped-abc) "b")
+      (A::assert-eq String (L::nth String 0 list-abc) "a")
+      (A::assert-eq String (L::nth String 1 list-abc) "b")
+      (A::assert-eq String (L::nth String 2 list-abc) "c")
+      (A::assert-eq Natural (P::length-list String taken-abc) 2)
+      (A::assert-eq Natural (P::length-list String dropped-abc) 2)
+      (A::assert-eq String (L::nth String 0 dropped-abc) "b")
     end
   end
 
   define transparent test-string-ops as compute
     sequence
-      (A::assert-eq-string (S::substring 0 3 "hello") "hel")
-      (A::assert-eq-string (S::substring 2 3 "hello") "llo")
-      (A::assert-eq-string (S::character-string (S::char-at 1 "hello")) "e")
-      (A::assert-eq-string (S::character-string (S::char-at 0 "hello")) "h")
-      (A::assert-eq-string
+      (A::assert-eq String (S::substring 0 3 "hello") "hel")
+      (A::assert-eq String (S::substring 2 3 "hello") "llo")
+      (A::assert-eq String (S::character-string (S::char-at 1 "hello")) "e")
+      (A::assert-eq String (S::character-string (S::char-at 0 "hello")) "h")
+      (A::assert-eq String
         (match (S::string-contains "ell" "hello") of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (S::string-contains "xyz" "hello") of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "no")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (S::string-starts-with "hel" "hello") of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (S::string-starts-with "llo" "hello") of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"

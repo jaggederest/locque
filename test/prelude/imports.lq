@@ -6,8 +6,8 @@ import assert as A
 module test::prelude::imports contains
   define transparent main as compute
     sequence
-      (A::assert-eq-nat T::test-value 42)
-      (A::assert-eq-string T::test-string "hello from .lq")
+      (A::assert-eq Natural T::test-value 42)
+      (A::assert-eq String T::test-string "hello from .lq")
     end
   end
 end

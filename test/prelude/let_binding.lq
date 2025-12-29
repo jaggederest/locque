@@ -20,8 +20,8 @@ module test::prelude::let_binding contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-nat simple-let 5)
-      (A::assert-eq-nat multi-let 3)
+      (A::assert-eq Natural simple-let 5)
+      (A::assert-eq Natural multi-let 3)
     end
   end
 end

@@ -9,8 +9,8 @@ module test::tools::validator contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-bool (validate-prim valid-source) true)
-      (A::assert-eq-bool (validate-prim invalid-source) false)
+      (A::assert-eq Boolean (validate-prim valid-source) true)
+      (A::assert-eq Boolean (validate-prim invalid-source) false)
     end
   end
 end

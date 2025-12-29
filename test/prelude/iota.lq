@@ -54,58 +54,11 @@ module test::prelude::iota contains
       end
     end
 
-  define transparent Unreachable as data b Boolean in Type0
-    case Unreachable::make of-type
-      for-all x as
-        (match b of-type Boolean as ignored returns Type0
-          case Boolean::false as Natural
-          case Boolean::true as String
-        end)
-      to Unreachable b
-  end
-
-  define transparent unreachable-value as
-    Unreachable::make true "ok"
-
-  define transparent unreachable-bad as
-    function b Boolean x (Unreachable b) returns
-      (match b of-type Boolean as ignored returns Type0
-        case Boolean::false as Natural
-        case Boolean::true as String
-      end)
-    value
-      match x of-type (Unreachable b) as ignored returns
-        (match b of-type Boolean as ignored returns Type0
-          case Boolean::false as Natural
-          case Boolean::true as String
-        end)
-        case Unreachable::make with x
-          (match b of-type Boolean as ignored returns Type0
-            case Boolean::false as Natural
-            case Boolean::true as String
-          end)
-        as (P::add-nat x 1)
-      end
-    end
-
-  define transparent unreachable-pick as
-    function b Boolean x (Unreachable b) returns
-      (match b of-type Boolean as ignored returns Type0
-        case Boolean::false as Natural
-        case Boolean::true as String
-      end)
-    value
-      match x of-type (Unreachable b) as ignored returns
-        (match b of-type Boolean as ignored returns Type0
-          case Boolean::false as Natural
-          case Boolean::true as String
-        end)
-        case Unreachable::make with x
-          (match b of-type Boolean as ignored returns Type0
-            case Boolean::false as Natural
-            case Boolean::true as String
-          end)
-        as x
+  define transparent unreachable-flag as
+    function x (Flagged true) returns Natural value
+      match x of-type (Flagged true) as ignored returns Natural
+        case Flagged::false as P::add-nat "bad" 1
+        case Flagged::true as 0
       end
     end
 
@@ -145,7 +98,7 @@ module test::prelude::iota contains
     sequence
       (A::assert-eq Natural (pick false flag-false) 7)
       (A::assert-eq String (pick true flag-true) "ok")
-      (A::assert-eq String (unreachable-pick true unreachable-value) "ok")
+      (A::assert-eq Natural (unreachable-flag Flagged::true) 0)
     end
   end
 end

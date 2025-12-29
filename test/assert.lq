@@ -6,12 +6,12 @@ open A exposing assert-eq Equality end
 module test::assert contains
   define transparent main as compute
     sequence
-      (A::assert-eq-nat 2 2)
-      (A::assert-eq-string "hello" "hello")
-      (A::assert-eq-bool true true)
       (assert-eq Natural 42 42)
       (assert-eq String "locque" "locque")
       (assert-eq Boolean false false)
+      (assert-eq Natural 2 2)
+      (assert-eq String "hello" "hello")
+      (assert-eq Boolean true true)
     end
   end
 end

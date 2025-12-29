@@ -5,6 +5,7 @@ import file as File
 import list as L
 import prelude as P
 import string as S
+import typeclass::equality as Eq
 
 open S exposing Character end
 
@@ -74,7 +75,7 @@ module test::project contains
 
   define transparent is-missing as
     function existing (List String) path String returns Boolean value
-      P::not (L::contains-string path existing)
+      P::not (L::member String path existing)
     end
 
   define transparent missing-tests as

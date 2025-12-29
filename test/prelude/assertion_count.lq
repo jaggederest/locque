@@ -7,11 +7,11 @@ import assert as A
 module test::prelude::assertion_count contains
   define transparent test-five-assertions as compute
     sequence
-      (A::assert-eq-nat 1 1)
-      (A::assert-eq-nat 2 2)
-      (A::assert-eq-nat 3 3)
-      (A::assert-eq-string "a" "a")
-      (A::assert-eq-string "b" "b")
+      (A::assert-eq Natural 1 1)
+      (A::assert-eq Natural 2 2)
+      (A::assert-eq Natural 3 3)
+      (A::assert-eq String "a" "a")
+      (A::assert-eq String "b" "b")
     end
   end
 

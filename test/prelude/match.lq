@@ -6,7 +6,7 @@ import assert as A
 module test::prelude::match contains
   define transparent bool-match as compute
     sequence
-      (A::assert-eq-string
+      (A::assert-eq String
         (match (P::not false) of-type Boolean as ignored returns String
           case Boolean::false as "false-branch"
           case Boolean::true as "true-branch"
@@ -23,7 +23,7 @@ module test::prelude::match contains
       end)
     then
       sequence
-        (A::assert-eq-string result "x")
+        (A::assert-eq String result "x")
       end
     end
   end

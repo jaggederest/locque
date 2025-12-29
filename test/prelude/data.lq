@@ -4,13 +4,13 @@ import prelude as P
 import assert as A
 
 open A exposing assert-eq Equality end
+open P exposing
+  Option::none Option::some
+  Either::left Either::right
+  Result::ok Result::err
+end
 
 module test::prelude::data contains
-  define transparent Option as data A Type0 in Type0
-    case Option::none of-type Option A
-    case Option::some of-type for-all x as A to Option A
-  end
-
   define transparent Empty as data in Type0
   end
 
@@ -43,10 +43,26 @@ module test::prelude::data contains
   end
 
   define transparent option-default as
-    function A Type0 fallback A opt (Option A) returns A value
-      match opt of-type (Option A) as ignored returns A
+    function A Type0 fallback A opt (P::Option A) returns A value
+      match opt of-type (P::Option A) as ignored returns A
         case Option::none as fallback
         case Option::some with x A as x
+      end
+    end
+
+  define transparent result-default as
+    function A Type0 E Type0 fallback A res (P::Result A E) returns A value
+      match res of-type (P::Result A E) as ignored returns A
+        case Result::ok with ok A as ok
+        case Result::err with ignored E as fallback
+      end
+    end
+
+  define transparent either-sum as
+    function e (P::Either Natural Natural) returns Natural value
+      match e of-type (P::Either Natural Natural) as ignored returns Natural
+        case Either::left with x Natural as P::add-nat x 1
+        case Either::right with y Natural as P::add-nat y 10
       end
     end
 
@@ -127,6 +143,10 @@ module test::prelude::data contains
     sequence
       (A::assert-eq Natural (option-default Natural 1 (Option::none Natural)) 1)
       (A::assert-eq Natural (option-default Natural 1 (Option::some Natural 2)) 2)
+      (A::assert-eq Natural (result-default Natural String 9 (Result::ok Natural String 5)) 5)
+      (A::assert-eq Natural (result-default Natural String 9 (Result::err Natural String "no")) 9)
+      (A::assert-eq Natural (either-sum (Either::left Natural Natural 1)) 2)
+      (A::assert-eq Natural (either-sum (Either::right Natural Natural 1)) 11)
       (A::assert-eq Natural (unwrap Natural 2 (Wrapper::wrap Natural 2 9)) 9)
       (A::assert-eq Natural (flagged-value false Flagged::false) 0)
       (A::assert-eq String (flagged-value true Flagged::true) "yes")

@@ -35,8 +35,8 @@ module test::typecheck::typeclass_resolution contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-string test-show-nat "nat")
-      (A::assert-eq-string test-show-bool "bool")
+      (A::assert-eq String test-show-nat "nat")
+      (A::assert-eq String test-show-bool "bool")
     end
   end
 end

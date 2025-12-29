@@ -4,10 +4,10 @@ import assert as A
 module test::tools::tokenizer contains
   define transparent main as compute
     sequence
-      (A::assert-eq-nat
+      (A::assert-eq Natural
         (P::length-list String (string-to-list-prim "hi"))
         2)
-      (A::assert-eq-string
+      (A::assert-eq String
         (P::head String (string-to-list-prim "hi"))
         "h")
     end

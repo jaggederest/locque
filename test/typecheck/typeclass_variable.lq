@@ -53,10 +53,10 @@ module test::typecheck::typeclass_variable contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-string (show-var 42) "natural")
-      (A::assert-eq-string (apply-show show-var 99) "natural")
-      (A::assert-eq-string (show-nat-var 1) "natural")
-      (A::assert-eq-string (show-bool-var true) "boolean")
+      (A::assert-eq String (show-var 42) "natural")
+      (A::assert-eq String (apply-show show-var 99) "natural")
+      (A::assert-eq String (show-nat-var 1) "natural")
+      (A::assert-eq String (show-bool-var true) "boolean")
     end
   end
 end

@@ -14,7 +14,7 @@ module test::prelude::fold contains
 
   define transparent sum-list as compute
     sequence
-      (A::assert-eq-string sum-total "123")
+      (A::assert-eq String sum-total "123")
     end
   end
 
@@ -30,7 +30,7 @@ module test::prelude::fold contains
 
   define transparent map-upper as compute
     sequence
-      (A::assert-eq-string map-upper-total "1!2!3!")
+      (A::assert-eq String map-upper-total "1!2!3!")
     end
   end
 

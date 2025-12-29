@@ -1,21 +1,18 @@
 # Locque TODO
 
 ## Priority (next up)
-- Align primitives/env with new types; ensure `match` dispatch uses typed eliminators only.
-- Result/Option/Either data types + tests.
 - `smyth check <file>` (type check only).
+- Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
+- Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`).
+- Make `assert-eq` the core implementation and keep `assert-eq-*` as thin wrappers (`lib/assert.lq`).
+- Move `typeclass::equality` instances to stdlib wrappers instead of raw prims (`lib/typeclass/equality.lq`).
+- Generalize `drop-until` to a typeclass-based list helper (e.g., `member`/`drop-until` via `Equality`) (`lib/list.lq`).
 
 ## Tooling
 - LSP for Locque (create + enable), ideally implemented in Locque.
 
-## Standard library & typeclasses
-- Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
-
 ## Diagnostics
 - Show code context once parser locations updated.
-
-## Documentation
-- Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`).
 
 ## Language features (future)
 - Definitional equality: eta reduction for functions.

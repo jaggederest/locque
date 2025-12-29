@@ -17,7 +17,7 @@ Interpreter (Haskell, `interpreter/`)
 - Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
-- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; id/is-falsy.
+- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; Option/Either/Result data; id/is-falsy.
 - Assert: assert-eq-nat/string/bool, assert-false.
 - IO: print/shell.
 - String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/character/to-list/from-list.

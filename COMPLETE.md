@@ -25,6 +25,7 @@
 ### Evaluator
 - [x] Execute computation values only when performed; remove computation identifiers.
 - [x] Remove `match-prim`; keep `perform` as single bridge.
+- [x] Align primitive env with constructor names; drop `nil-prim`/`cons-prim`/`pair-prim` aliases; add `Boolean::true/false` and `Unit::tt` runtime bindings.
 
 ### Converter/rendering
 - [x] Update S-expr/M-expr pretty-printers to new forms; keep full `define` keyword; ban infix separators in S-expr.
@@ -63,6 +64,7 @@
 - [x] File primitives + file module (helpers, walk, stat).
 - [x] CLI helpers (args/options).
 - [x] Path utilities (join/dirname/basename/ext/is-absolute).
+- [x] Result/Option/Either data types in prelude.
 
 ## Documentation
 - [x] Document `lift`/`up`/`down` in grammar and reference docs.

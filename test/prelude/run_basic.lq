@@ -6,8 +6,8 @@ import assert as A
 module test::prelude::run_basic contains
   define transparent test-run-basic as compute
     sequence
-      (A::assert-eq-nat 1 1)
-      (A::assert-eq-string "hello" "hello")
+      (A::assert-eq Natural 1 1)
+      (A::assert-eq String "hello" "hello")
     end
   end
 

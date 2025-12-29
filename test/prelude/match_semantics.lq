@@ -12,7 +12,7 @@ module test::prelude::match_semantics contains
       end)
     then
       sequence
-        (A::assert-eq-string result "empty")
+        (A::assert-eq String result "empty")
       end
     end
   end
@@ -26,7 +26,7 @@ module test::prelude::match_semantics contains
       end)
     then
       sequence
-        (A::assert-eq-string result "first")
+        (A::assert-eq String result "first")
       end
     end
   end
@@ -39,7 +39,7 @@ module test::prelude::match_semantics contains
       end)
     then
       sequence
-        (A::assert-eq-string result "false-branch")
+        (A::assert-eq String result "false-branch")
       end
     end
   end
@@ -52,7 +52,7 @@ module test::prelude::match_semantics contains
       end)
     then
       sequence
-        (A::assert-eq-string result "true-branch")
+        (A::assert-eq String result "true-branch")
       end
     end
   end
@@ -64,7 +64,7 @@ module test::prelude::match_semantics contains
       end)
     then
       sequence
-        (A::assert-eq-string result "left")
+        (A::assert-eq String result "left")
       end
     end
   end

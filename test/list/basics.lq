@@ -4,6 +4,7 @@ import prelude as P
 import assert as A
 import comparison as C
 import list as L
+import typeclass::equality as Eq
 
 open A exposing assert-eq Equality end
 
@@ -60,8 +61,8 @@ module test::list::basics contains
       (assert-eq String
         (P::head String (L::drop-until "b" strs))
         "b")
-      (assert-eq Boolean (L::contains-string "b" strs) true)
-      (assert-eq Boolean (L::contains-string "z" strs) false)
+      (assert-eq Boolean (L::member String "b" strs) true)
+      (assert-eq Boolean (L::member String "z" strs) false)
       (assert-eq Boolean
         (L::any Natural
           (function x Natural returns Boolean value

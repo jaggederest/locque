@@ -69,17 +69,17 @@ module test::typeclass::display contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-string test-nat-zero "0")
-      (A::assert-eq-string test-nat-42 "42")
-      (A::assert-eq-string test-nat-large "12345")
-      (A::assert-eq-string test-str-empty "\"\"")
-      (A::assert-eq-string test-str-hello "\"hello\"")
-      (A::assert-eq-string test-bool-true "true")
-      (A::assert-eq-string test-bool-false "false")
-      (A::assert-eq-string (test-nat-display-var 99) "99")
-      (A::assert-eq-string (test-str-display-var "world") "\"world\"")
-      (A::assert-eq-string (test-bool-display-var true) "true")
-      (A::assert-eq-string (test-bool-display-var false) "false")
+      (A::assert-eq String test-nat-zero "0")
+      (A::assert-eq String test-nat-42 "42")
+      (A::assert-eq String test-nat-large "12345")
+      (A::assert-eq String test-str-empty "\"\"")
+      (A::assert-eq String test-str-hello "\"hello\"")
+      (A::assert-eq String test-bool-true "true")
+      (A::assert-eq String test-bool-false "false")
+      (A::assert-eq String (test-nat-display-var 99) "99")
+      (A::assert-eq String (test-str-display-var "world") "\"world\"")
+      (A::assert-eq String (test-bool-display-var true) "true")
+      (A::assert-eq String (test-bool-display-var false) "false")
     end
   end
 end

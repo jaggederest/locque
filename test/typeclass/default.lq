@@ -56,9 +56,9 @@ module test::typeclass::default contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-nat test-nat-default 0)
-      (A::assert-eq-string test-str-default "")
-      (A::assert-eq-bool test-bool-default false)
+      (A::assert-eq Natural test-nat-default 0)
+      (A::assert-eq String test-str-default "")
+      (A::assert-eq Boolean test-bool-default false)
     end
   end
 end

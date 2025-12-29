@@ -11,7 +11,7 @@ module test::syntax::comments contains
     # Comments can appear anywhere
     bind x from return 1 then # Even at end of line
       sequence
-        (A::assert-eq-nat x 1)
+        (A::assert-eq Natural x 1)
       end
     end
   end
@@ -23,7 +23,7 @@ module test::syntax::comments contains
   define transparent test-block-comment as compute
     bind y from return /* inline comment */ 2 then
       sequence
-        (A::assert-eq-nat y 2)
+        (A::assert-eq Natural y 2)
       end
     end
   end

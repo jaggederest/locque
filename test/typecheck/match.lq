@@ -12,7 +12,7 @@ module test::typecheck::match contains
       end)
     then
       sequence
-        (A::assert-eq-string result "first")
+        (A::assert-eq String result "first")
       end
     end
   end
@@ -25,7 +25,7 @@ module test::typecheck::match contains
       end)
     then
       sequence
-        (A::assert-eq-string result "true")
+        (A::assert-eq String result "true")
       end
     end
   end
@@ -37,7 +37,7 @@ module test::typecheck::match contains
       end)
     then
       sequence
-        (A::assert-eq-nat result 42)
+        (A::assert-eq Natural result 42)
       end
     end
   end

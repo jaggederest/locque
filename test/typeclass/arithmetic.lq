@@ -118,18 +118,18 @@ module test::typeclass::arithmetic contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq-nat test-add-1 5)
-      (A::assert-eq-nat test-add-2 5)
-      (A::assert-eq-nat test-sub-1 7)
-      (A::assert-eq-nat test-sub-2 0)
-      (A::assert-eq-nat test-mul-1 20)
-      (A::assert-eq-nat test-mul-2 0)
-      (A::assert-eq-nat test-div-1 5)
-      (A::assert-eq-nat test-div-2 3)
-      (A::assert-eq-nat test-mod-1 2)
-      (A::assert-eq-nat test-mod-2 0)
-      (A::assert-eq-nat (test-add-var 10 20) 30)
-      (A::assert-eq-nat (test-mul-var 6 7) 42)
+      (A::assert-eq Natural test-add-1 5)
+      (A::assert-eq Natural test-add-2 5)
+      (A::assert-eq Natural test-sub-1 7)
+      (A::assert-eq Natural test-sub-2 0)
+      (A::assert-eq Natural test-mul-1 20)
+      (A::assert-eq Natural test-mul-2 0)
+      (A::assert-eq Natural test-div-1 5)
+      (A::assert-eq Natural test-div-2 3)
+      (A::assert-eq Natural test-mod-1 2)
+      (A::assert-eq Natural test-mod-2 0)
+      (A::assert-eq Natural (test-add-var 10 20) 30)
+      (A::assert-eq Natural (test-mul-var 6 7) 42)
     end
   end
 end

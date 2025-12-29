@@ -1,6 +1,9 @@
 import prelude as P
 import comparison as C
 import string as S
+import typeclass::equality as Eq
+
+open Eq exposing Equality eq end
 
 module list contains
   define transparent drop-until as
@@ -99,17 +102,22 @@ module list contains
       list-init A xs
     end
 
-  define transparent contains-string-fn as
-    function item String acc Boolean x String returns Boolean value
-      match acc of-type Boolean as ignored returns Boolean
-        case Boolean::false as S::eq item x
-        case Boolean::true as true
-      end
+  define transparent member as
+    function A Type0 item A xs (List A) requires Equality A returns Boolean value
+      P::fold A Boolean
+        (function acc Boolean x A returns Boolean value
+          match acc of-type Boolean as ignored returns Boolean
+            case Boolean::false as eq item x
+            case Boolean::true as true
+          end
+        end)
+        false
+        xs
     end
 
   define transparent contains-string as
     function item String xs (List String) returns Boolean value
-      P::fold String Boolean (contains-string-fn item) false xs
+      member String item xs
     end
 
   define transparent any-fn as
