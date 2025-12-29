@@ -1,97 +1,36 @@
 # Locque TODO
 
-## Immediate Priorities
+## Priority (next up)
+- Align primitives/env with new types; ensure `match` dispatch uses typed eliminators only.
+- Result/Option/Either data types + tests.
+- `smyth check <file>` (type check only).
 
-### 1. Grammar Alignment (text-first, no arrows/symbols)
-- Parser (M/S):
-  - [x] Removed legacy forms (`lambda`, legacy `let … in`, `inspect`/`case`, `do … then …`, `perform io`).
-  - [x] Added `let value … be … in … end`, `bind name from … then … end`, `perform` (single expr).
-  - [x] Implemented `function … returns … value|compute … end`, unified `match … of-type … as … returns …` cases, `open … exposing … end`.
-  - [x] Switched `define … as <Value>` (no `as value|computation`) and added `compute … end` as explicit computation-value wrapper.
-  - [x] Switched type grammar to `for-all`/`there-exists`, `computation T`, explicit universes `Type0/1/2`, `::` qualifiers only.
-  - [x] Require parenthesized non-atomic types in function params and match binders to avoid ambiguity.
-  - [x] Add `data … in TypeN … end` definitions and `case <Type::Ctor>` match syntax (M/S), remove legacy `*-case`.
-- Types/TypeChecker:
-  - [x] Replace `TFun` with Pi (`for-all`); add Sigma (`there-exists`) and explicit universes.
-  - [x] Enforce compute-wrapper semantics: computations are values (`compute <Comp> end`) and run only via `perform`.
-  - [x] Drop legacy `lambda`/`inspect` paths; remove computation identifiers; adjust primitive types.
-  - [x] Update import/open handling to `::`-only qualifiers and explicit-name `open`.
-  - [x] Add dependent substitution/elaboration for `for-all`/`there-exists` (currently structural only).
-    - [x] Binder-aware substitution/free-vars (params/constraints/typeclass binders).
-    - [x] Binder-aware normalization (for-all/there-exists/functions/match).
-    - [x] Preserve dependent types on partial application in normalization.
-    - [x] Add typecheck-only shadowing test (global vs bound names).
-- Evaluator:
-  - [x] Execute computation values only when performed; remove computation identifiers.
-  - [x] Remove `match-prim`; keep `perform` as single bridge.
-  - [ ] Align primitives/env with new types; ensure `match` dispatch uses typed eliminators only.
-- Converter/rendering:
-  - [x] Update S-expr/M-expr pretty-printers to new forms; keep full `define` keyword; ban infix separators in S-expr.
-- Docs/tests:
-  - [ ] Regenerate `.lqs` from `.lq`; refresh examples/tests to new surface once parser/typechecker are aligned.
-  - [x] Update core libs used by tests to new syntax (prelude/assert/io/string/comparison).
+## Tooling
+- LSP for Locque (create + enable), ideally implemented in Locque.
 
-### 2. Type Classes (after alignment)
-- [x] Design class/instance/constraint syntax that fits the new grammar.
-- [x] Parser support for `typeclass`, `instance`, `requires`.
-- [x] Dictionary pass: resolve constraints, insert method params, and resolve instances.
-- [x] Update stdlib/tests to use `Equality` + `assert-eq` (explicit type args).
-- [x] Typechecker native typeclass support (classes/instances/constraints); DictPass still used for dictionary insertion.
-- [ ] Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
+## Standard library & typeclasses
+- Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
 
-### 3. Error Message Improvements
-- [x] Suggestions, SourceLoc/ErrorMsg infra, TypeError locations, runtime fuzzy matching, source threading
-- [ ] Show code context once parser locations updated
-- [ ] Inline fix hints; color; error codes
-
-## Core Tooling (smyth)
-- [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`)
-- [x] Locque-side lib/test parity check (test::project)
-- [ ] `smyth check <file>` (type check only)
-- [ ] `smyth repl` (aligned with new grammar)
-- [ ] `smyth validate <file>`; `smyth convert <file>`; `smyth fmt <file>`; `smyth doc`
-
-## Language Features
-  - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar
-- [x] Equality types + transport (`equal`, `reflexive`, `rewrite`)
-- [x] Decidable equality / refinement tooling (e.g., Character length 1)
-- [x] Explicit universe lifting (`lift`/`up`/`down`) for strict universes
-- [x] there-exists intro/elim via `pack`/`unpack`
-- [x] Definitional equality: iota reduction for `match` and `unpack`
-- [ ] Definitional equality: eta reduction for functions (future)
-- [x] Exhaustiveness checking for pattern matching
-- [ ] Type holes; better inference; rows/records (future)
-
-## Pattern Matching
-- [x] Type-specific primitives (current impl)
-  - [x] Unified `match` over constructors (data + built-ins); exhaustiveness by constructor set; guards/nested patterns later
-
-## Standard Library
-- [x] Core: Prelude, List, String, IO, Assert; List.slice
-- [x] File primitives + file module (helpers, walk, stat)
-- [x] CLI helpers (args/options)
-- [x] Path utilities (join/dirname/basename/ext/is-absolute)
-- [ ] Result/Option/Either
-- [ ] More string/list ops; JSON; HTTP (future)
-
-## Self-Hosting (Dogfooding)
-- [ ] M-expr ↔ S-expr converter in Locque
-- [ ] Parser/type checker/validator in Locque
-- [ ] smyth in Locque (long term)
+## Diagnostics
+- Show code context once parser locations updated.
 
 ## Documentation
-- [ ] Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`)
-- [x] Document `lift`/`up`/`down` in grammar and reference docs
-- [ ] Add type class migration guide once implemented
+- Update reference/tutorials/migration guides to the new grammar (no arrows/lambdas; `function … value|compute … end`; `bind … from …`; `perform` without `io`; `::`; `Type0/1/2`).
 
-## Infrastructure
-- [ ] CI: run tests/typecheck; releases
-- [ ] QA: fuzzers (parser/typechecker), benchmarks, coverage, property-based tests
-- [ ] Package ecosystem (future): manager, lockfile, registry, semver, resolution
+## Language features (future)
+- Definitional equality: eta reduction for functions.
+- Type holes; better inference; rows/records.
 
-## Completed ✓
-- Test runner (`smyth test`) and modular tests
-- `smyth run`; Smythfile.lq; standalone binary
-- Comment syntax
-- Error message improvements (phases 1-3)
-- Assertion counting across suite
+## Parked backlog
+
+### Self-hosting
+- M-expr ↔ S-expr converter in Locque
+- Parser/type checker/validator in Locque
+- smyth in Locque (long term)
+
+### Docs
+- Add type class migration guide once implemented
+
+### Infrastructure
+- QA: fuzzers (parser/typechecker), benchmarks, coverage, property-based tests
+- Package ecosystem (future): manager, lockfile, registry, semver, resolution

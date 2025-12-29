@@ -9,10 +9,15 @@ Future design decisions for dependent types and advanced features.
 
 ## 2) Inductive Types and Eliminators
 
-- What is the base set of inductives? Are eliminators exposed as explicit recursors or via pattern matching sugar? How do we encode strictly positive checks and recursion/termination?
-- Notes: minimal core (Boolean, Natural, Sigma/Π, sum, List) with explicit recursors; pattern matching as deterministic sugar over recursors to preserve 1:1 M/S mapping. Require strict positivity and structural (or well-founded) recursion to keep totality. Effects stay out of eliminators.
-- Consider adding early: `Unit` (⊤), `Empty` (⊥), `Maybe`/`Option`, and size-indexed finites (`Fin n`) or vectors (`Vec A n`) once we pin down recursion/termination checks. (The `equal` type is already in core.) Coinductives/streams can be deferred.
-- Bootstrap stance: prefer a minimal trusted core; define `Option/Maybe` via `Either+Unit`, `Fin` and `Vec` as indexed inductives, and other utilities in a Prelude, to keep the kernel small and LLM-facing sugar deterministic.
+- Current: user-defined inductives via `data ... in TypeN ... end`; constructors are `Type::Ctor`; elimination is typed `match` with mandatory binder/returns (dependent motives supported).
+- Open: explicit recursors (or a desugaring target) and strict positivity checks in the kernel; clarify any restrictions on eliminators beyond totality; decide if eliminators ever permit effects.
+- Termination: structural recursion is enforced for value `recur`; computation recursion remains future.
+- Candidates: `Unit`, `Empty`, `Natural`, `List`, `Pair`, `Either`/`Option`, and indexed families like `Vec`/`Fin` (some are already built-in; the rest could be `data` in the stdlib).
+- Bootstrap stance: keep the kernel small; prefer library definitions when possible; defer coinductives/streams.
+
+## Parked backlog
+
+- Standard library expansion: more string/list ops; JSON; HTTP (future).
 
 ---
 

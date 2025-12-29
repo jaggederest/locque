@@ -134,13 +134,13 @@ primEnv = Map.fromList
   , (T.pack "rename-path-prim", BVal (VPrim primRenamePath))
   , (T.pack "walk-prim", BVal (VPrim primWalk))
   , (T.pack "stat-prim", BVal (VPrim primStat))
-  , (T.pack "nil-prim", BVal (VPrim primNil))
-  , (T.pack "cons-prim", BVal (VPrim primCons))
-  , (T.pack "pair-prim", BVal (VPrim primPair))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
   , (T.pack "List::empty", BVal (VPrim primNil))
   , (T.pack "List::cons", BVal (VPrim primCons))
   , (T.pack "Pair::pair", BVal (VPrim primPair))
+  , (T.pack "Boolean::false", BVal (VBoolean False))
+  , (T.pack "Boolean::true", BVal (VBoolean True))
+  , (T.pack "Unit::tt", BVal VUnit)
   , (T.pack "Boolean::true", BVal (VBoolean True))
   , (T.pack "Boolean::false", BVal (VBoolean False))
   , (T.pack "Unit::tt", BVal VUnit)
@@ -259,14 +259,14 @@ primNil :: [Value] -> IO Value
 primNil [ty] = do
   expectTypeArg ty
   pure (VList [])
-primNil _ = error "nil-prim expects (Type)"
+primNil _ = error "List::empty expects (Type)"
 
 primPair :: [Value] -> IO Value
 primPair [tyA, tyB, a, b] = do
   expectTypeArg tyA
   expectTypeArg tyB
   pure $ VPair a b
-primPair _ = error "pair-prim expects (Type, Type, a, b)"
+primPair _ = error "Pair::pair expects (Type, Type, a, b)"
 
 primValidate :: [Value] -> IO Value
 primValidate [VString s] = do
@@ -497,7 +497,7 @@ primCons :: [Value] -> IO Value
 primCons [ty, h, VList t] = do
   expectTypeArg ty
   pure $ VList (h:t)
-primCons _ = error "cons-prim expects (Type, head, list)"
+primCons _ = error "List::cons expects (Type, head, list)"
 
 primCompareNat :: (Integer -> Integer -> Bool) -> [Value] -> IO Value
 primCompareNat op [a, b] = do

@@ -1,8 +1,23 @@
 module prelude contains
   define transparent add-nat as add-nat-prim
   define transparent sub-nat as sub-nat-prim
-  define transparent nil as nil-prim
-  define transparent cons as cons-prim
+  define transparent nil as List::empty
+  define transparent cons as List::cons
+
+  define transparent Option as data A Type0 in Type0
+    case Option::none of-type Option A
+    case Option::some of-type for-all x as A to Option A
+  end
+
+  define transparent Either as data A Type0 B Type0 in Type0
+    case Either::left of-type for-all left as A to Either A B
+    case Either::right of-type for-all right as B to Either A B
+  end
+
+  define transparent Result as data A Type0 E Type0 in Type0
+    case Result::ok of-type for-all ok as A to Result A E
+    case Result::err of-type for-all err as E to Result A E
+  end
   define transparent head as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
@@ -65,7 +80,7 @@ module prelude contains
         case List::cons with h A t (List A) as cons B (f h) (recur A B f t)
       end
     end
-  define transparent pair as pair-prim
+  define transparent pair as Pair::pair
   define transparent fst as
     function A Type0 B Type0 p (Pair A B) returns A value
       match p of-type (Pair A B) as ignored returns A

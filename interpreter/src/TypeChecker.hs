@@ -966,16 +966,10 @@ whnf env expr = case expr of
         reduceCtor "Unit::tt" []
       EVar "Unit::tt" ->
         reduceCtor "Unit::tt" []
-      EApp (EVar "nil-prim") [_elemTy] ->
-        reduceCtor "List::empty" []
       EApp (EVar "List::empty") [_elemTy] ->
         reduceCtor "List::empty" []
-      EApp (EVar "cons-prim") [_elemTy, headExpr, tailExpr] ->
-        reduceCtor "List::cons" [headExpr, tailExpr]
       EApp (EVar "List::cons") [_elemTy, headExpr, tailExpr] ->
         reduceCtor "List::cons" [headExpr, tailExpr]
-      EApp (EVar "pair-prim") [_aTy, _bTy, leftExpr, rightExpr] ->
-        reduceCtor "Pair::pair" [leftExpr, rightExpr]
       EApp (EVar "Pair::pair") [_aTy, _bTy, leftExpr, rightExpr] ->
         reduceCtor "Pair::pair" [leftExpr, rightExpr]
       EVar name ->
@@ -1772,12 +1766,7 @@ buildPrimitiveEnv = Map.fromList
                 (tEqual (tList (EVar "A")) (EVar "xs") (EVar "ys")))))))
   , ("string-to-list-prim", tFun tString (tList tString))
 
-  , ("nil-prim", EForAll "A" (tType 0) (tList (EVar "A")))
-  , ("cons-prim", EForAll "A" (tType 0) (tFun (EVar "A") (tFun (tList (EVar "A")) (tList (EVar "A")))))
   , ("natural-to-peano-prim", tFun tNat (tList tUnit))
-  , ("pair-prim", EForAll "A" (tType 0)
-      (EForAll "B" (tType 0)
-        (tFun (EVar "A") (tFun (EVar "B") (tPair (EVar "A") (EVar "B"))))))
   , ("List::empty", EForAll "A" (tType 0) (tList (EVar "A")))
   , ("List::cons", EForAll "A" (tType 0) (tFun (EVar "A") (tFun (tList (EVar "A")) (tList (EVar "A")))))
   , ("Pair::pair", EForAll "A" (tType 0)

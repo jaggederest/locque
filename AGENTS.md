@@ -1,10 +1,10 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, typed `match ... of-type ... as ... returns ...` with fixed cases, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
+- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, user-defined `data ... in TypeN ... end` with constructors `Type::Ctor`, typed `match ... of-type ... as ... returns ...` with `case Type::Ctor`, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
 
 Interpreter (Haskell, `interpreter/`)
-- AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, functions, defs (transparency/kind), values vs computations, dependent match with binder/returns, typeclasses/instances (DictPass).
+- AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, functions, data/constructors, defs (transparency/kind), values vs computations, dependent match with binder/returns, typeclasses/instances (DictPass).
 - Evaluator: values include closures, primitives, lists, pairs, unit, bool. Primitives: add/sub/mul/div/mod nat; eq/lt/le/gt/ge nat; eq/concat string; string-to-list; nat-to-string; nil/cons/pair/natural-to-peano; decide-eq-(nat/string/bool/pair/list); print/read-file/write-file/append-file/copy-file/copy-tree/rename-path/remove-file/remove-directory/shell/get-line/cli-args/current-directory/list-dir/path-exists/is-directory/is-file/make-directory/walk/stat; validate; error; assert-hit.
 - Import resolution:
   - Module names use `::` separator (e.g., `Some::Module::Name`)
@@ -17,10 +17,10 @@ Interpreter (Haskell, `interpreter/`)
 - Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
-- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; id/is-falsy; tt.
+- Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; id/is-falsy.
 - Assert: assert-eq-nat/string/bool, assert-false.
 - IO: print/shell.
-- String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/chars.
+- String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/character/to-list/from-list.
 - File: read/write/append/copy/copy-tree/rename/list-dir/current-directory/path-exists/is-directory/is-file/make-directory/remove-file/remove-directory/walk/stat/lines helpers.
 - CLI: args/options + simple flag parsing helpers.
 - Path: join/dirname/basename/ext/is-absolute.

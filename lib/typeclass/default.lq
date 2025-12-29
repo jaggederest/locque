@@ -33,7 +33,7 @@ module typeclass::default contains
   # Instance: List (default is empty list)
   define transparent Default-List as instance Default (List A) where
     default-value as function u Unit returns (List A) value
-      nil-prim A
+      List::empty A
     end
   end
 
@@ -49,7 +49,7 @@ module typeclass::default contains
   # When available, implement as:
   #   define transparent Default-Pair as instance (Default A, Default B) => Default (Pair A B) where
   #     default-value as function u Unit returns (Pair A B) value
-  #       pair-prim A B (default-value tt) (default-value tt)
+  #       Pair::pair A B (default-value tt) (default-value tt)
   #     end
   #   end
 end
