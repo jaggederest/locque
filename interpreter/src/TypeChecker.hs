@@ -1436,7 +1436,6 @@ typeOfTypeConst tc = case tc of
 buildPrimitiveEnv :: TypeEnv
 buildPrimitiveEnv = Map.fromList
   [ ("add-nat-prim", tFun tNat (tFun tNat tNat))
-  , ("add-nat", tFun tNat (tFun tNat tNat))
   , ("sub-nat-prim", tFun tNat (tFun tNat tNat))
   , ("mul-nat-prim", tFun tNat (tFun tNat tNat))
   , ("div-nat-prim", tFun tNat (tFun tNat tNat))

@@ -1,0 +1,117 @@
+import prelude as P
+import string as S
+
+module cli contains
+  define transparent args as cli-args-prim
+
+  define transparent empty-options as
+    P::pair (List String) (List (Pair String String))
+      (P::nil String)
+      (P::nil (Pair String String))
+
+  define transparent options-positionals as
+    function result (Pair (List String) (List (Pair String String))) returns (List String) value
+      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List String)
+        pair-case with positionals (List String) ignored (List (Pair String String)) as positionals
+      end
+    end
+
+  define transparent options-flags as
+    function result (Pair (List String) (List (Pair String String))) returns (List (Pair String String)) value
+      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List (Pair String String))
+        pair-case with ignored (List String) flags (List (Pair String String)) as flags
+      end
+    end
+
+  define transparent add-option as
+    function opt (Pair String String)
+             result (Pair (List String) (List (Pair String String)))
+    returns (Pair (List String) (List (Pair String String))) value
+      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (Pair (List String) (List (Pair String String)))
+        pair-case with positionals (List String) flags (List (Pair String String)) as
+          P::pair (List String) (List (Pair String String))
+            positionals
+            (P::cons (Pair String String) opt flags)
+      end
+    end
+
+  define transparent add-positional as
+    function arg String
+             result (Pair (List String) (List (Pair String String)))
+    returns (Pair (List String) (List (Pair String String))) value
+      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (Pair (List String) (List (Pair String String)))
+        pair-case with positionals (List String) flags (List (Pair String String)) as
+          P::pair (List String) (List (Pair String String))
+            (P::cons String arg positionals)
+            flags
+      end
+    end
+
+  define transparent drop-prefix as
+    function prefix String s String returns String value
+      let value prefix-len be S::length prefix in
+        let value s-len be S::length s in
+          S::substring prefix-len (P::sub-nat s-len prefix-len) s
+        end
+      end
+    end
+
+  define transparent split-on-equals as
+    function s String returns (Pair String String) value
+      let value idx be S::string-index-of "=" s in
+        let value len be S::length s in
+          let value after-start be P::add-nat idx 1 in
+            let value after-len be P::sub-nat len after-start in
+              P::pair String String
+                (S::substring 0 idx s)
+                (S::substring after-start after-len s)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent parse-options as
+    function args (List String) returns (Pair (List String) (List (Pair String String))) value
+      match args of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
+        empty-case as empty-options
+        cons-case with h String t (List String) as
+          match (S::eq h "--") of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+            true-case as P::pair (List String) (List (Pair String String)) t (P::nil (Pair String String))
+            false-case as
+              match (S::string-starts-with "--" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                true-case as
+                  let value without-prefix be drop-prefix "--" h in
+                    match (S::string-contains "=" without-prefix) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                      true-case as add-option (split-on-equals without-prefix) (recur t)
+                      false-case as
+                        match t of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
+                          empty-case as add-option (P::pair String String without-prefix "true") empty-options
+                          cons-case with v String rest (List String) as
+                            match (S::string-starts-with "-" v) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                              true-case as add-option (P::pair String String without-prefix "true") (recur t)
+                              false-case as add-option (P::pair String String without-prefix v) (recur rest)
+                            end
+                        end
+                    end
+                false-case as
+                  match (S::string-starts-with "-" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                    true-case as
+                      let value name be drop-prefix "-" h in
+                        add-option (P::pair String String name "true") (recur t)
+                      end
+                    false-case as add-positional h (recur t)
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent options as
+    compute
+      bind argv from perform args then
+        return (parse-options argv)
+      end
+    end
+  end
+end

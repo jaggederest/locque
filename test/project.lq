@@ -1,25 +1,55 @@
 # Project checks for lib/test parity
 
 import assert as A
-import fs as FS
+import file as File
 import list as L
 import prelude as P
 import string as S
 
+open S exposing Character end
+
 module test::project contains
-  define transparent is-lib-entry as
+  define transparent is-lq-entry as
     function entry (Pair String Boolean) returns Boolean value
-      match (FS::walk-is-directory entry) of-type Boolean as ignored returns Boolean
+      match (File::walk-is-directory entry) of-type Boolean as ignored returns Boolean
         true-case as false
-        false-case as S::string-ends-with ".lq" (FS::walk-path entry)
+        false-case as S::string-ends-with ".lq" (File::walk-path entry)
       end
     end
 
-  define transparent lib-file-paths as
+  define transparent lq-file-paths as
     function entries (List (Pair String Boolean)) returns (List String) value
-      let value files be P::filter (Pair String Boolean) is-lib-entry entries in
-        P::map (Pair String Boolean) String FS::walk-path files
+      let value files be P::filter (Pair String Boolean) is-lq-entry entries in
+        P::map (Pair String Boolean) String File::walk-path files
       end
+    end
+
+  define transparent uppercase-chars as
+    S::to-list "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+  define transparent char-is-uppercase as
+    function c Character returns Boolean value
+      L::any Character
+        (function x Character returns Boolean value
+          S::char-eq c x
+        end)
+        uppercase-chars
+    end
+
+  define transparent has-uppercase as
+    function path String returns Boolean value
+      L::any Character char-is-uppercase (S::to-list path)
+    end
+
+  define transparent uppercase-paths as
+    function paths (List String) returns (List String) value
+      P::filter String has-uppercase paths
+    end
+
+  define transparent uppercase-message as
+    function paths (List String) returns String value
+      S::concat "Uppercase path(s) are not allowed: "
+        (S::join-with ", " paths)
     end
 
   define transparent drop-first-segment as
@@ -42,32 +72,48 @@ module test::project contains
         (S::join-with ", " missing)
     end
 
+  define transparent is-missing as
+    function existing (List String) path String returns Boolean value
+      P::not (L::contains-string path existing)
+    end
+
   define transparent missing-tests as
-    function lib-paths (List String) returns computation (List String) value
-      match lib-paths of-type (List String) as ignored returns computation (List String)
-        empty-case as compute return (P::nil String) end
-        cons-case with h String t (List String) as
-          let value test-path be lib-to-test h in
-            compute
-              bind exists from perform (FS::path-exists test-path) then
-                bind rest from perform (recur t) then
-                  perform
-                    (match exists of-type Boolean as ignored returns (computation (List String))
-                      true-case as compute return rest end
-                      false-case as compute return (P::cons String test-path rest) end
-                    end)
+    function expected (List String) existing (List String) returns (List String) value
+      P::filter String (is-missing existing) expected
+    end
+
+  define transparent assert-lib-tests as
+    function lib-entries (List (Pair String Boolean))
+             test-entries (List (Pair String Boolean))
+    returns computation Unit value
+      let value lib-files be lq-file-paths lib-entries in
+        let value test-files be lq-file-paths test-entries in
+          let value upper-lib be uppercase-paths lib-files in
+            let value upper-test be uppercase-paths test-files in
+              let value upper-all be P::append String upper-lib upper-test in
+                let value expected be P::map String String lib-to-test lib-files in
+                  let value missing be missing-tests expected test-files in
+                    compute
+                      sequence
+                        (A::assert-false (uppercase-message upper-all)
+                          (P::not (L::is-empty String upper-all)))
+                        (A::assert-false (missing-message missing)
+                          (P::not (L::is-empty String missing)))
+                      end
+                    end
+                  end
                 end
               end
             end
           end
+        end
       end
     end
 
   define transparent check-lib-tests as compute
-    bind entries from perform (FS::walk "lib") then
-      bind missing from perform (missing-tests (lib-file-paths entries)) then
-        perform (A::assert-false (missing-message missing)
-          (P::not (L::is-empty String missing)))
+    bind lib-entries from perform (File::walk "lib") then
+      bind test-entries from perform (File::walk "test") then
+        perform (assert-lib-tests lib-entries test-entries)
       end
     end
   end

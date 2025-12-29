@@ -7,7 +7,6 @@ import System.Exit (exitFailure)
 import SmythConfig (findSmythfile, loadSmythConfig)
 import SmythTest (runTests)
 import SmythRun (runFile)
-import ProjectChecks (requireLibTests)
 
 main :: IO ()
 main = do
@@ -32,7 +31,6 @@ runTestCommand args = do
     Just root -> do
       -- Load configuration
       config <- loadSmythConfig root
-      requireLibTests root
       -- Run tests
       runTests config args
 
@@ -49,7 +47,6 @@ runRunCommand args = do
         Just root -> do
           -- Load configuration
           config <- loadSmythConfig root
-          requireLibTests root
           -- Run file
           runFile config file
     _ -> do

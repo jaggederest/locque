@@ -1,11 +1,11 @@
-import prelude as P
+import file as File
 import io as IO
 import string as Str
 
 module shell::lls contains
   define transparent list-files as
     function path String returns computation (List String) compute
-      bind files from perform (P::list-dir path) then
+      bind files from perform (File::list-dir path) then
         return files
       end
     end

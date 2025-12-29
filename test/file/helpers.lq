@@ -1,11 +1,10 @@
 import assert as A
-import fs as FS
-import io as IO
+import file as File
 import list as L
 import prelude as P
 import string as S
 
-module test::fs::helpers contains
+module test::file::helpers contains
   define transparent base-dir as "test/tmp/fs_helpers"
 
   define transparent path as
@@ -15,7 +14,7 @@ module test::fs::helpers contains
 
   define transparent entry-path as
     function entry (Pair String Boolean) returns String value
-      FS::walk-path entry
+      File::walk-path entry
     end
 
   define transparent entry-paths as
@@ -33,8 +32,8 @@ module test::fs::helpers contains
       match entries of-type (List (Pair String Boolean)) as ignored returns Boolean
         empty-case as false
         cons-case with h (Pair String Boolean) t (List (Pair String Boolean)) as
-          match (S::eq (FS::walk-path h) target) of-type Boolean as ignored returns Boolean
-            true-case as FS::walk-is-directory h
+          match (S::eq (File::walk-path h) target) of-type Boolean as ignored returns Boolean
+            true-case as File::walk-is-directory h
             false-case as recur target t
           end
       end
@@ -42,28 +41,28 @@ module test::fs::helpers contains
 
   define transparent setup-tree as compute
     sequence
-      (FS::remove-directory base-dir)
-      (FS::make-directory base-dir)
-      (FS::make-directory (path "/src"))
-      (FS::make-directory (path "/src/sub"))
-      (IO::write-file (path "/src/file.txt") "hello")
-      (IO::write-file (path "/src/sub/nested.txt") "nested")
-      (FS::remove-directory (path "/dest"))
+      (File::remove-directory base-dir)
+      (File::make-directory base-dir)
+      (File::make-directory (path "/src"))
+      (File::make-directory (path "/src/sub"))
+      (File::write-file (path "/src/file.txt") "hello")
+      (File::write-file (path "/src/sub/nested.txt") "nested")
+      (File::remove-directory (path "/dest"))
     end
   end
 
   define transparent check-lines as compute
-    bind ignored from perform (FS::write-lines (path "/lines.txt")
+    bind ignored from perform (File::write-lines (path "/lines.txt")
       (P::cons String "a" (P::cons String "b" (P::nil String))))
     then
-      bind lines1 from perform (FS::read-lines (path "/lines.txt")) then
+      bind lines1 from perform (File::read-lines (path "/lines.txt")) then
         bind ignored from perform
           (A::assert-eq String (S::join-with "," lines1) "a,b")
         then
-          bind ignored from perform (FS::append-lines (path "/lines.txt")
+          bind ignored from perform (File::append-lines (path "/lines.txt")
             (P::cons String "c" (P::nil String)))
           then
-            bind lines2 from perform (FS::read-lines (path "/lines.txt")) then
+            bind lines2 from perform (File::read-lines (path "/lines.txt")) then
               perform (A::assert-eq String (S::join-with "," lines2) "a,b,c")
             end
           end
@@ -73,7 +72,7 @@ module test::fs::helpers contains
   end
 
   define transparent check-walk as compute
-    bind entries from perform (FS::walk (path "/src")) then
+    bind entries from perform (File::walk (path "/src")) then
       sequence
         (A::assert-eq Boolean
           (contains-path (path "/src/file.txt") entries)
@@ -95,10 +94,10 @@ module test::fs::helpers contains
   end
 
   define transparent check-copy-tree as compute
-    bind ignored from perform (FS::copy-tree (path "/src") (path "/dest")) then
-      bind exists from perform (FS::path-exists (path "/dest/sub/nested.txt")) then
+    bind ignored from perform (File::copy-tree (path "/src") (path "/dest")) then
+      bind exists from perform (File::path-exists (path "/dest/sub/nested.txt")) then
         bind ignored from perform (A::assert-eq Boolean exists true) then
-          bind contents from perform (IO::read-file (path "/dest/sub/nested.txt")) then
+          bind contents from perform (File::read-file (path "/dest/sub/nested.txt")) then
             perform (A::assert-eq String contents "nested")
           end
         end

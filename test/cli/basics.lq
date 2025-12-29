@@ -1,0 +1,30 @@
+# CLI arg and working directory checks
+
+import assert as A
+import fs as FS
+import list as L
+import prelude as P
+import string as S
+
+module test::prelude::cli contains
+  define transparent check-cli-args as compute
+    bind args from perform P::cli-args then
+      perform (A::assert-eq Boolean (L::is-empty String args) false)
+    end
+  end
+
+  define transparent check-current-directory as compute
+    bind cwd from perform P::current-directory then
+      bind exists from perform (FS::path-exists (S::concat cwd "/Smythfile.lq")) then
+        perform (A::assert-eq Boolean exists true)
+      end
+    end
+  end
+
+  define transparent main as compute
+    sequence
+      check-cli-args
+      check-current-directory
+    end
+  end
+end

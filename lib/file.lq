@@ -1,16 +1,14 @@
-import io as IO
-import prelude as P
 import string as S
 
-module fs contains
-  define transparent read-file as IO::read-file
-  define transparent write-file as IO::write-file
+module file contains
+  define transparent read-file as read-file-prim
+  define transparent write-file as write-file-prim
   define transparent append-file as append-file-prim
   define transparent copy-file as copy-file-prim
   define transparent copy-tree as copy-tree-prim
   define transparent rename-path as rename-path-prim
-  define transparent list-dir as P::list-dir
-  define transparent current-directory as P::current-directory
+  define transparent list-dir as list-dir-prim
+  define transparent current-directory as current-directory-prim
 
   define transparent path-exists as path-exists-prim
   define transparent is-directory as is-directory-prim

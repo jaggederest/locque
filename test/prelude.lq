@@ -2,6 +2,7 @@
 
 import test::prelude::assertion_count as assertion_count
 import test::prelude::basics as basics
+import test::prelude::cli as cli
 import test::prelude::equality as equality
 import test::prelude::exists as exists
 import test::prelude::fold as fold
@@ -21,6 +22,7 @@ module test::prelude contains
     sequence
       assertion_count::main
       basics::main
+      cli::main
       equality::main
       lift::main
       exists::main

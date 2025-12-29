@@ -96,7 +96,6 @@ type Env = Map.Map Text Binding
 primEnv :: Env
 primEnv = Map.fromList
   [ (T.pack "add-nat-prim", BVal (VPrim primAdd))
-  , (T.pack "add-nat", BVal (VPrim primAdd))
   , (T.pack "sub-nat-prim", BVal (VPrim primSub))
   , (T.pack "eq-nat-prim", BVal (VPrim primEqNat))
   , (T.pack "decide-eq-nat-prim", BVal (VPrim primDecideEqNat))
@@ -127,9 +126,6 @@ primEnv = Map.fromList
   , (T.pack "rename-path-prim", BVal (VPrim primRenamePath))
   , (T.pack "walk-prim", BVal (VPrim primWalk))
   , (T.pack "stat-prim", BVal (VPrim primStat))
-  , (T.pack "print", BVal (VPrim primPrint))
-  , (T.pack "tt-prim", BVal VUnit)
-  , (T.pack "tt", BVal VUnit)
   , (T.pack "nil-prim", BVal (VPrim primNil))
   , (T.pack "cons-prim", BVal (VPrim primCons))
   , (T.pack "pair-prim", BVal (VPrim primPair))

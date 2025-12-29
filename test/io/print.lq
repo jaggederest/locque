@@ -1,0 +1,14 @@
+# IO print smoke test
+
+import io as IO
+import assert as A
+
+open A exposing assert-eq Equality end
+
+module test::io::print contains
+  define transparent main as compute
+    bind ignored from perform (IO::print "io::print") then
+      perform (assert-eq Boolean true true)
+    end
+  end
+end

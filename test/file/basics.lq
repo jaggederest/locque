@@ -1,12 +1,11 @@
 import assert as A
-import fs as FS
-import io as IO
+import file as File
 
-module test::fs::basics contains
+module test::file::basics contains
   define transparent assert-path-exists as
     function path String expected Boolean returns computation Unit value
       compute
-        bind exists from perform (FS::path-exists path) then
+        bind exists from perform (File::path-exists path) then
           perform (A::assert-eq Boolean exists expected)
         end
       end
@@ -15,20 +14,20 @@ module test::fs::basics contains
   define transparent assert-is-directory as
     function path String expected Boolean returns computation Unit value
       compute
-        bind isdir from perform (FS::is-directory path) then
+        bind isdir from perform (File::is-directory path) then
           perform (A::assert-eq Boolean isdir expected)
         end
       end
     end
 
   define transparent create-test-file as compute
-    bind ignored from perform (FS::make-directory "test/tmp/fs_dir") then
-      perform (IO::write-file "test/tmp/fs_dir/hello.txt" "hi")
+    bind ignored from perform (File::make-directory "test/tmp/fs_dir") then
+      perform (File::write-file "test/tmp/fs_dir/hello.txt" "hi")
     end
   end
 
   define transparent remove-test-file as compute
-    perform (FS::remove-file "test/tmp/fs_dir/hello.txt")
+    perform (File::remove-file "test/tmp/fs_dir/hello.txt")
   end
 
   define transparent main as compute

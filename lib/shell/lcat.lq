@@ -1,9 +1,10 @@
+import file as File
 import io as IO
 
 module shell::lcat contains
   define transparent lcat as
     function path String returns computation String compute
-      bind contents from perform (IO::read-file path) then
+      bind contents from perform (File::read-file path) then
         bind ignored from perform (IO::print contents) then
           return contents
         end

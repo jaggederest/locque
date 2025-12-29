@@ -90,9 +90,6 @@ module prelude contains
   define transparent decide-eq-pair as decide-eq-pair-prim
   define transparent decide-eq-list as decide-eq-list-prim
   define transparent get-line as get-line-prim
-  define transparent list-dir as list-dir-prim
-  define transparent cli-args as cli-args-prim
-  define transparent current-directory as current-directory-prim
 
   define transparent id as
     function A Type0 x A returns A value

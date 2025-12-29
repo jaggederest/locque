@@ -1,14 +1,14 @@
 # File IO smoke tests
 
-import io as IO
+import file as File
 import assert as A
 
 open A exposing assert-eq Equality end
 
-module test::io::file_io contains
+module test::file::file_io contains
   define transparent roundtrip as compute
-    bind ignored from perform (IO::write-file "test/tmp/test_tmp.txt" "abc") then
-      bind contents from perform (IO::read-file "test/tmp/test_tmp.txt") then
+    bind ignored from perform (File::write-file "test/tmp/test_tmp.txt" "abc") then
+      bind contents from perform (File::read-file "test/tmp/test_tmp.txt") then
         perform (assert-eq String contents "abc")
       end
     end

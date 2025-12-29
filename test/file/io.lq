@@ -1,9 +1,8 @@
 import assert as A
-import fs as FS
-import io as IO
+import file as File
 import string as S
 
-module test::fs::io contains
+module test::file::io contains
   define transparent base-dir as "test/tmp/fs_io"
 
   define transparent path as
@@ -14,7 +13,7 @@ module test::fs::io contains
   define transparent assert-path-exists as
     function target String expected Boolean returns computation Unit value
       compute
-        bind ok from perform (FS::path-exists target) then
+        bind ok from perform (File::path-exists target) then
           perform (A::assert-eq Boolean ok expected)
         end
       end
@@ -23,7 +22,7 @@ module test::fs::io contains
   define transparent assert-is-file as
     function target String expected Boolean returns computation Unit value
       compute
-        bind ok from perform (FS::is-file target) then
+        bind ok from perform (File::is-file target) then
           perform (A::assert-eq Boolean ok expected)
         end
       end
@@ -31,57 +30,57 @@ module test::fs::io contains
 
   define transparent ensure-clean as compute
     sequence
-      (FS::remove-file (path "/a.txt"))
-      (FS::remove-file (path "/b.txt"))
-      (FS::remove-file (path "/c.txt"))
-      (FS::remove-directory (path "/dir_old"))
-      (FS::remove-directory (path "/dir_new"))
-      (FS::remove-directory (path "/dir_remove"))
+      (File::remove-file (path "/a.txt"))
+      (File::remove-file (path "/b.txt"))
+      (File::remove-file (path "/c.txt"))
+      (File::remove-directory (path "/dir_old"))
+      (File::remove-directory (path "/dir_new"))
+      (File::remove-directory (path "/dir_remove"))
     end
   end
 
   define transparent ensure-base as compute
-    perform (FS::make-directory base-dir)
+    perform (File::make-directory base-dir)
   end
 
   define transparent write-base as compute
-    perform (IO::write-file (path "/a.txt") "hi")
+    perform (File::write-file (path "/a.txt") "hi")
   end
 
   define transparent append-and-read as compute
-    bind ignored from perform (FS::append-file (path "/a.txt") " there") then
-      bind contents from perform (IO::read-file (path "/a.txt")) then
+    bind ignored from perform (File::append-file (path "/a.txt") " there") then
+      bind contents from perform (File::read-file (path "/a.txt")) then
         perform (A::assert-eq String contents "hi there")
       end
     end
   end
 
   define transparent copy-and-read as compute
-    bind ignored from perform (FS::copy-file (path "/a.txt") (path "/b.txt")) then
-      bind contents from perform (IO::read-file (path "/b.txt")) then
+    bind ignored from perform (File::copy-file (path "/a.txt") (path "/b.txt")) then
+      bind contents from perform (File::read-file (path "/b.txt")) then
         perform (A::assert-eq String contents "hi there")
       end
     end
   end
 
   define transparent rename-copy as compute
-    perform (FS::rename-path (path "/b.txt") (path "/c.txt"))
+    perform (File::rename-path (path "/b.txt") (path "/c.txt"))
   end
 
   define transparent remove-copy as compute
-    perform (FS::remove-file (path "/c.txt"))
+    perform (File::remove-file (path "/c.txt"))
   end
 
   define transparent rename-dir as compute
-    bind ignored from perform (FS::make-directory (path "/dir_old")) then
-      perform (FS::rename-path (path "/dir_old") (path "/dir_new"))
+    bind ignored from perform (File::make-directory (path "/dir_old")) then
+      perform (File::rename-path (path "/dir_old") (path "/dir_new"))
     end
   end
 
   define transparent remove-dir-recursive as compute
-    bind ignored from perform (FS::make-directory (path "/dir_remove")) then
-      bind ignored from perform (IO::write-file (path "/dir_remove/nested.txt") "x") then
-        perform (FS::remove-directory (path "/dir_remove"))
+    bind ignored from perform (File::make-directory (path "/dir_remove")) then
+      bind ignored from perform (File::write-file (path "/dir_remove/nested.txt") "x") then
+        perform (File::remove-directory (path "/dir_remove"))
       end
     end
   end

@@ -12,7 +12,7 @@ synopsis:            Toy interpreter for locque
 executable locque-interpreter
   main-is:             Main.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils, ProjectChecks
+  other-modules:       SourceLoc, ErrorMsg, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns
   build-depends:
@@ -30,7 +30,7 @@ executable locque-interpreter
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, SmythTest, SmythRun, SmythConfig, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils, ProjectChecks
+  other-modules:       SourceLoc, ErrorMsg, SmythTest, SmythRun, SmythConfig, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns
   build-depends:

@@ -14,7 +14,6 @@ import           Parser
 import           Validator
 import qualified TypeChecker as TC
 import           DictPass (transformModuleWithEnvs)
-import           ProjectChecks (requireLibTests)
 
 main :: IO ()
 main = do
@@ -32,7 +31,6 @@ runFile :: FilePath -> IO ()
 runFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
-  requireLibTests projectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
@@ -71,7 +69,6 @@ typecheckFile :: FilePath -> IO ()
 typecheckFile file = do
   cwd <- getCurrentDirectory
   let projectRoot = takeDirectory cwd
-  requireLibTests projectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
