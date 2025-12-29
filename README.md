@@ -68,6 +68,7 @@ Values are total and normalize; computations are explicitly marked and only run 
 - License: MIT. See `LICENSE`.
 - Repo: https://github.com/jaggederest/locque/
 - PRs: fork, create a branch, make focused changes, and open a PR.
+- Tooling: install GHC to build `locque-interpreter` and `smyth` (https://www.haskell.org/ghcup/).
 - Tests: run `smyth test` from the repo root to check the full suite and expected failures.
 
 Reference grammar and canonical syntax live in `grammar.md`.
