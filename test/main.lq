@@ -20,6 +20,7 @@ import test::either as test_either
 import test::shell as test_shell
 import test::testimport as test_testimport
 import test::typeclass as test_typeclass
+import test::type_aliases as test_type_aliases
 import test::logic as test_logic
 import test::typecheck as test_typecheck
 import test::syntax as test_syntax
@@ -47,6 +48,7 @@ module test::main contains
       test_shell::main
       test_testimport::main
       test_typeclass::main
+      test_type_aliases::main
       test_logic::main
       test_typecheck::main
       test_syntax::main

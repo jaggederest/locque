@@ -1,6 +1,7 @@
 import prelude as P
 import typeclass::equality as Eq
 import typeclass::order as Order
+import type_aliases as Types
 
 open Eq exposing Equality end
 
@@ -18,8 +19,10 @@ module string contains
     end
 
   define transparent Character as
-    there-exists c as String in
-      equal Natural (length c) 1
+    Types::Exists String
+      (function c String returns Type0 value
+        equal Natural (length c) 1
+      end)
 
   define transparent character as
     function s String returns Character value
@@ -120,7 +123,7 @@ module string contains
     end
 
   define transparent drop-while-char as
-    function predicate (for-all x as Character to Boolean) xs (List Character) returns (List Character) value
+    function predicate (Types::Predicate Character) xs (List Character) returns (List Character) value
       match xs of-type (List Character) as ignored returns (List Character)
         case List::empty as P::nil Character
         case List::cons with h Character t (List Character) as
@@ -467,7 +470,7 @@ module string contains
     end
 
   define transparent insert-char-by as
-    function cmp (for-all x as Character to for-all y as Character to Boolean)
+    function cmp (Types::Comparator Character)
              x Character
              xs (List Character)
     returns (List Character) value
@@ -482,7 +485,7 @@ module string contains
     end
 
   define transparent sort-chars-by as
-    function cmp (for-all x as Character to for-all y as Character to Boolean)
+    function cmp (Types::Comparator Character)
              xs (List Character)
     returns (List Character) value
       P::fold Character (List Character)

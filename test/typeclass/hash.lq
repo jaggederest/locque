@@ -1,0 +1,21 @@
+# Hash typeclass tests
+
+import assert as A
+import typeclass::hash as Hash
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::typeclass::hash contains
+  define transparent main as compute
+    sequence
+      (assert-eq Natural (Hash::hash-value Natural 42) 42)
+      (assert-eq Natural (Hash::hash-value Boolean false) 0)
+      (assert-eq Natural (Hash::hash-value Boolean true) 1)
+      (assert-eq Natural (Hash::hash-value String "") 0)
+      (assert-eq Natural (Hash::hash-value String "a") 97)
+      (assert-eq Natural (Hash::hash-value String "ab") 3105)
+    end
+  end
+end

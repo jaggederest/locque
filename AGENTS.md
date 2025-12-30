@@ -1,7 +1,7 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, user-defined `data ... in TypeN ... end` with constructors `Type::Ctor`, typed `match ... of-type ... as ... returns ...` with `case Type::Ctor`, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S).
+- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, user-defined `data ... in TypeN ... end` with constructors `Type::Ctor`, typed `match ... of-type ... as ... returns ...` with `case Type::Ctor`, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S). Types are values: any value expression that checks as `TypeN` is a valid type (wrap non-atomic forms like `function` in parentheses when used as type arguments).
 
 Interpreter (Haskell, `interpreter/`)
 - AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, functions, data/constructors, defs (transparency/kind), values vs computations, dependent match with binder/returns, typeclasses/instances (DictPass).
@@ -10,7 +10,7 @@ Interpreter (Haskell, `interpreter/`)
   - Module names use `::` separator (e.g., `Some::Module::Name`)
   - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`)
   - Qualifies names with module/alias and can open explicit names
-- CLI: `locque-interpreter run <file>` (type check + run .lq/.lqs), `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`. Smyth tool: `smyth run <file>` (type check + run), `smyth test` (all via test/main.lq), `smyth test <file>` (one), `smyth bench` (runs test/bench.lq). Installed at `~/.local/bin/smyth`.
+- CLI: `locque-interpreter run <file>` (type check + run .lq/.lqs), `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`, `dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]`. Smyth tool: `smyth run <file>` (type check + run), `smyth test` (all via test/main.lq), `smyth test <file>` (one), `smyth bench` (runs test/bench.lq), `smyth dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]`. Installed at `~/.local/bin/smyth`.
 - Smyth tool: `smyth run <file>`, `smyth test` (all), `smyth test <file>` (one), `smyth bench` (benchmarks). Installed at `~/.local/bin/smyth`.
 - Smythfile: `Smythfile.lq` lives at repo root; the only config currently read is `error-tests`, a list of `(file, substring)` expected-failure cases consumed by `smyth test`.
 - Type checker: dependent (Pi/Sigma), explicit universes, strict CBPV; iota for `match`/`unpack`, exhaustiveness checking; native typeclass checking for classes/instances/constraints (DictPass still used for dictionary insertion during evaluation).
@@ -25,7 +25,9 @@ Libraries (`lib/`)
 - CLI: args/options + simple flag parsing helpers.
 - Path: join/dirname/basename/ext/is-absolute.
 - Option/Result/Either: common helpers (map/bind/unwrap/or, conversions).
+- Type aliases: BaseType/TypeFunction/BinaryTypeFunction/Function/Predicate/Comparator/BinaryOperator/FoldStep/Thunk/Exists.
 - Tools: tokenizer; validator (validate-string via validate-prim).
+- Typeclasses: Equality, Order, Arithmetic, Display, Default, Semigroup, Monoid, Hash.
 - Note: primitives are Haskell scaffolding; aim to replace with locque implementations over time.
 
 Notes and working agreements

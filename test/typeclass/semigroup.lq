@@ -1,0 +1,17 @@
+# Semigroup typeclass tests
+
+import assert as A
+import typeclass::semigroup as Semi
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::typeclass::semigroup contains
+  define transparent main as compute
+    sequence
+      (assert-eq String (Semi::combine String "hello" "world") "helloworld")
+      (assert-eq String (Semi::combine String "" "x") "x")
+    end
+  end
+end

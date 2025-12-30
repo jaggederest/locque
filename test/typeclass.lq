@@ -6,6 +6,9 @@ import test::typeclass::arithmetic as arithmetic
 import test::typeclass::default as default
 import test::typeclass::display as display
 import test::typeclass::order as order
+import test::typeclass::semigroup as semigroup
+import test::typeclass::monoid as monoid
+import test::typeclass::hash as hash
 
 module test::typeclass contains
   define transparent main as compute
@@ -15,6 +18,9 @@ module test::typeclass contains
       default::main
       display::main
       order::main
+      semigroup::main
+      monoid::main
+      hash::main
     end
   end
 end

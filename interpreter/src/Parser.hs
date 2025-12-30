@@ -2,6 +2,8 @@
 module Parser
   ( parseModuleFile
   , parseMExprFile
+  , exprToSExprText
+  , exprToMExprText
   , moduleToSExprText
   , moduleToMExprText
   ) where
@@ -321,10 +323,11 @@ fromParam path other =
 
 fromTypeclass :: FilePath -> [SExpr] -> Either String Expr
 fromTypeclass path parts = case parts of
-  (SAtom param : methods) -> do
+  (SList [SAtom param, SAtom "of-kind", kind] : methods) -> do
+    kind' <- fromType path kind
     methods' <- mapM (fromClassMethod path) methods
-    pure (ETypeClass param methods')
-  _ -> Left (path ++ ": typeclass expects param and method declarations")
+    pure (ETypeClass param kind' methods')
+  _ -> Left (path ++ ": typeclass expects (param of-kind Kind) and method declarations")
 
 fromInstance :: FilePath -> [SExpr] -> Either String Expr
 fromInstance path parts = case parts of
@@ -540,15 +543,17 @@ pTypeclassDef :: Parser Expr
 pTypeclassDef = M.try $ do
   keyword "typeclass"
   param <- pIdentifier
+  keyword "of-kind"
+  kind <- pTypeParam
   keyword "where"
   methods <- manyTill pClassMethod (keyword "end")
-  pure (ETypeClass param methods)
+  pure (ETypeClass param kind methods)
 
 pClassMethod :: Parser (Text, Expr)
 pClassMethod = M.try $ do
   name <- pIdentifier
   keyword "of-type"
-  ty <- pType
+  ty <- pTypeParam
   pure (name, ty)
 
 pInstanceDef :: Parser Expr
@@ -815,10 +820,10 @@ pStringLit = lexeme $ do
 
 pType :: Parser Expr
 pType =
-  pForAll <|> pThereExists <|> pComputation <|> pLiftType <|> pEqual <|> pMatch <|> pTypeApp
+  pLetType <|> pForAll <|> pThereExists <|> pFunction <|> pComputation <|> pLiftType <|> pEqual <|> pMatch <|> pTypeApp
 
 pTypeParam :: Parser Expr
-pTypeParam = parens pType <|> pTypeSimple
+pTypeParam = parens pType <|> pLetType <|> pTypeSimple
 
 pForAll :: Parser Expr
 pForAll = M.try $ do
@@ -839,6 +844,18 @@ pThereExists = M.try $ do
   keyword "in"
   cod <- pType
   pure (EThereExists v dom cod)
+
+pLetType :: Parser Expr
+pLetType = M.try $ do
+  keyword "let"
+  keyword "value"
+  v <- pIdentifier
+  keyword "be"
+  val <- pValue
+  keyword "in"
+  body <- pType
+  keyword "end"
+  pure (ELet v val body)
 
 pComputation :: Parser Expr
 pComputation = M.try $ do
@@ -919,7 +936,7 @@ reservedWords =
   , "data", "case"
   , "for-all", "there-exists", "computation", "to", "lift", "up", "down", "pack", "unpack"
   , "equal", "reflexive", "rewrite"
-  , "typeclass", "instance", "where", "requires", "and"
+  , "typeclass", "of-kind", "instance", "where", "requires", "and"
   , "recur"
   , "true", "false", "tt"
   , "Natural", "String", "Boolean", "Unit", "List", "Pair"
@@ -1055,11 +1072,15 @@ renderExpr expr = case expr of
     "(dict " <> className <> " " <>
     DT.intercalate " " [n <> " " <> renderExpr e | (n, e) <- impls] <> ")"
   EDictAccess d method -> "(dict-access " <> renderExpr d <> " " <> method <> ")"
-  ETypeClass param methods ->
-    "(typeclass " <> param <> " " <> DT.unwords (map renderClassMethod methods) <> ")"
+  ETypeClass param kind methods ->
+    "(typeclass (" <> param <> " of-kind " <> T.typeToSExpr kind <> ") "
+      <> DT.unwords (map renderClassMethod methods) <> ")"
   EInstance className instTy methods ->
     "(instance " <> className <> " " <> T.typeToSExpr instTy <> " "
       <> DT.unwords (map renderInstanceMethod methods) <> ")"
+
+exprToSExprText :: Expr -> DT.Text
+exprToSExprText = renderExpr
 
 renderParam :: Param -> DT.Text
 renderParam (Param name ty) = "(" <> name <> " " <> T.typeToSExpr ty <> ")"
@@ -1197,11 +1218,15 @@ renderMExpr expr = case expr of
     "(dict " <> className <> " " <>
     DT.intercalate " " [n <> " " <> renderMExpr e | (n, e) <- impls] <> ")"
   EDictAccess d method -> "(dict-access " <> renderMExpr d <> " " <> method <> ")"
-  ETypeClass param methods ->
-    "typeclass " <> param <> " where " <> DT.unwords (map renderClassMethodM methods) <> " end"
+  ETypeClass param kind methods ->
+    "typeclass " <> param <> " of-kind " <> T.prettyTypeAtom kind
+      <> " where " <> DT.unwords (map renderClassMethodM methods) <> " end"
   EInstance className instTy methods ->
     "instance " <> className <> " " <> T.prettyTypeAtom instTy <> " where "
       <> DT.unwords (map renderInstanceMethodM methods) <> " end"
+
+exprToMExprText :: Expr -> DT.Text
+exprToMExprText = renderMExpr
 
 renderParams :: [Param] -> DT.Text
 renderParams params = DT.unwords (map renderParamM params)

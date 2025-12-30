@@ -1,4 +1,5 @@
 import prelude as P
+import type_aliases as Types
 
 open P exposing Either::left Either::right end
 
@@ -17,7 +18,7 @@ module either contains
     end
 
   define transparent map-left as
-    function A Type0 B Type0 C Type0 f (for-all x as A to C) e (P::Either A B) returns (P::Either C B) value
+    function A Type0 B Type0 C Type0 f (Types::Function A C) e (P::Either A B) returns (P::Either C B) value
       match e of-type (P::Either A B) as ignored returns (P::Either C B)
         case Either::left with x A as Either::left C B (f x)
         case Either::right with y B as Either::right C B y
@@ -25,7 +26,7 @@ module either contains
     end
 
   define transparent map-right as
-    function A Type0 B Type0 C Type0 f (for-all x as B to C) e (P::Either A B) returns (P::Either A C) value
+    function A Type0 B Type0 C Type0 f (Types::Function B C) e (P::Either A B) returns (P::Either A C) value
       match e of-type (P::Either A B) as ignored returns (P::Either A C)
         case Either::left with x A as Either::left A C x
         case Either::right with y B as Either::right A C (f y)
@@ -33,12 +34,12 @@ module either contains
     end
 
   define transparent map as
-    function A Type0 B Type0 C Type0 f (for-all x as B to C) e (P::Either A B) returns (P::Either A C) value
+    function A Type0 B Type0 C Type0 f (Types::Function B C) e (P::Either A B) returns (P::Either A C) value
       map-right A B C f e
     end
 
   define transparent bind-right as
-    function A Type0 B Type0 C Type0 f (for-all x as B to (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
+    function A Type0 B Type0 C Type0 f (Types::Function B (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
       match e of-type (P::Either A B) as ignored returns (P::Either A C)
         case Either::left with x A as Either::left A C x
         case Either::right with y B as f y
@@ -46,7 +47,7 @@ module either contains
     end
 
   define transparent and-then as
-    function A Type0 B Type0 C Type0 f (for-all x as B to (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
+    function A Type0 B Type0 C Type0 f (Types::Function B (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
       bind-right A B C f e
     end
 
@@ -60,8 +61,8 @@ module either contains
 
   define transparent fold as
     function A Type0 B Type0 C Type0
-             on-left (for-all x as A to C)
-             on-right (for-all y as B to C)
+             on-left (Types::Function A C)
+             on-right (Types::Function B C)
              e (P::Either A B)
     returns C value
       match e of-type (P::Either A B) as ignored returns C

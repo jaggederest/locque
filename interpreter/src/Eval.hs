@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Eval
-  ( runModuleMain
+  ( CtorArityMap
+  , ctorArityMap
+  , runModuleMain
   ) where
 
 import           AST
@@ -106,6 +108,7 @@ data Binding
   | BValueExpr Env Expr  -- Capture environment for lazy evaluation (module-local scope)
 
 type Env = Map.Map Text Binding
+type CtorArityMap = Map.Map Text (Int, Int)
 
 primEnv :: Env
 primEnv = Map.fromList
@@ -637,8 +640,8 @@ expectString v           = error $ "expected String, got " ++ show v
 
 -- Build environment from module definitions atop an existing env (imports/prims)
 -- Uses lazy evaluation to tie-the-knot: all definitions capture the final environment
-bindModule :: Module -> Env -> Env
-bindModule (Module _modName _ _ defs) base =
+bindModule :: CtorArityMap -> Module -> Env -> Env
+bindModule ctorArity (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
       addDef e (Definition _ name body) = case body of
         EData params _ cases ->
@@ -650,8 +653,8 @@ bindModule (Module _modName _ _ defs) base =
   in env
   where
     ctorBinding params (DataCase ctorName ctorTy) =
-      let dataParamCount = countFreeDataParams params ctorTy
-          termParamCount = countForAll ctorTy
+      let fallback = (countFreeDataParams params ctorTy, countForAll ctorTy)
+          (dataParamCount, termParamCount) = Map.findWithDefault fallback ctorName ctorArity
           total = dataParamCount + termParamCount
           ctorVal = if total == 0
             then VData ctorName []
@@ -663,13 +666,13 @@ countFreeDataParams params ctorTy =
   let free = TC.freeVars ctorTy
   in length [() | Param name _ <- params, name `Set.member` free]
 
-runModuleMain :: FilePath -> Module -> IO Int
-runModuleMain projectRoot m@(Module _modName _ _ _) = do
+runModuleMain :: FilePath -> CtorArityMap -> Module -> IO Int
+runModuleMain projectRoot ctorArity m@(Module _modName _ _ _) = do
   -- Reset assertion counter
   writeIORef assertionCounter 0
 
   envImports <- loadImports projectRoot m
-  let env = bindModule m envImports
+  let env = bindModule ctorArity m envImports
   case Map.lookup (T.pack "main") env of
     Just b -> do
       val <- resolveBinding env b
@@ -749,7 +752,7 @@ evalExpr env expr = case expr of
           Just val -> pure val
           Nothing -> error $ "Method not found in dictionary: " ++ T.unpack methodName
       _ -> error "Expected dictionary value"
-  ETypeClass _ _ -> error "Typeclass nodes are not evaluable"
+  ETypeClass _ _ _ -> error "Typeclass nodes are not evaluable"
   EInstance _ _ _ -> error "Instance nodes are not evaluable"
 
 resolveBinding :: Env -> Binding -> IO Value
@@ -879,6 +882,10 @@ loadImport projectRoot (Import modName alias) = do
       case TC.annotateModule env transformed of
         Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
         Right m -> pure m
+  normalizedResult <- TC.normalizeModuleWithImports projectRoot contents parsed
+  normalized <- case normalizedResult of
+    Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
+    Right m -> pure m
 
   let Module _modName _ opens defs = annotated
   envImports <- loadImports projectRoot annotated
@@ -886,7 +893,7 @@ loadImport projectRoot (Import modName alias) = do
   let envWithOpens = processOpens opens envImports
 
   -- Bind the module to get all definitions
-  let envSelf = bindModule annotated envWithOpens
+  let envSelf = bindModule (ctorArityMap normalized) annotated envWithOpens
       -- Add qualified names for each definition using the alias
       defNames = map defName defs
       ctorNames = concatMap defCtorNames defs
@@ -910,6 +917,17 @@ loadImport projectRoot (Import modName alias) = do
     defCtorNames :: Definition -> [Text]
     defCtorNames def = case defBody def of
       EData _ _ cases -> map dataCaseName cases
+      _ -> []
+
+ctorArityMap :: Module -> CtorArityMap
+ctorArityMap (Module _ _ _ defs) =
+  Map.fromList (concatMap defCtorArity defs)
+  where
+    defCtorArity (Definition _ _ body) = case body of
+      EData params _ cases ->
+        [ (ctorName, (countFreeDataParams params ctorTy, countForAll ctorTy))
+        | DataCase ctorName ctorTy <- cases
+        ]
       _ -> []
 
 -- Process open statements to bring unqualified names into scope

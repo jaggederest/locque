@@ -61,8 +61,8 @@ end
 ## Typeclasses and constraints
 
 ```
-define transparent Equality as typeclass A where
-  eq of-type for-all x as A to for-all y as A to Boolean
+define transparent Equality as typeclass A of-kind Type0 where
+  eq of-type (for-all x as A to for-all y as A to Boolean)
 end
 
 define transparent Equality-Natural as instance Equality Natural where
@@ -70,7 +70,8 @@ define transparent Equality-Natural as instance Equality Natural where
 end
 ```
 
-- `typeclass` introduces a class with a single type parameter (currently assumed `Type0`) and a list of method types.
+- `typeclass` introduces a class with a single type parameter and an explicit kind via `of-kind`.
+- Method types use `TypeParam` parsing; parenthesize non-atomic types like `for-all ...` (or use a `let value` alias).
 - `instance` provides implementations for all class methods; missing/extra methods are errors.
 - Instance constraints are not supported yet.
 
@@ -84,7 +85,7 @@ end
 - Method names must be unique across constraints; local bindings can shadow them.
 
 S-expr sketches:
-- `(typeclass A (eq of-type (for-all (x A) (for-all (y A) Boolean))))`
+- `(typeclass (A of-kind Type0) (eq of-type (for-all (x A) (for-all (y A) Boolean))))`
 - `(instance Equality Natural (eq <expr>))`
 - `(function (A Type0) (x A) (requires (Equality A)) Boolean (value <expr>))`
 
@@ -243,7 +244,7 @@ TypeSimple ::=
 - Type application is word-based: `List Natural`, `Vector Natural n`, `Result Error a`.
 - In M-expr binder positions, parenthesize non-atomic types: `x (List Natural)`, `x (Vector Natural n)`.
 - `equal A x y` is a type (in the same universe as `A`) asserting `x` and `y` are definitionally equal at `A`.
-- Type formation is not restricted: any value expression that checks as `Typek` is a valid type (e.g., `match` or `let` in types).
+- Type formation is not restricted: any value expression that checks as `Typek` is a valid type (e.g., `match`, `let`, or `function` in types; parenthesize non-atomic forms when used as type arguments).
 
 ## Universe lifting (strict)
 

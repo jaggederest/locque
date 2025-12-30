@@ -19,6 +19,7 @@ import System.IO.Error (catchIOError, isDoesNotExistError)
 
 data ClassInfo = ClassInfo
   { classParam   :: Text
+  , classParamKind :: Expr
   , classMethods :: [(Text, Expr)]
   }
 
@@ -156,8 +157,8 @@ loadDictImport projectRoot (Import modName alias) = do
 collectLocalClasses :: [Definition] -> Map.Map Text ClassInfo
 collectLocalClasses defs =
   Map.fromList
-    [ (defName, ClassInfo param methods)
-    | Definition _ defName (ETypeClass param methods) <- defs
+    [ (defName, ClassInfo param kind methods)
+    | Definition _ defName (ETypeClass param kind methods) <- defs
     ]
 
 collectLocalFns :: Map.Map Text ClassInfo -> Map.Map Text Text -> [Definition] -> Map.Map Text FnSig
@@ -283,7 +284,7 @@ qualifyInstance alias localClassNames inst =
 
 transformDefinition :: TransformCtx -> LocalInfo -> Definition -> [Definition]
 transformDefinition ctx localInfo def@(Definition tr name body) = case body of
-  ETypeClass _ _ -> []
+  ETypeClass _ _ _ -> []
   EInstance _ _ _ -> transformInstanceDefinition ctx localInfo name tr
   _ -> [def { defBody = transformExpr ctx body }]
 
@@ -405,7 +406,7 @@ transformExpr ctx expr = case expr of
   EDict className impls ->
     EDict className [ (n, transformExpr ctx e) | (n, e) <- impls ]
   EDictAccess d method -> EDictAccess (transformExpr ctx d) method
-  ETypeClass _ _ -> error "typeclass nodes should be removed before transformExpr"
+  ETypeClass _ _ _ -> error "typeclass nodes should be removed before transformExpr"
   EInstance _ _ _ -> error "instance nodes should be removed before transformExpr"
 
 transformFunctionBody :: TransformCtx -> FunctionBody -> FunctionBody

@@ -4,11 +4,12 @@
 
 import natural as N
 import string as S
+import type_aliases as Types
 
 module typeclass::display contains
   # Display typeclass definition
-  define transparent Display as typeclass A where
-    display of-type for-all x as A to String
+  define transparent Display as typeclass A of-kind Types::BaseType where
+    display of-type (Types::Function A String)
   end
 
   # Instance: Natural

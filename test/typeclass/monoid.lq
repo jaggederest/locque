@@ -1,0 +1,18 @@
+# Monoid typeclass tests
+
+import assert as A
+import typeclass::monoid as Monoid
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::typeclass::monoid contains
+  define transparent main as compute
+    sequence
+      (assert-eq String (Monoid::empty-value String) "")
+      (assert-eq String (Monoid::combine String "a" (Monoid::empty-value String)) "a")
+      (assert-eq String (Monoid::combine String (Monoid::empty-value String) "b") "b")
+    end
+  end
+end

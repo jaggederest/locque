@@ -1,0 +1,84 @@
+# Test: Dump output via smyth for type and core views
+
+import shell as S
+import string as Str
+import assert as A
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::shell::dump contains
+  define transparent test-dump-types as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth dump types lib/prelude.lq")
+    then
+      perform
+        (assert-eq Boolean
+          (Str::string-contains "(of-type not (for-all (x Boolean) Boolean))" output)
+          true)
+    end
+  end
+
+  define transparent test-dump-core as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth dump core lib/prelude.lq")
+    then
+      perform
+        (assert-eq Boolean
+          (Str::string-contains "(define transparent not" output)
+          true)
+    end
+  end
+
+  define transparent test-dump-types-normalized as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/prelude.lq map")
+    then
+      sequence
+        (assert-eq Boolean
+          (Str::string-contains "(for-all (x A) B)" output)
+          true)
+        (assert-eq Boolean
+          (Str::string-contains "Types::Function" output)
+          false)
+      end
+    end
+  end
+
+  define transparent test-dump-types-normalized-either as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/either.lq map-right")
+    then
+      sequence
+        (assert-eq Boolean
+          (Str::string-contains "(Types::Function B C)" output)
+          false)
+        (assert-eq Boolean
+          (Str::string-contains "(for-all (x B) C)" output)
+          true)
+      end
+    end
+  end
+
+  define transparent test-dump-types-elaborated as compute
+    bind output from perform
+      (S::shell "cd /Users/justin/Code/locque && smyth dump types-elaborated lib/assert.lq assert-eq")
+    then
+      perform
+        (assert-eq Boolean
+          (Str::string-contains "__req__Eq_Equality__eq" output)
+          true)
+    end
+  end
+
+  define transparent main as compute
+    sequence
+      test-dump-types
+      test-dump-core
+      test-dump-types-normalized
+      test-dump-types-normalized-either
+      test-dump-types-elaborated
+    end
+  end
+end

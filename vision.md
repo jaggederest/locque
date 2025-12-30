@@ -229,5 +229,5 @@ Namespaces and modules (current)
 
 Entrypoints and tooling (current)
 
-- Interpreter CLI: `locque-interpreter run <file>`, `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`.
+- Interpreter CLI: `locque-interpreter run <file>`, `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`, `dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]`.
 - Smyth tool: `smyth run <file>`, `smyth test`, `smyth test <file>`, `smyth bench`.

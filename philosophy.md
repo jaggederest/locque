@@ -91,8 +91,8 @@ define Character as
 **Examples of current extensions**:
 ```locque
 # Type class (overloading)
-define transparent Equality as typeclass A where
-  eq of-type for-all x as A to for-all y as A to Boolean
+define transparent Equality as typeclass A of-kind Type0 where
+  eq of-type (for-all x as A to for-all y as A to Boolean)
 end
 
 # Instance (typeclass implementation)

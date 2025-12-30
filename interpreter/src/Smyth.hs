@@ -7,6 +7,7 @@ import System.Exit (exitFailure)
 import SmythConfig (findSmythfile, loadSmythConfig)
 import SmythBench (runBench)
 import SmythCount (runCount)
+import SmythDump (runDump)
 import SmythFormat (runFormat)
 import SmythTest (runTests)
 import SmythRun (runFile)
@@ -19,6 +20,7 @@ main = do
     ("run" : runArgs)   -> runRunCommand runArgs
     ("bench" : benchArgs) -> runBenchCommand benchArgs
     ("count" : countArgs) -> runCountCommand countArgs
+    ("dump" : dumpArgs) -> runDumpCommand dumpArgs
     ("format" : formatArgs) -> runFormatCommand formatArgs
     ("--help" : _)      -> printHelp
     []                  -> printHelp
@@ -98,6 +100,17 @@ runFormatCommand args = do
       config <- loadSmythConfig root
       runFormat config args
 
+runDumpCommand :: [String] -> IO ()
+runDumpCommand args = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Nothing -> do
+      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+      exitFailure
+    Just root -> do
+      config <- loadSmythConfig root
+      runDump config args
+
 printHelp :: IO ()
 printHelp = do
   putStrLn "smyth - Locque build tool"
@@ -109,6 +122,7 @@ printHelp = do
   putStrLn "  smyth bench         Run benchmarks (test/bench.lq)"
   putStrLn "  smyth bench <file>  Run a specific benchmark file"
   putStrLn "  smyth count         Count .lq lines in lib/ and test/"
+  putStrLn "  smyth dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]"
   putStrLn "  smyth format [path] Check .lq formatting in a file or directory"
   putStrLn "  smyth --help        Show this help"
   putStrLn ""

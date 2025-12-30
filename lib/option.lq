@@ -1,4 +1,5 @@
 import prelude as P
+import type_aliases as Types
 
 open P exposing Option::none Option::some Result::ok Result::err end
 
@@ -17,7 +18,7 @@ module option contains
     end
 
   define transparent map as
-    function A Type0 B Type0 f (for-all x as A to B) opt (P::Option A) returns (P::Option B) value
+    function A Type0 B Type0 f (Types::Function A B) opt (P::Option A) returns (P::Option B) value
       match opt of-type (P::Option A) as ignored returns (P::Option B)
         case Option::none as Option::none B
         case Option::some with x A as Option::some B (f x)
@@ -25,7 +26,7 @@ module option contains
     end
 
   define transparent and-then as
-    function A Type0 B Type0 f (for-all x as A to (P::Option B)) opt (P::Option A) returns (P::Option B) value
+    function A Type0 B Type0 f (Types::Function A (P::Option B)) opt (P::Option A) returns (P::Option B) value
       match opt of-type (P::Option A) as ignored returns (P::Option B)
         case Option::none as Option::none B
         case Option::some with x A as f x
@@ -41,7 +42,7 @@ module option contains
     end
 
   define transparent unwrap-or-else as
-    function A Type0 fallback (for-all ignored as Unit to A) opt (P::Option A) returns A value
+    function A Type0 fallback (Types::Thunk A) opt (P::Option A) returns A value
       match opt of-type (P::Option A) as ignored returns A
         case Option::none as fallback tt
         case Option::some with x A as x
@@ -66,7 +67,7 @@ module option contains
     end
 
   define transparent or-else as
-    function A Type0 opt (P::Option A) fallback (for-all ignored as Unit to (P::Option A)) returns (P::Option A) value
+    function A Type0 opt (P::Option A) fallback (Types::Thunk (P::Option A)) returns (P::Option A) value
       match opt of-type (P::Option A) as ignored returns (P::Option A)
         case Option::none as fallback tt
         case Option::some with x A as Option::some A x

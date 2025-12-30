@@ -2,6 +2,7 @@ import prelude as P
 import string as S
 import typeclass::equality as Eq
 import typeclass::order as Order
+import type_aliases as Types
 
 open Eq exposing Equality eq end
 
@@ -147,7 +148,7 @@ module list contains
     end
 
   define transparent any-fn as
-    function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
+    function A Type0 predicate (Types::Predicate A) acc Boolean x A returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
         case Boolean::false as predicate x
         case Boolean::true as true
@@ -155,12 +156,12 @@ module list contains
     end
 
   define transparent any as
-    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Boolean value
+    function A Type0 predicate (Types::Predicate A) xs (List A) returns Boolean value
       P::fold A Boolean (any-fn A predicate) false xs
     end
 
   define transparent count as
-    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Natural value
+    function A Type0 predicate (Types::Predicate A) xs (List A) returns Natural value
       P::fold A Natural
         (function acc Natural x A returns Natural value
           match (predicate x) of-type Boolean as ignored returns Natural
@@ -173,7 +174,7 @@ module list contains
     end
 
   define transparent all-fn as
-    function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
+    function A Type0 predicate (Types::Predicate A) acc Boolean x A returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
         case Boolean::false as false
         case Boolean::true as predicate x
@@ -181,12 +182,12 @@ module list contains
     end
 
   define transparent all as
-    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Boolean value
+    function A Type0 predicate (Types::Predicate A) xs (List A) returns Boolean value
       P::fold A Boolean (all-fn A predicate) true xs
     end
 
   define transparent count-prefix as
-    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Natural value
+    function A Type0 predicate (Types::Predicate A) xs (List A) returns Natural value
       match xs of-type (List A) as ignored returns Natural
         case List::empty as 0
         case List::cons with h A t (List A) as
@@ -223,7 +224,7 @@ module list contains
     end
 
   define transparent insert-by as
-    function A Type0 cmp (for-all x as A to for-all y as A to Boolean) x A xs (List A) returns List A value
+    function A Type0 cmp (Types::Comparator A) x A xs (List A) returns List A value
       let value step be
         function acc (Pair (List A) Boolean) y A returns (Pair (List A) Boolean) value
           match acc of-type (Pair (List A) Boolean) as ignored returns (Pair (List A) Boolean)
@@ -263,7 +264,7 @@ module list contains
     end
 
   define transparent sort-by as
-    function A Type0 cmp (for-all x as A to for-all y as A to Boolean) xs (List A) returns List A value
+    function A Type0 cmp (Types::Comparator A) xs (List A) returns List A value
       P::fold A (List A)
         (function acc (List A) x A returns List A value
           insert-by A cmp x acc

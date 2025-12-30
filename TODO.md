@@ -1,7 +1,6 @@
 # Locque TODO
 
 ## Priority (next up)
-- `smyth check <file>` (type check only).
 - Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
 
 ## Diagnostics
@@ -10,6 +9,11 @@
 ## Language features (future)
 - Definitional equality: eta reduction for functions.
 - Type holes; better inference; rows/records.
+- Higher-kinded type parameters (plan):
+  - Accept non-`TypeN` type params (e.g., `F (for-all x as Type0 to Type0)`).
+  - Update typeclass/classType handling to support higher-kinded params.
+  - Extend DictPass type-parameter detection (`isTypeParam`) and constraint resolution.
+  - Add initial Functor-style class and instance tests (Option/Either/Result).
 
 ## Parked backlog
 

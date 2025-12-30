@@ -1,0 +1,53 @@
+import arithmetic as Ar
+import prelude as P
+import string as S
+import type_aliases as Types
+
+open S exposing Character end
+
+module typeclass::hash contains
+  define transparent Hash as typeclass A of-kind Types::BaseType where
+    hash of-type (Types::Function A Natural)
+  end
+
+  define transparent hash-value as
+    function A Type0 x A requires Hash A returns Natural value
+      hash x
+    end
+
+  define transparent hash-base as 31
+
+  define transparent hash-chars as
+    function chars (List Character) acc Natural returns Natural value
+      match chars of-type (List Character) as ignored returns Natural
+        case List::empty as acc
+        case List::cons with h Character t (List Character) as
+          recur t
+            (Ar::add-nat (Ar::mul-nat acc hash-base) (S::char-code h))
+      end
+    end
+
+  define transparent Hash-Natural as instance Hash Natural where
+    hash as
+      function n Natural returns Natural value
+        n
+      end
+  end
+
+  define transparent Hash-Boolean as instance Hash Boolean where
+    hash as
+      function b Boolean returns Natural value
+        match b of-type Boolean as ignored returns Natural
+          case Boolean::false as 0
+          case Boolean::true as 1
+        end
+      end
+  end
+
+  define transparent Hash-String as instance Hash String where
+    hash as
+      function s String returns Natural value
+        hash-chars (S::to-list s) 0
+      end
+  end
+end

@@ -3,10 +3,12 @@
 # The default-value method takes a Unit argument to enable typeclass
 # resolution via DictPass (which only handles function applications).
 
+import type_aliases as Types
+
 module typeclass::default contains
   # Default typeclass definition
-  define transparent Default as typeclass A where
-    default-value of-type for-all u as Unit to A
+  define transparent Default as typeclass A of-kind Types::BaseType where
+    default-value of-type (Types::Thunk A)
   end
 
   # Instance: Natural (default is 0)

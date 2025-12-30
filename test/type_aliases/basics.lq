@@ -1,0 +1,69 @@
+# Type alias basics
+
+import prelude as P
+import type_aliases as Types
+
+open P exposing Either::left end
+
+module test::type_aliases::basics contains
+  define transparent left-value as
+    of-type
+      (Either::left Natural Natural 1)
+      (P::Either Natural Natural)
+
+  define transparent Wrapper as data A Type0 in Type0
+    case Wrapper::wrap of-type for-all x as A to Wrapper A
+  end
+
+  define transparent map-wrapper as
+    function A Type0 B Type0 f (for-all x as A to B) w (Wrapper A) returns (Wrapper B) value
+      match w of-type (Wrapper A) as ignored returns (Wrapper B)
+        case Wrapper::wrap with x A as Wrapper::wrap B (f x)
+      end
+    end
+
+  define transparent apply-function-alias as
+    function B Type0 C Type0 f (Types::Function B C) x B returns C value
+      f x
+    end
+
+  define transparent always-true as
+    of-type
+      (function x Natural returns Boolean value
+        true
+      end)
+      (Types::Predicate Natural)
+
+  define transparent add as
+    of-type
+      (function x Natural y Natural returns Natural value
+        P::add-nat x y
+      end)
+      (Types::BinaryOperator Natural)
+
+  define transparent sum-step as
+    of-type
+      (function acc Natural x Natural returns Natural value
+        P::add-nat acc x
+      end)
+      (Types::FoldStep Natural Natural)
+
+  define transparent nat-thunk as
+    of-type
+      (function ignored Unit returns Natural value
+        0
+      end)
+      (Types::Thunk Natural)
+
+  define transparent nat-exists as
+    of-type
+      (pack x as Natural in Natural with 1 2 end)
+      (Types::Exists Natural
+        (function x Natural returns Type0 value
+          Natural
+        end))
+
+  define transparent main as compute
+    return tt
+  end
+end

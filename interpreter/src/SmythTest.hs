@@ -14,7 +14,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
-import Eval (runModuleMain)
+import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
 import SmythConfig (SmythConfig(..))
 
@@ -140,12 +140,19 @@ runTestOutcome projectRoot file = do
         case tcResult of
           Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
           Right env -> do
-            m' <- transformModuleWithEnvs projectRoot m
-            case TC.annotateModule env m' of
-              Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-              Right annotatedM -> do
-                count <- runModuleMain projectRoot annotatedM
-                pure (Right count)
+            normalized <- TC.normalizeModuleWithImports projectRoot contents m
+            ctorArity <- case normalized of
+              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
+              Right nm -> pure $ Right (ctorArityMap nm)
+            case ctorArity of
+              Left failure -> pure $ Left failure
+              Right arity -> do
+                m' <- transformModuleWithEnvs projectRoot m
+                case TC.annotateModule env m' of
+                  Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                  Right annotatedM -> do
+                    count <- runModuleMain projectRoot arity annotatedM
+                    pure (Right count)
         ) `catch` handleTestException
       pure result
 

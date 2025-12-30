@@ -1,6 +1,7 @@
 module Main where
 
 import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Map.Strict as Map
 import           System.Environment (getArgs)
@@ -8,10 +9,11 @@ import           System.Exit (die)
 import           System.Directory (getCurrentDirectory)
 import           System.FilePath (takeDirectory, takeExtension)
 
-import           AST (Module)
-import           Eval
+import           AST (Module(..), defName)
+import           Eval (ctorArityMap, runModuleMain)
 import           Parser
 import           Validator
+import qualified Type as LT
 import qualified TypeChecker as TC
 import           DictPass (transformModuleWithEnvs)
 
@@ -25,6 +27,8 @@ main = do
     ["emit-lqs", file, out] -> emitLqs file out
     ["emit-lq", file, out] -> emitLq file out
     ["validate", file] -> validateLqs file
+    ["dump", mode, file] -> dumpFile mode file Nothing
+    ["dump", mode, file, name] -> dumpFile mode file (Just (T.pack name))
     _ -> die usage
 
 runFile :: FilePath -> IO ()
@@ -39,8 +43,12 @@ runFile file = do
       case typeResult of
         Left tcErr -> die ("Type error: " ++ show tcErr)
         Right _env -> do
+          normalized <- TC.normalizeModuleWithImports projectRoot contents m
+          ctorArity <- case normalized of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right nm -> pure (ctorArityMap nm)
           m' <- transformModuleWithEnvs projectRoot m
-          _ <- runModuleMain projectRoot m'
+          _ <- runModuleMain projectRoot ctorArity m'
           pure ()
 
 usage :: String
@@ -51,6 +59,7 @@ usage = unlines
   , "  locque-interpreter emit-lqs <in.lq> <out.lqs> (M-expr -> S-expr)"
   , "  locque-interpreter emit-lq <in.lqs> <out.lq>  (S-expr -> M-expr)"
   , "  locque-interpreter validate <file.lqs>        (paren/structural check)"
+  , "  locque-interpreter dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]"
   , "  locque-interpreter --help"
   ]
 
@@ -104,3 +113,78 @@ emitLq file out = do
     Right _ -> case parseModuleFile file contents of
       Left err -> die err
       Right m  -> TIO.writeFile out (moduleToMExprText m)
+
+dumpFile :: String -> FilePath -> Maybe Text -> IO ()
+dumpFile mode file selected = do
+  cwd <- getCurrentDirectory
+  let projectRoot = takeDirectory cwd
+  contents <- TIO.readFile file
+  case parseAny file contents of
+    Left err -> die err
+    Right m -> do
+      case mode of
+        "core" -> do
+          m' <- selectModule m selected
+          TIO.putStrLn (moduleToSExprText m')
+        "normalized" -> do
+          result <- TC.normalizeModuleWithImports projectRoot contents m
+          case result of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right normalized -> do
+              m' <- selectModule normalized selected
+              TIO.putStrLn (moduleToSExprText m')
+        "elaborated" -> do
+          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
+          case typeResult of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right _env -> do
+              elaborated <- transformModuleWithEnvs projectRoot m
+              m' <- selectModule elaborated selected
+              TIO.putStrLn (moduleToSExprText m')
+        "types" -> do
+          typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
+          case typeResult of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right env -> do
+              m' <- selectModule m selected
+              dumpTypes m' env
+        "types-normalized" -> do
+          typeResult <- TC.normalizeTypeEnvWithImports projectRoot contents m
+          case typeResult of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right env -> do
+              m' <- selectModule m selected
+              dumpTypes m' env
+        "types-elaborated" -> do
+          elaborated <- transformModuleWithEnvs projectRoot m
+          typeResult <- TC.typeCheckModuleWithImports projectRoot contents elaborated
+          case typeResult of
+            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Right env -> do
+              m' <- selectModule elaborated selected
+              dumpTypes m' env
+        _ -> die usage
+
+selectModule :: Module -> Maybe Text -> IO Module
+selectModule m Nothing = pure m
+selectModule m (Just name) =
+  case filter (\defn -> defName defn == name) (modDefs m) of
+    [] -> die ("Definition not found: " ++ T.unpack name)
+    defs -> pure m { modDefs = defs }
+
+dumpTypes :: Module -> TC.TypeEnv -> IO ()
+dumpTypes m env = do
+  let names = map defName (modDefs m)
+      render name =
+        case Map.lookup name env of
+          Nothing -> die ("Type missing for definition: " ++ T.unpack name)
+          Just ty ->
+            pure (T.concat
+              [ T.pack "(of-type "
+              , name
+              , T.pack " "
+              , LT.typeToSExpr ty
+              , T.pack ")"
+              ])
+  rendered <- mapM render names
+  TIO.putStrLn (T.unlines rendered)

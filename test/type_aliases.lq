@@ -1,0 +1,12 @@
+# Test rollup for type_aliases module
+# Runs all tests in test/type_aliases/
+
+import test::type_aliases::basics as basics
+
+module test::type_aliases contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

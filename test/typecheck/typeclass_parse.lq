@@ -2,8 +2,8 @@
 
 module test::typecheck::typeclass_parse contains
   # Type class definition with type parameter
-  define transparent Show as typeclass A where
-    show of-type for-all x as A to String
+  define transparent Show as typeclass A of-kind Type0 where
+    show of-type (for-all x as A to String)
   end
 
   # Instance for Natural

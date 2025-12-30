@@ -2,6 +2,7 @@
 # Runs all tests in test/shell/
 
 import test::shell::basic as basic
+import test::shell::dump as dump
 import test::shell::lecho as lecho
 import test::shell::lcat as lcat
 import test::shell::lls as lls
@@ -11,6 +12,7 @@ module test::shell contains
   define transparent main as compute
     sequence
       basic::main
+      dump::main
       lecho::main
       lcat::main
       lls::main

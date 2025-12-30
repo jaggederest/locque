@@ -74,7 +74,7 @@ data Expr
   | ETyped Expr Expr                 -- Inferred type wrapper (added by type checker)
   | EDict Text [(Text, Expr)]          -- Dictionary: className, [(methodName, impl)]
   | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
-  | ETypeClass Text [(Text, Expr)]     -- Param name, [(methodName, methodType)]
+  | ETypeClass Text Expr [(Text, Expr)] -- Param name, kind, [(methodName, methodType)]
   | EInstance Text Expr [(Text, Expr)] -- Class name, instance type, [(methodName, impl)]
   deriving (Show, Eq)
 

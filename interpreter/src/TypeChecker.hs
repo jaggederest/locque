@@ -2,6 +2,8 @@
 module TypeChecker
   ( typeCheckModule
   , typeCheckModuleWithImports
+  , normalizeModuleWithImports
+  , normalizeTypeEnvWithImports
   , annotateModule
   , TypeError(..)
   , TypeEnv
@@ -20,7 +22,7 @@ import System.FilePath ((</>), (<.>), takeExtension)
 import System.IO.Error (catchIOError, isDoesNotExistError)
 import AST
 import Type (prettyType)
-import Parser (parseModuleFile, parseMExprFile)
+import Parser (parseModuleFile, parseMExprFile, exprToMExprText)
 import SourceLoc
 import ErrorMsg
 import Utils (modNameToPath, qualifyName)
@@ -43,6 +45,7 @@ data CtorInfo = CtorInfo
 data ClassInfo = ClassInfo
   { className    :: Text
   , classParam   :: Text
+  , classParamKind :: Expr
   , classMethods :: [(Text, Expr)]
   } deriving (Show, Eq)
 
@@ -56,7 +59,7 @@ data InstanceInfo = InstanceInfo
 -- | Type errors with context
 data TypeError
   = VarNotInScope SrcLoc Text TypeEnv
-  | TypeMismatch SrcLoc Expr Expr
+  | TypeMismatch SrcLoc Expr Expr (Maybe Text)
   | CannotApply SrcLoc Expr Expr
   | NotAFunction SrcLoc Expr
   | NotAComputation SrcLoc Expr
@@ -77,9 +80,16 @@ instance Show TypeError where
         msg = ErrorMsg loc ("Variable not in scope: " <> var) Nothing suggestions Nothing
     in T.unpack (formatError msg)
 
-  show (TypeMismatch loc expected actual) =
+  show (TypeMismatch loc expected actual context) =
     let mainMsg = "Type mismatch"
-        note = Just $ "Expected: " <> prettyType expected <>
+        locLine = case loc of
+          NoLoc -> ""
+          _ -> "Location: " <> prettyLoc loc <> "\n"
+        contextLine = case context of
+          Nothing -> ""
+          Just ctx -> "While checking: " <> ctx <> "\n"
+        note = Just $ locLine <> contextLine <>
+                      "Expected: " <> prettyType expected <>
                       "\n  Actual:   " <> prettyType actual
         msg = ErrorMsg loc mainMsg Nothing [] note
     in T.unpack (formatError msg)
@@ -133,7 +143,7 @@ instance Show TypeError where
 -- | Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where
   VarNotInScope _ a _ == VarNotInScope _ b _ = a == b
-  TypeMismatch _ a1 a2 == TypeMismatch _ b1 b2 = a1 == b1 && a2 == b2
+  TypeMismatch _ a1 a2 _ == TypeMismatch _ b1 b2 _ = a1 == b1 && a2 == b2
   CannotApply _ a1 a2 == CannotApply _ b1 b2 = a1 == b1 && a2 == b2
   NotAFunction _ a == NotAFunction _ b = a == b
   NotAComputation _ a == NotAComputation _ b = a == b
@@ -303,8 +313,8 @@ builtinDataInfos =
       }
   ]
 
-classType :: Text -> Expr
-classType param = EForAll param (tType 0) (tType 0)
+classType :: Text -> Expr -> Expr
+classType param kind = EForAll param kind (tType 0)
 
 emptyEnv :: TCEnv
 emptyEnv =
@@ -378,9 +388,8 @@ constraintMethods env constraints = foldM addConstraint [] constraints
   where
     addConstraint acc (Constraint clsName ty) = do
       classInfo <- lookupClass noLoc env clsName
-      level <- inferUniverse env ty
-      when (level /= 0) $
-        lift (Left (TypeclassError noLoc "Constraint type must be in Type0"))
+      tyKind <- infer env ty
+      ensureConv env tyKind (classParamKind classInfo)
       let param = classParam classInfo
       methods' <- mapM (specializeMethod param ty acc) (classMethods classInfo)
       pure (acc ++ methods')
@@ -468,8 +477,10 @@ freeVarsWithBound bound expr = case expr of
   ETyped e ty -> freeVarsWithBound bound e `Set.union` freeVarsWithBound bound ty
   EDict _ impls -> Set.unions [freeVarsWithBound bound e | (_, e) <- impls]
   EDictAccess e _ -> freeVarsWithBound bound e
-  ETypeClass param methods ->
-    Set.unions [freeVarsWithBound (Set.insert param bound) ty | (_, ty) <- methods]
+  ETypeClass param kind methods ->
+    let kindFree = freeVarsWithBound bound kind
+        methodsFree = Set.unions [freeVarsWithBound (Set.insert param bound) ty | (_, ty) <- methods]
+    in kindFree `Set.union` methodsFree
   EInstance _ instTy methods ->
     freeVarsWithBound bound instTy `Set.union`
       Set.unions [freeVarsWithBound bound e | (_, e) <- methods]
@@ -602,13 +613,14 @@ subst name replacement expr = go Set.empty expr
         impls' <- mapM (\(n, e1) -> (n,) <$> go bound e1) impls
         pure (EDict cls impls')
       EDictAccess e1 method -> EDictAccess <$> go bound e1 <*> pure method
-      ETypeClass param methods -> do
+      ETypeClass param kind methods -> do
+        kind' <- go bound kind
         if param == name
-          then pure (ETypeClass param methods)
+          then pure (ETypeClass param kind' methods)
           else do
             (param', methods') <- refreshClassBinder bound param methods
             methods'' <- mapM (\(n, ty) -> (n,) <$> go (Set.insert param' bound) ty) methods'
-            pure (ETypeClass param' methods'')
+            pure (ETypeClass param' kind' methods'')
       EInstance cls instTy methods -> do
         instTy' <- go bound instTy
         methods' <- mapM (\(n, e1) -> (n,) <$> go bound e1) methods
@@ -653,8 +665,8 @@ subst name replacement expr = go Set.empty expr
                       [ replacementFree
                       , freeVars ret
                       , freeVarsBody Set.empty body
-                      , freeVarsParams bound rest
-                      , freeVarsConstraints bound constraints
+                      , freeVarsParamsLocal bound rest
+                      , freeVarsConstraintsLocal bound constraints
                       , bound
                       ]
                 v' <- freshNameAvoid v avoid
@@ -668,10 +680,10 @@ subst name replacement expr = go Set.empty expr
               goParams (Set.insert v' bound) rest' constraints' ret' body'
             pure (Param v' ty' : restFinal, constraintsFinal, retFinal, bodyFinal)
 
-    freeVarsParams bound params =
+    freeVarsParamsLocal bound params =
       Set.unions [freeVarsWithBound bound (paramType p) | p <- params]
 
-    freeVarsConstraints bound constraints =
+    freeVarsConstraintsLocal bound constraints =
       Set.unions [freeVarsWithBound bound ty | Constraint _ ty <- constraints]
 
     renameParam old newName (Param v ty)
@@ -902,6 +914,20 @@ normalizeParams env (Param name ty : rest) = do
   (envFinal, rest') <- normalizeParams env' rest
   pure (envFinal, Param name ty' : rest')
 
+normalizeModule :: TCEnv -> Module -> TypeCheckM Module
+normalizeModule env (Module name imports opens defs) = do
+  defs' <- mapM (normalizeDef env) defs
+  pure (Module name imports opens defs')
+
+normalizeDef :: TCEnv -> Definition -> TypeCheckM Definition
+normalizeDef env (Definition tr name body) = do
+  body' <- normalize env body
+  pure (Definition tr name body')
+
+normalizeTypeEnv :: TCEnv -> TypeCheckM TypeEnv
+normalizeTypeEnv env =
+  Map.traverseWithKey (\_ ty -> normalize env ty) (tcTypes env)
+
 whnf :: TCEnv -> Expr -> TypeCheckM Expr
 whnf env expr = case expr of
   EAnnot e1 _ -> whnf env e1
@@ -1000,10 +1026,12 @@ applyParams [] _constraints _ret body args = pure (mkApp body args)
 applyParams (Param v ty : rest) constraints ret body args = case args of
   [] -> pure (EFunction (Param v ty : rest) constraints ret (FunctionValue body))
   (a:as) -> do
-    body' <- subst v a body
-    rest' <- mapM (substParam v a) rest
-    constraints' <- mapM (substConstraint v a) constraints
-    ret' <- subst v a ret
+    (restSafe, constraintsSafe, retSafe, bodySafe) <-
+      refreshParamsForCapture a rest constraints ret body
+    body' <- subst v a bodySafe
+    rest' <- mapM (substParam v a) restSafe
+    constraints' <- mapM (substConstraint v a) constraintsSafe
+    ret' <- subst v a retSafe
     applyParams rest' constraints' ret' body' as
 
 substParam :: Text -> Expr -> Param -> TypeCheckM Param
@@ -1018,6 +1046,71 @@ mkApp :: Expr -> [Expr] -> Expr
 mkApp f [] = f
 mkApp (EApp f existing) more = EApp f (existing ++ more)
 mkApp f more                 = EApp f more
+
+refreshParamsForCapture
+  :: Expr
+  -> [Param]
+  -> [Constraint]
+  -> Expr
+  -> Expr
+  -> TypeCheckM ([Param], [Constraint], Expr, Expr)
+refreshParamsForCapture replacement params constraints ret body = do
+  let replacementFree = freeVars replacement
+      paramNames = map paramName params
+      namesToRefresh = filter (`Set.member` replacementFree) paramNames
+      avoid =
+        Set.unions
+          [ replacementFree
+          , Set.fromList paramNames
+          , freeVars ret
+          , freeVars body
+          , freeVarsParams params
+          , freeVarsConstraints constraints
+          ]
+  (params', constraints', ret', body', _) <-
+    foldM refreshOne (params, constraints, ret, body, avoid) namesToRefresh
+  pure (params', constraints', ret', body')
+  where
+    refreshOne (paramsAcc, constraintsAcc, retAcc, bodyAcc, avoidAcc) name = do
+      fresh <- freshNameAvoid name avoidAcc
+      (params', constraints', ret', body') <-
+        renameParamBinder name fresh paramsAcc constraintsAcc retAcc bodyAcc
+      let avoid' = Set.insert fresh avoidAcc
+      pure (params', constraints', ret', body', avoid')
+
+freeVarsParams :: [Param] -> Set.Set Text
+freeVarsParams params =
+  Set.unions [freeVars (paramType p) | p <- params]
+
+freeVarsConstraints :: [Constraint] -> Set.Set Text
+freeVarsConstraints constraints =
+  Set.unions [freeVars ty | Constraint _ ty <- constraints]
+
+renameParamBinder
+  :: Text
+  -> Text
+  -> [Param]
+  -> [Constraint]
+  -> Expr
+  -> Expr
+  -> TypeCheckM ([Param], [Constraint], Expr, Expr)
+renameParamBinder oldName newName params constraints ret body = do
+  params' <- mapM (renameParamName oldName newName) params
+  constraints' <- mapM (renameConstraintName oldName newName) constraints
+  ret' <- subst oldName (EVar newName) ret
+  body' <- subst oldName (EVar newName) body
+  pure (params', constraints', ret', body')
+
+renameParamName :: Text -> Text -> Param -> TypeCheckM Param
+renameParamName oldName newName (Param v ty) = do
+  ty' <- subst oldName (EVar newName) ty
+  if v == oldName
+    then pure (Param newName ty')
+    else pure (Param v ty')
+
+renameConstraintName :: Text -> Text -> Constraint -> TypeCheckM Constraint
+renameConstraintName oldName newName (Constraint cls ty) =
+  Constraint cls <$> subst oldName (EVar newName) ty
 
 conv :: TCEnv -> Expr -> Expr -> TypeCheckM Bool
 conv env a b = do
@@ -1151,8 +1244,9 @@ alphaEq env a b = case (a, b) of
     n1 == n2 && and (zipWith (\(a1, e1) (a2, e2) -> a1 == a2 && alphaEq env e1 e2) i1 i2)
   (EDictAccess d1 m1, EDictAccess d2 m2) ->
     m1 == m2 && alphaEq env d1 d2
-  (ETypeClass p1 ms1, ETypeClass p2 ms2) ->
+  (ETypeClass p1 k1 ms1, ETypeClass p2 k2 ms2) ->
     length ms1 == length ms2
+      && alphaEq env k1 k2
       && let env' = Map.insert p1 p2 env
          in and (zipWith (\(n1, t1) (n2, t2) -> n1 == n2 && alphaEq env' t1 t2) ms1 ms2)
   (EInstance c1 t1 ms1, EInstance c2 t2 ms2) ->
@@ -1205,16 +1299,20 @@ alphaEqDataCase env (DataCase n1 t1) (DataCase n2 t2) =
   n1 == n2 && alphaEq env t1 t2
 
 ensureConv :: TCEnv -> Expr -> Expr -> TypeCheckM ()
-ensureConv env actual expected = do
+ensureConv env actual expected =
+  ensureConvWith env actual expected Nothing
+
+ensureConvWith :: TCEnv -> Expr -> Expr -> Maybe Text -> TypeCheckM ()
+ensureConvWith env actual expected context = do
   ok <- conv env actual expected
-  if ok then pure () else lift (Left (TypeMismatch noLoc expected actual))
+  if ok then pure () else lift (Left (TypeMismatch noLoc expected actual context))
 
 ensureLiftLevels :: TCEnv -> Expr -> Int -> Int -> TypeCheckM ()
 ensureLiftLevels env ty fromLevel toLevel = do
   actual <- inferUniverse env ty
   if actual == fromLevel
     then pure ()
-    else lift (Left (TypeMismatch noLoc (ETypeUniverse fromLevel) (ETypeUniverse actual)))
+    else lift (Left (TypeMismatch noLoc (ETypeUniverse fromLevel) (ETypeUniverse actual) Nothing))
   if fromLevel <= toLevel
     then pure ()
     else lift (Left (InvalidLift noLoc fromLevel toLevel))
@@ -1520,20 +1618,20 @@ infer env expr = case expr of
     pure ty
   EDict _ _ -> lift (Left (TypeclassError noLoc "dict nodes not supported"))
   EDictAccess _ _ -> lift (Left (TypeclassError noLoc "dict access nodes not supported"))
-  ETypeClass param methods -> do
+  ETypeClass param kind methods -> do
     ensureUniqueMethodNames (map fst methods)
-    let env' = extendLocal env param (tType 0)
+    _ <- inferUniverse env kind
+    let env' = extendLocal env param kind
     mapM_ (\(_, ty) -> inferUniverse env' ty) methods
-    pure (classType param)
+    pure (classType param kind)
   EInstance clsName instTy methods -> do
     classInfo <- lookupClass noLoc env clsName
     ensureUniqueMethodNames (map fst methods)
     let knownNames = Map.keysSet (tcTypes env)
         implicitVars = Set.toList (freeVars instTy `Set.difference` knownNames)
         env' = foldl (\e v -> extendLocal e v (tType 0)) env implicitVars
-    instLevel <- inferUniverse env' instTy
-    when (instLevel /= 0) $
-      lift (Left (TypeclassError noLoc "Instance type must be in Type0"))
+    instKind <- infer env' instTy
+    ensureConv env' instKind (classParamKind classInfo)
     let classMethodNames = map fst (classMethods classInfo)
         instMethodNames = map fst methods
         missing = filter (`notElem` instMethodNames) classMethodNames
@@ -1555,7 +1653,7 @@ infer env expr = case expr of
 check :: TCEnv -> Expr -> Expr -> TypeCheckM ()
 check env expr expected = do
   inferred <- infer env expr
-  ensureConv env inferred expected
+  ensureConvWith env inferred expected (Just (exprToMExprText expr))
 
 inferComp :: TCEnv -> Comp -> TypeCheckM Expr
 inferComp env comp = case comp of
@@ -1665,7 +1763,8 @@ checkCase env scrutName retTy scrutTy dataInfo dataArgs (ctorInfo, binders, body
     checkBinder (envAcc, substs) (Param ctorName' ctorTy, Param caseName caseTy) = do
       let substsNoShadow = filter ((/= ctorName') . fst) substs
       expectedTy <- substMany substsNoShadow ctorTy
-      ensureConv envAcc caseTy expectedTy
+      let context = "case binder " <> caseName <> " in " <> ctorName ctorInfo
+      ensureConvWith envAcc caseTy expectedTy (Just context)
       let env' = extendLocal envAcc caseName expectedTy
           substs' = (ctorName', EVar caseName) : substsNoShadow
       pure (env', substs')
@@ -1689,7 +1788,7 @@ applyArg env funTy argExpr = do
   case funTyWhnf of
     EForAll v dom cod -> do
       argTy <- infer env argExpr
-      ensureConv env argTy dom
+      ensureConvWith env argTy dom (Just (exprToMExprText argExpr))
       subst v argExpr cod
     _ -> lift (Left (NotAFunction noLoc funTyWhnf))
 
@@ -1825,6 +1924,22 @@ typeCheckModuleWithImports projectRoot _sourceContents m = do
   let envWithOpens = processOpens (modOpens m) importedEnv
   pure $ fmap tcTypes (runTypeCheck (typeCheckModuleWithEnv envWithOpens m))
 
+normalizeModuleWithImports :: FilePath -> Text -> Module -> IO (Either TypeError Module)
+normalizeModuleWithImports projectRoot _sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+  pure $ runTypeCheck $ do
+    env <- typeCheckModuleWithEnv envWithOpens m
+    normalizeModule env m
+
+normalizeTypeEnvWithImports :: FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
+normalizeTypeEnvWithImports projectRoot _sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+  pure $ runTypeCheck $ do
+    env <- typeCheckModuleWithEnv envWithOpens m
+    normalizeTypeEnv env
+
 typeCheckModuleWithEnv :: TCEnv -> Module -> TypeCheckM TCEnv
 typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) =
   foldM typeCheckDef initialEnv defs
@@ -1834,14 +1949,15 @@ typeCheckDef env (Definition tr name body) = case body of
   EData params universe cases -> do
     (info, ty) <- checkDataDef env name params universe cases
     pure (extendData env name ty info)
-  ETypeClass param methods -> do
+  ETypeClass param kind methods -> do
     _ <- infer env body
     let info = ClassInfo
           { className = name
           , classParam = param
+          , classParamKind = kind
           , classMethods = methods
           }
-    pure (extendClass env name info (classType param))
+    pure (extendClass env name info (classType param kind))
   EInstance clsName instTy methods -> do
     ty <- infer env body
     classInfo <- lookupClass noLoc env clsName
@@ -1886,14 +2002,15 @@ checkDataDef env name params universe cases = do
       when (not (prefix `T.isPrefixOf` ctorName)) $
         lift (Left (MatchCaseError noLoc ("constructor must be type-qualified: " <> ctorName)))
       _ <- inferUniverse env' ctorTy
-      let (_ctorParams, ctorResult) = splitForAll ctorTy
+      ctorTy' <- normalize env' ctorTy
+      let (_ctorParams, ctorResult) = splitForAll ctorTy'
           (headExpr, args) = collectApp ctorResult
       case headExpr of
         EVar headName | headName == name -> do
           let expectedArgs = length params
           when (length args /= expectedArgs) $
             lift (Left (MatchCaseError noLoc ("constructor result arity mismatch: " <> ctorName)))
-          pure (mkCtorInfo name ctorName ctorTy)
+          pure (mkCtorInfo name ctorName ctorTy')
         _ ->
           lift (Left (MatchCaseError noLoc ("constructor result must be " <> name)))
 
@@ -1965,7 +2082,7 @@ loadTypeImport projectRoot (Import modName alias) = do
       c <- TIO.readFile p
       pure (p, c)
     isClass expr = case expr of
-      ETypeClass _ _ -> True
+      ETypeClass _ _ _ -> True
       _ -> False
     isInstance expr = case expr of
       EInstance _ _ _ -> True
@@ -1981,7 +2098,8 @@ insertQualified alias envSelf env name =
       let qualified = qualifyName alias name
           envWithType = env { tcTypes = Map.insert qualified scheme (tcTypes env) }
       in case Map.lookup name (tcDefs envSelf) of
-          Just defn -> envWithType { tcDefs = Map.insert qualified defn (tcDefs envWithType) }
+          Just (tr, body) ->
+            envWithType { tcDefs = Map.insert qualified (tr, body) (tcDefs envWithType) }
           Nothing -> envWithType
     Nothing -> env
 
@@ -2020,7 +2138,7 @@ insertQualifiedClass alias envSelf env name =
     Just info ->
       let qualified = qualifyName alias name
           info' = info { className = qualified }
-          ty = classType (classParam info)
+          ty = classType (classParam info) (classParamKind info)
       in extendClass env qualified info' ty
     Nothing -> env
 
@@ -2056,9 +2174,12 @@ processOpens opens env = foldl processOneOpen env opens
           withValue = case Map.lookup qualifiedName (tcTypes e) of
             Just scheme -> e { tcTypes = Map.insert name scheme (tcTypes e) }
             Nothing -> e
-          withData = case Map.lookup qualifiedName (tcData withValue) of
-            Just info -> withValue { tcData = Map.insert name info (tcData withValue) }
+          withDefs = case Map.lookup qualifiedName (tcDefs withValue) of
+            Just def -> withValue { tcDefs = Map.insert name def (tcDefs withValue) }
             Nothing -> withValue
+          withData = case Map.lookup qualifiedName (tcData withDefs) of
+            Just info -> withDefs { tcData = Map.insert name info (tcData withDefs) }
+            Nothing -> withDefs
           withCtors = case Map.lookup qualifiedName (tcCtors withData) of
             Just info -> withData { tcCtors = Map.insert name info (tcCtors withData) }
             Nothing -> withData

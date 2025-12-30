@@ -13,6 +13,7 @@
 
 ### Types/TypeChecker
 - [x] Replace `TFun` with Pi (`for-all`); add Sigma (`there-exists`) and explicit universes.
+- [x] Allow `function ... returns TypeN ... end` as a value-level type (used in type arguments via parentheses).
 - [x] Enforce compute-wrapper semantics: computations are values (`compute <Comp> end`) and run only via `perform`.
 - [x] Drop legacy `lambda`/`inspect` paths; remove computation identifiers; adjust primitive types.
 - [x] Update import/open handling to `::`-only qualifiers and explicit-name `open`.

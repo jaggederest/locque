@@ -1,4 +1,5 @@
 import prelude as P
+import type_aliases as Types
 
 module logic contains
   define transparent False as
@@ -6,16 +7,18 @@ module logic contains
 
   define transparent Not as
     function P Type0 returns Type0 value
-      for-all x as P to False
+      Types::Function P False
     end
 
   define transparent Decidable as
     function P Type0 returns Type0 value
-      there-exists b as Boolean in
-        match b of-type Boolean as ignored returns Type0
-          case Boolean::false as Not P
-          case Boolean::true as P
-        end
+      Types::Exists Boolean
+        (function b Boolean returns Type0 value
+          match b of-type Boolean as ignored returns Type0
+            case Boolean::false as Not P
+            case Boolean::true as P
+          end
+        end)
     end
 
   define transparent decide-eq-nat as P::decide-eq-nat

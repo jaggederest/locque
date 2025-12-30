@@ -7,11 +7,12 @@
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 
 import arithmetic as A
+import type_aliases as Types
 
 module typeclass::arithmetic contains
   # Addition typeclass
-  define transparent Add as typeclass A where
-    add of-type for-all x as A to for-all y as A to A
+  define transparent Add as typeclass A of-kind Types::BaseType where
+    add of-type (Types::BinaryOperator A)
   end
 
   define transparent Add-Natural as instance Add Natural where
@@ -21,8 +22,8 @@ module typeclass::arithmetic contains
   end
 
   # Subtraction typeclass (saturating for Natural)
-  define transparent Sub as typeclass A where
-    sub of-type for-all x as A to for-all y as A to A
+  define transparent Sub as typeclass A of-kind Types::BaseType where
+    sub of-type (Types::BinaryOperator A)
   end
 
   define transparent Sub-Natural as instance Sub Natural where
@@ -32,8 +33,8 @@ module typeclass::arithmetic contains
   end
 
   # Multiplication typeclass
-  define transparent Mul as typeclass A where
-    mul of-type for-all x as A to for-all y as A to A
+  define transparent Mul as typeclass A of-kind Types::BaseType where
+    mul of-type (Types::BinaryOperator A)
   end
 
   define transparent Mul-Natural as instance Mul Natural where
@@ -43,8 +44,8 @@ module typeclass::arithmetic contains
   end
 
   # Division typeclass
-  define transparent Div as typeclass A where
-    div of-type for-all x as A to for-all y as A to A
+  define transparent Div as typeclass A of-kind Types::BaseType where
+    div of-type (Types::BinaryOperator A)
   end
 
   define transparent Div-Natural as instance Div Natural where
@@ -54,8 +55,8 @@ module typeclass::arithmetic contains
   end
 
   # Modulo typeclass
-  define transparent Mod as typeclass A where
-    mod of-type for-all x as A to for-all y as A to A
+  define transparent Mod as typeclass A of-kind Types::BaseType where
+    mod of-type (Types::BinaryOperator A)
   end
 
   define transparent Mod-Natural as instance Mod Natural where

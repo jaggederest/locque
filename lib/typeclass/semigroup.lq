@@ -1,0 +1,17 @@
+import string as S
+import type_aliases as Types
+
+module typeclass::semigroup contains
+  define transparent Semigroup as typeclass A of-kind Types::BaseType where
+    append of-type (Types::BinaryOperator A)
+  end
+
+  define transparent combine as
+    function A Type0 x A y A requires Semigroup A returns A value
+      append x y
+    end
+
+  define transparent Semigroup-String as instance Semigroup String where
+    append as S::concat
+  end
+end

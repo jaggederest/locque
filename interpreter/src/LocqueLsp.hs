@@ -235,7 +235,7 @@ computeDiagnostics projectRoot path contents =
 typeErrorLoc :: TC.TypeError -> SrcLoc
 typeErrorLoc err = case err of
   TC.VarNotInScope loc _ _ -> loc
-  TC.TypeMismatch loc _ _ -> loc
+  TC.TypeMismatch loc _ _ _ -> loc
   TC.CannotApply loc _ _ -> loc
   TC.NotAFunction loc _ -> loc
   TC.NotAComputation loc _ -> loc

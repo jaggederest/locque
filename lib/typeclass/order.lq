@@ -7,11 +7,12 @@
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 
 import prelude as P
+import type_aliases as Types
 
 module typeclass::order contains
   # Less-than typeclass
-  define transparent LessThan as typeclass A where
-    lt of-type for-all x as A to for-all y as A to Boolean
+  define transparent LessThan as typeclass A of-kind Types::BaseType where
+    lt of-type (Types::Comparator A)
   end
 
   define transparent less-than as
@@ -35,8 +36,8 @@ module typeclass::order contains
   end
 
   # Less-than-or-equal typeclass
-  define transparent LessOrEqual as typeclass A where
-    le of-type for-all x as A to for-all y as A to Boolean
+  define transparent LessOrEqual as typeclass A of-kind Types::BaseType where
+    le of-type (Types::Comparator A)
   end
 
   define transparent less-or-equal as
@@ -60,8 +61,8 @@ module typeclass::order contains
   end
 
   # Greater-than typeclass
-  define transparent GreaterThan as typeclass A where
-    gt of-type for-all x as A to for-all y as A to Boolean
+  define transparent GreaterThan as typeclass A of-kind Types::BaseType where
+    gt of-type (Types::Comparator A)
   end
 
   define transparent greater-than as
@@ -85,8 +86,8 @@ module typeclass::order contains
   end
 
   # Greater-than-or-equal typeclass
-  define transparent GreaterOrEqual as typeclass A where
-    ge of-type for-all x as A to for-all y as A to Boolean
+  define transparent GreaterOrEqual as typeclass A of-kind Types::BaseType where
+    ge of-type (Types::Comparator A)
   end
 
   define transparent greater-or-equal as

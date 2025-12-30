@@ -1,4 +1,5 @@
 import prelude as P
+import type_aliases as Types
 
 open P exposing Result::ok Result::err Option::none Option::some end
 
@@ -17,7 +18,7 @@ module result contains
     end
 
   define transparent map as
-    function A Type0 B Type0 E Type0 f (for-all x as A to B) res (P::Result A E) returns (P::Result B E) value
+    function A Type0 B Type0 E Type0 f (Types::Function A B) res (P::Result A E) returns (P::Result B E) value
       match res of-type (P::Result A E) as ignored returns (P::Result B E)
         case Result::ok with ok A as Result::ok B E (f ok)
         case Result::err with err E as Result::err B E err
@@ -25,7 +26,7 @@ module result contains
     end
 
   define transparent map-error as
-    function A Type0 E Type0 F Type0 f (for-all err as E to F) res (P::Result A E) returns (P::Result A F) value
+    function A Type0 E Type0 F Type0 f (Types::Function E F) res (P::Result A E) returns (P::Result A F) value
       match res of-type (P::Result A E) as ignored returns (P::Result A F)
         case Result::ok with ok A as Result::ok A F ok
         case Result::err with err E as Result::err A F (f err)
@@ -33,7 +34,7 @@ module result contains
     end
 
   define transparent and-then as
-    function A Type0 B Type0 E Type0 f (for-all x as A to (P::Result B E)) res (P::Result A E) returns (P::Result B E) value
+    function A Type0 B Type0 E Type0 f (Types::Function A (P::Result B E)) res (P::Result A E) returns (P::Result B E) value
       match res of-type (P::Result A E) as ignored returns (P::Result B E)
         case Result::ok with ok A as f ok
         case Result::err with err E as Result::err B E err
@@ -49,7 +50,7 @@ module result contains
     end
 
   define transparent unwrap-or-else as
-    function A Type0 E Type0 fallback (for-all err as E to A) res (P::Result A E) returns A value
+    function A Type0 E Type0 fallback (Types::Function E A) res (P::Result A E) returns A value
       match res of-type (P::Result A E) as ignored returns A
         case Result::ok with ok A as ok
         case Result::err with err E as fallback err
@@ -75,7 +76,7 @@ module result contains
 
   define transparent or-else as
     function A Type0 E Type0 res (P::Result A E)
-             fallback (for-all err as E to (P::Result A E))
+             fallback (Types::Function E (P::Result A E))
     returns (P::Result A E) value
       match res of-type (P::Result A E) as ignored returns (P::Result A E)
         case Result::ok with ok A as Result::ok A E ok

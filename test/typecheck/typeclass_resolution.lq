@@ -5,8 +5,8 @@ import string as S
 
 module test::typecheck::typeclass_resolution contains
   # Define a simple typeclass
-  define transparent Show as typeclass A where
-    show of-type for-all x as A to String
+  define transparent Show as typeclass A of-kind Type0 where
+    show of-type (for-all x as A to String)
   end
 
   # Define instances

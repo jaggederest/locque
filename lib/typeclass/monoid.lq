@@ -1,0 +1,27 @@
+import string as S
+import type_aliases as Types
+
+module typeclass::monoid contains
+  define transparent Monoid as typeclass A of-kind Types::BaseType where
+    append of-type (Types::BinaryOperator A)
+    empty of-type A
+  end
+
+  define transparent combine as
+    function A Type0 x A y A requires Monoid A returns A value
+      append x y
+    end
+
+  define transparent empty-value as
+    function A Type0 requires Monoid A returns A value
+      empty
+    end
+
+  define transparent Monoid-String as instance Monoid String where
+    append as
+      function x String y String returns String value
+        S::concat x y
+      end
+    empty as ""
+  end
+end

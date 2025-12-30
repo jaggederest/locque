@@ -2,11 +2,12 @@
 #
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import prelude as P
+import type_aliases as Types
 
 module typeclass::equality contains
   # Equality typeclass definition
-  define transparent Equality as typeclass A where
-    eq of-type for-all x as A to for-all y as A to Boolean
+  define transparent Equality as typeclass A of-kind Types::BaseType where
+    eq of-type (Types::Comparator A)
   end
 
   define transparent equals as
