@@ -76,6 +76,50 @@ module prelude contains
         case List::cons with h A t (List A) as recur A B f (f acc h) t
       end
     end
+
+  define transparent fold-compute as
+    function A Type0 B Type0
+             f (Types::Function (computation B) (Types::Function A (computation B)))
+             acc (computation B)
+             xs (List A)
+    returns computation B value
+      fold A (computation B) f acc xs
+    end
+
+  define transparent sequence as
+    function A Type0 xs (List (computation A)) returns computation (List A) value
+      match xs of-type (List (computation A)) as ignored returns computation (List A)
+        case List::empty as compute return (nil A) end
+        case List::cons with h (computation A) t (List (computation A)) as
+          let value rest be recur A t in
+            compute
+              bind result from perform h then
+                bind tail from perform rest then
+                  return (cons A result tail)
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent sequence-unit as
+    function xs (List (computation Unit)) returns computation Unit value
+      compute
+        bind ignored from perform (sequence Unit xs) then
+          return Unit::tt
+        end
+      end
+    end
+
+  define transparent discard as
+    function A Type0 comp (computation A) returns computation Unit value
+      compute
+        bind ignored from perform comp then
+          return Unit::tt
+        end
+      end
+    end
   define transparent map as
     function A Type0 B Type0 f (Types::Function A B) xs (List A) returns (List B) value
       match xs of-type (List A) as ignored returns (List B)
@@ -99,7 +143,7 @@ module prelude contains
   define transparent pair-to-list as
     function A Type0 p (Pair A A) returns (List A) value
       match p of-type (Pair A A) as ignored returns (List A)
-        case Pair::pair with a A b A as cons A a (cons A b (nil A))
+        case Pair::pair with a A b A as [a, b]
       end
     end
   define transparent decide-eq-nat as decide-eq-nat-prim

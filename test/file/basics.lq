@@ -1,3 +1,4 @@
+import prelude as P
 import assert as A
 import file as File
 import typeclass::equality as Eq
@@ -32,15 +33,16 @@ module test::file::basics contains
   end
 
   define transparent main as compute
-    sequence
-      (assert-path-exists "lib/prelude.lq" true)
-      (assert-path-exists "test/tmp/does_not_exist.txt" false)
-      (assert-is-directory "lib" true)
-      (assert-is-directory "lib/prelude.lq" false)
-      create-test-file
-      (assert-path-exists "test/tmp/fs_dir/hello.txt" true)
-      remove-test-file
-      (assert-path-exists "test/tmp/fs_dir/hello.txt" false)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-path-exists "lib/prelude.lq" true)
+      , (assert-path-exists "test/tmp/does_not_exist.txt" false)
+      , (assert-is-directory "lib" true)
+      , (assert-is-directory "lib/prelude.lq" false)
+      , create-test-file
+      , (assert-path-exists "test/tmp/fs_dir/hello.txt" true)
+      , remove-test-file
+      , (assert-path-exists "test/tmp/fs_dir/hello.txt" false)
+      ])
   end
 end

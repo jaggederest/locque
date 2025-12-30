@@ -54,22 +54,23 @@ module test::result::basics contains
     Res::to-option Natural String err1
 
   define transparent main as compute
-    sequence
-      (assert-eq Boolean (Res::is-ok Natural String ok1) true)
-      (assert-eq Boolean (Res::is-err Natural String err1) true)
-      (assert-eq Natural (Res::unwrap-or Natural String 0 map-ok) 2)
-      (assert-eq Natural (Res::unwrap-or Natural String 0 map-err) 0)
-      (assert-eq Natural (Res::unwrap-or Natural String 0 bind-ok) 4)
-      (assert-eq Natural (Res::unwrap-or Natural String 0 bind-err) 0)
-      (assert-eq Boolean (Opt::is-some Natural to-option-ok) true)
-      (assert-eq Boolean (Opt::is-none Natural to-option-err) true)
-      (assert-eq Natural
-        (Res::unwrap-or-else Natural String
-          (function msg String returns Natural value
-            P::add-nat (S::length msg) 1
-          end)
-          err1)
-        4)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Res::is-ok Natural String ok1) true)
+      , (assert-eq Boolean (Res::is-err Natural String err1) true)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 map-ok) 2)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 map-err) 0)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 bind-ok) 4)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 bind-err) 0)
+      , (assert-eq Boolean (Opt::is-some Natural to-option-ok) true)
+      , (assert-eq Boolean (Opt::is-none Natural to-option-err) true)
+      , (assert-eq Natural
+                                                                (Res::unwrap-or-else Natural String
+                                                                  (function msg String returns Natural value
+                                                                    P::add-nat (S::length msg) 1
+                                                                  end)
+                                                                  err1)
+                                                                4)
+      ])
   end
 end

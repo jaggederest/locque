@@ -8,28 +8,30 @@ import string as S
 module test::prelude::match_semantics contains
   define transparent test-list-empty as compute
     bind result from return
-      (match (P::nil String) of-type (List String) as ignored returns String
+      (match (of-type [] (List String)) of-type (List String) as ignored returns String
         case List::empty as "empty"
         case List::cons with h String t (List String) as "cons"
       end)
     then
-      sequence
-        (A::assert-eq String result "empty")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "empty")
+        ])
     end
   end
 
   define transparent test-list-cons as compute
     bind result from return
-      (match (P::cons String "first" (P::cons String "second" (P::nil String)))
+      (match ["first", "second"]
         of-type (List String) as ignored returns String
         case List::empty as "empty"
         case List::cons with h String t (List String) as h
       end)
     then
-      sequence
-        (A::assert-eq String result "first")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "first")
+        ])
     end
   end
 
@@ -40,9 +42,10 @@ module test::prelude::match_semantics contains
         case Boolean::true as "true-branch"
       end)
     then
-      sequence
-        (A::assert-eq String result "false-branch")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "false-branch")
+        ])
     end
   end
 
@@ -53,9 +56,10 @@ module test::prelude::match_semantics contains
         case Boolean::true as "true-branch"
       end)
     then
-      sequence
-        (A::assert-eq String result "true-branch")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "true-branch")
+        ])
     end
   end
 
@@ -65,19 +69,21 @@ module test::prelude::match_semantics contains
         case Pair::pair with a String b String as a
       end)
     then
-      sequence
-        (A::assert-eq String result "left")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "left")
+        ])
     end
   end
 
   define transparent main as compute
-    sequence
-      test-list-empty
-      test-list-cons
-      test-bool-false
-      test-bool-true
-      test-pair
-    end
+    perform (P::sequence-unit
+      [
+        test-list-empty
+      , test-list-cons
+      , test-bool-false
+      , test-bool-true
+      , test-pair
+      ])
   end
 end

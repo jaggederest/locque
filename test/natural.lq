@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for Natural module
 # Runs all tests in test/natural/
 
@@ -5,8 +6,9 @@ import test::natural::basics as basics
 
 module test::natural contains
   define transparent main as compute
-    sequence
-      basics::main
-    end
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
   end
 end

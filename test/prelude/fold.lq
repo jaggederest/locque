@@ -7,17 +7,16 @@ import typeclass::equality as Eq
 
 module test::prelude::fold contains
   define transparent list123 as
-    P::cons String "1"
-      (P::cons String "2"
-        (P::cons String "3" (P::nil String)))
+    ["1", "2", "3"]
 
   define transparent sum-total as
     P::fold String String S::concat "" list123
 
   define transparent sum-list as compute
-    sequence
-      (A::assert-eq String sum-total "123")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String sum-total "123")
+      ])
   end
 
   define transparent map-upper-list as
@@ -31,15 +30,17 @@ module test::prelude::fold contains
     P::fold String String S::concat "" map-upper-list
 
   define transparent map-upper as compute
-    sequence
-      (A::assert-eq String map-upper-total "1!2!3!")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String map-upper-total "1!2!3!")
+      ])
   end
 
   define transparent main as compute
-    sequence
-      sum-list
-      map-upper
-    end
+    perform (P::sequence-unit
+      [
+        sum-list
+      , map-upper
+      ])
   end
 end

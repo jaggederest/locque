@@ -1,4 +1,5 @@
 # Tests for Default typeclass
+import prelude as P
 import assert as A
 import typeclass::default as Default
 import typeclass::equality as Eq
@@ -20,10 +21,11 @@ module test::typeclass::default contains
   define transparent test-bool-default as get-default Boolean
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural test-nat-default 0)
-      (A::assert-eq String test-str-default "")
-      (A::assert-eq Boolean test-bool-default false)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural test-nat-default 0)
+      , (A::assert-eq String test-str-default "")
+      , (A::assert-eq Boolean test-bool-default false)
+      ])
   end
 end

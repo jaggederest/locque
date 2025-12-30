@@ -10,13 +10,14 @@ open Eq exposing Equality end
 
 module test::natural::basics contains
   define transparent main as compute
-    sequence
-      (assert-eq Natural
-        (P::length-list Unit (N::to-peano 0))
-        0)
-      (assert-eq Natural
-        (P::length-list Unit (N::to-peano 3))
-        3)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural
+                                                (P::length-list Unit (N::to-peano 0))
+                                                0)
+      , (assert-eq Natural
+                                                  (P::length-list Unit (N::to-peano 3))
+                                                  3)
+      ])
   end
 end

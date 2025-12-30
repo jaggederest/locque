@@ -1,3 +1,4 @@
+import prelude as P
 # Prelude tests for there-exists pack/unpack
 
 import assert as A
@@ -40,9 +41,10 @@ module test::prelude::exists contains
     of-type unpack-ignore Unit
 
   define transparent all-tests as compute
-    sequence
-      check-unpack-flag
-    end
+    perform (P::sequence-unit
+      [
+        check-unpack-flag
+      ])
   end
 
   define transparent main as compute

@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for Shell module
 # Runs all tests in test/shell/
 
@@ -10,13 +11,14 @@ import test::shell::validate_error_messages as validate_error_messages
 
 module test::shell contains
   define transparent main as compute
-    sequence
-      basic::main
-      dump::main
-      lecho::main
-      lcat::main
-      lls::main
-      validate_error_messages::main
-    end
+    perform (P::sequence-unit
+      [
+        basic::main
+      , dump::main
+      , lecho::main
+      , lcat::main
+      , lls::main
+      , validate_error_messages::main
+      ])
   end
 end

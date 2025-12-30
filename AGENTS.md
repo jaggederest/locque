@@ -1,7 +1,7 @@
 Project overview for agents
 
 - Goal: locque is an LLM-friendly, keyword-led, dependently typed language with a strict CBPV split (values vs computations), 1:1 S-exp ↔ M-exp mapping, explicit opacity, explicit effects, no implicit coercions.
-- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, user-defined `data ... in TypeN ... end` with constructors `Type::Ctor`, typed `match ... of-type ... as ... returns ...` with `case Type::Ctor`, application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S). Types are values: any value expression that checks as `TypeN` is a valid type (wrap non-atomic forms like `function` in parentheses when used as type arguments).
+- Core constructs: `define (transparent|opaque) name as <Value>`, computation values via `compute ... end`, functions only via `function ... returns ... value|compute ... end`, dependent types with `for-all x as A to B` and `there-exists x as A in B` plus `pack`/`unpack`, user-defined `data ... in TypeN ... end` with constructors `Type::Ctor`, typed `match ... of-type ... as ... returns ...` with `case Type::Ctor`, list literals `[]`/`[a, b]` (commas required; empty lists need `of-type`), application is prefix/left-assoc, modules/imports/opens explicit, qualification uses `::` only, comments `#`/`/* */` (M) and `;`/`#| |#` (S). Types are values: any value expression that checks as `TypeN` is a valid type (wrap non-atomic forms like `function` in parentheses when used as type arguments).
 
 Interpreter (Haskell, `interpreter/`)
 - AST (current impl): literals (Natural, String, Boolean, Unit), vars, apps, functions, data/constructors, defs (transparency/kind), values vs computations, dependent match with binder/returns, typeclasses/instances (DictPass).
@@ -34,7 +34,8 @@ Notes and working agreements
 - Canonical syntax and surface rules live in `grammar.md`.
 - Single canonical surface (no arrows/lambdas/inspect/match-prim in new grammar); S-expr mirrors AST (keep using converter; do not handcraft `.lqs`).
 - Qualification uses `::` only; `open Alias exposing ... end` with explicit names only.
-- Effects are explicit: computations typed as `computation T`, bridged by `perform`; sequencing via `bind name from comp then ... end` or `sequence ... end`.
+- Effects are explicit: computations typed as `computation T`, bridged by `perform`; sequencing via `bind name from comp then ... end` or prelude `sequence`/`sequence-unit`.
+- List literals are canonical and map to S-expr `(list ...)`; use `of-type [] (List A)` when no expected list type is in scope.
 - Work is test-driven; do not delete tests to make them pass. No new primitives without explicit instruction. Do not suppress warnings unless told.
 - Parentheses are brittle; author `.lq` and convert; keep `.lqs` as generated mirrors when needed.
 - Use `gsed` (GNU sed) on macOS for `\b`.

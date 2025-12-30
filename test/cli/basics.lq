@@ -24,13 +24,15 @@ module test::cli::basics contains
   end
 
   define transparent sample-args as
-    P::cons String "--name"
-      (P::cons String "locque"
-        (P::cons String "--flag"
-          (P::cons String "-x"
-            (P::cons String "pos1"
-              (P::cons String "--"
-                (P::cons String "--not-flag" (P::nil String)))))))
+    [
+      "--name"
+    , "locque"
+    , "--flag"
+    , "-x"
+    , "pos1"
+    , "--"
+    , "--not-flag"
+    ]
 
   define transparent option-string as
     function opt (Pair String String) returns String value
@@ -55,17 +57,19 @@ module test::cli::basics contains
     Cli::options-flags sample-options
 
   define transparent check-options as compute
-    sequence
-      (A::assert-eq String (S::join-with "," sample-positionals) "pos1,--not-flag")
-      (A::assert-eq String (options-string sample-flags) "name=locque,flag=true,x=true")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String (S::join-with "," sample-positionals) "pos1,--not-flag")
+      , (A::assert-eq String (options-string sample-flags) "name=locque,flag=true,x=true")
+      ])
   end
 
   define transparent main as compute
-    sequence
-      check-args
-      check-current-directory
-      check-options
-    end
+    perform (P::sequence-unit
+      [
+        check-args
+      , check-current-directory
+      , check-options
+      ])
   end
 end

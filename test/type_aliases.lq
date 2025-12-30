@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for type_aliases module
 # Runs all tests in test/type_aliases/
 
@@ -5,8 +6,9 @@ import test::type_aliases::basics as basics
 
 module test::type_aliases contains
   define transparent main as compute
-    sequence
-      basics::main
-    end
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
   end
 end

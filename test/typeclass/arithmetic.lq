@@ -1,5 +1,6 @@
 # Tests for Arithmetic typeclasses
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
+import prelude as P
 import assert as A
 import typeclass::arithmetic as Arith
 import typeclass::equality as Eq
@@ -66,19 +67,20 @@ module test::typeclass::arithmetic contains
     end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural test-add-1 5)
-      (A::assert-eq Natural test-add-2 5)
-      (A::assert-eq Natural test-sub-1 7)
-      (A::assert-eq Natural test-sub-2 0)
-      (A::assert-eq Natural test-mul-1 20)
-      (A::assert-eq Natural test-mul-2 0)
-      (A::assert-eq Natural test-div-1 5)
-      (A::assert-eq Natural test-div-2 3)
-      (A::assert-eq Natural test-mod-1 2)
-      (A::assert-eq Natural test-mod-2 0)
-      (A::assert-eq Natural (test-add-var 10 20) 30)
-      (A::assert-eq Natural (test-mul-var 6 7) 42)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural test-add-1 5)
+      , (A::assert-eq Natural test-add-2 5)
+      , (A::assert-eq Natural test-sub-1 7)
+      , (A::assert-eq Natural test-sub-2 0)
+      , (A::assert-eq Natural test-mul-1 20)
+      , (A::assert-eq Natural test-mul-2 0)
+      , (A::assert-eq Natural test-div-1 5)
+      , (A::assert-eq Natural test-div-2 3)
+      , (A::assert-eq Natural test-mod-1 2)
+      , (A::assert-eq Natural test-mod-2 0)
+      , (A::assert-eq Natural (test-add-var 10 20) 30)
+      , (A::assert-eq Natural (test-mul-var 6 7) 42)
+      ])
   end
 end

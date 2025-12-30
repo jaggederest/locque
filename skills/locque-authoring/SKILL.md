@@ -22,6 +22,7 @@ Use this skill when writing or editing Locque source or tests.
 6. Data: `define ... as data ... in TypeN ... end` with constructors `Type::Ctor`; match uses `case Type::Ctor`.
 7. No implicit coercions; use `of-type`, `lift`, `up`, `down`, `pack`, `unpack` as needed.
 8. Use `ignored` instead of `_` for unused binders.
+9. List literals are canonical: `[]` and `[a, b]` (commas required). Empty lists require `of-type [] (List A)` when no expected list type is in scope.
 
 ## Test conventions
 

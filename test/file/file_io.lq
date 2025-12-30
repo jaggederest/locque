@@ -1,3 +1,4 @@
+import prelude as P
 # File IO smoke tests
 
 import file as File
@@ -18,8 +19,9 @@ module test::file::file_io contains
   end
 
   define transparent main as compute
-    sequence
-      roundtrip
-    end
+    perform (P::sequence-unit
+      [
+        roundtrip
+      ])
   end
 end

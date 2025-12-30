@@ -475,7 +475,7 @@ module string contains
              xs (List Character)
     returns (List Character) value
       match xs of-type (List Character) as ignored returns (List Character)
-        case List::empty as P::cons Character x (P::nil Character)
+        case List::empty as [x]
         case List::cons with h Character t (List Character) as
           match (cmp x h) of-type Boolean as ignored returns (List Character)
             case Boolean::false as P::cons Character h (recur cmp x t)

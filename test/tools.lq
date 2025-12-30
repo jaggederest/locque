@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for tools modules
 # Runs all tests in test/tools/
 
@@ -8,11 +9,12 @@ import test::tools::formatter_indent as formatter_indent
 
 module test::tools contains
   define transparent main as compute
-    sequence
-      tokenizer::main
-      validator::main
-      formatter::main
-      formatter_indent::main
-    end
+    perform (P::sequence-unit
+      [
+        tokenizer::main
+      , validator::main
+      , formatter::main
+      , formatter_indent::main
+      ])
   end
 end

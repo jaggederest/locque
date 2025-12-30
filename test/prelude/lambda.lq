@@ -13,15 +13,17 @@ module test::prelude::lambda contains
 
   define transparent apply-id as compute
     bind res from return (id "hi") then
-      sequence
-        (A::assert-eq String res "hi")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String res "hi")
+        ])
     end
   end
 
   define transparent main as compute
-    sequence
-      apply-id
-    end
+    perform (P::sequence-unit
+      [
+        apply-id
+      ])
   end
 end

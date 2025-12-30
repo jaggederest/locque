@@ -1,0 +1,25 @@
+# List literal syntax
+
+import prelude as P
+import assert as A
+import string as S
+
+open A exposing assert-eq end
+
+module test::syntax::list_literals contains
+  define transparent nums as [1, 2, 3]
+  define transparent strs as ["a", "b"]
+  define transparent empty-nats as of-type [] (List Natural)
+  define transparent nested as [[1, 2], [3]]
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        assert-eq Natural (P::length-list Natural nums) 3
+      , assert-eq Natural (P::head Natural nums) 1
+      , assert-eq Natural (P::length-list Natural empty-nats) 0
+      , assert-eq Natural (P::length-list (List Natural) nested) 2
+      , assert-eq Natural (S::length (P::head String strs)) 1
+      ])
+  end
+end

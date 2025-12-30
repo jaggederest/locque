@@ -1,3 +1,4 @@
+import prelude as P
 import assert as A
 import file as File
 import string as S
@@ -13,39 +14,43 @@ module test::file::stat contains
     end
 
   define transparent setup as compute
-    sequence
-      (File::remove-directory base-dir)
-      (File::make-directory base-dir)
-      (File::write-file (path "/data.txt") "stat")
-      (File::make-directory (path "/dir"))
-    end
+    perform (P::sequence-unit
+      [
+        (File::remove-directory base-dir)
+      , (File::make-directory base-dir)
+      , (File::write-file (path "/data.txt") "stat")
+      , (File::make-directory (path "/dir"))
+      ])
   end
 
   define transparent check-file as compute
     bind info from perform (File::stat (path "/data.txt")) then
-      sequence
-        (A::assert-eq String (File::stat-type info) "file")
-        (A::assert-eq Natural (File::stat-size info) 4)
-        (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String (File::stat-type info) "file")
+        , (A::assert-eq Natural (File::stat-size info) 4)
+        , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
+        ])
     end
   end
 
   define transparent check-dir as compute
     bind info from perform (File::stat (path "/dir")) then
-      sequence
-        (A::assert-eq String (File::stat-type info) "directory")
-        (A::assert-eq Natural (File::stat-size info) 0)
-        (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String (File::stat-type info) "directory")
+        , (A::assert-eq Natural (File::stat-size info) 0)
+        , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
+        ])
     end
   end
 
   define transparent main as compute
-    sequence
-      setup
-      check-file
-      check-dir
-    end
+    perform (P::sequence-unit
+      [
+        setup
+      , check-file
+      , check-dir
+      ])
   end
 end

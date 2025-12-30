@@ -28,6 +28,8 @@ prettyType expr = case expr of
   ETypeConst tc -> typeConstName tc
   ETypeUniverse n -> "Type" <> T.pack (show n)
   ELit lit -> renderLiteral lit
+  EListLiteral elems ->
+    "[" <> T.intercalate ", " (map prettyTypeAtom elems) <> "]"
   EVar v -> v
   EForAll v dom cod ->
     "for-all " <> v <> " as " <> prettyTypeAtom dom <> " to " <> prettyType cod
@@ -56,6 +58,8 @@ typeToSExpr expr = case expr of
   ETypeConst tc -> typeConstName tc
   ETypeUniverse n -> "Type" <> T.pack (show n)
   ELit lit -> renderLiteral lit
+  EListLiteral elems ->
+    "(list" <> renderList elems <> ")"
   EVar v -> v
   EForAll v dom cod ->
     "(for-all (" <> v <> " " <> typeToSExpr dom <> ") " <> typeToSExpr cod <> ")"
@@ -70,6 +74,11 @@ typeToSExpr expr = case expr of
   EApp f args ->
     "(" <> T.intercalate " " (typeToSExpr f : map typeToSExpr args) <> ")"
   _ -> "<invalid-type>"
+  where
+    renderList elems =
+      case elems of
+        [] -> ""
+        _ -> " " <> T.intercalate " " (map typeToSExpr elems)
 
 prettyUniverse :: Int -> Text
 prettyUniverse n = "Type" <> T.pack (show n)

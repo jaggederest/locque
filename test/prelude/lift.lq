@@ -54,11 +54,12 @@ module test::prelude::lift contains
   end
 
   define transparent all-tests as compute
-    sequence
-      check-up-down
-      check-up-same-run
-      check-down-same-run
-    end
+    perform (P::sequence-unit
+      [
+        check-up-down
+      , check-up-same-run
+      , check-down-same-run
+      ])
   end
 
   define transparent main as compute

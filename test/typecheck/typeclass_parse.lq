@@ -1,9 +1,12 @@
 # Test typeclass and instance parsing and validation
 
+import type_aliases as Types
+
 module test::typecheck::typeclass_parse contains
+
   # Type class definition with type parameter
   define transparent Show as typeclass A of-kind Type0 where
-    show of-type (for-all x as A to String)
+    show of-type (Types::Function A String)
   end
 
   # Instance for Natural

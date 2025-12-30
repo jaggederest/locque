@@ -1,0 +1,5 @@
+# Heterogeneous list literal should fail
+
+module test::typecheck::list_literal_hetero contains
+  define transparent bad as [1, "two"]
+end

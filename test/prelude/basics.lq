@@ -7,6 +7,7 @@ import string as S
 import list as L
 import typeclass::equality as Eq
 import typeclass::order as Order
+import type_aliases as Types
 import test::helpers as TH
 
 open A exposing assert-eq end
@@ -14,13 +15,13 @@ open Eq exposing Equality end
 
 module test::prelude::basics contains
   define transparent nums as
-    P::cons Natural 1 (P::cons Natural 2 (P::cons Natural 3 (P::nil Natural)))
+    [1, 2, 3]
 
   define transparent empty-nums as
-    P::nil Natural
+    of-type [] (List Natural)
 
   define transparent strs as
-    P::cons String "a" (P::cons String "b" (P::cons String "c" (P::nil String)))
+    ["a", "b", "c"]
 
   define transparent sample-pair as
     P::pair Natural String 3 "three"
@@ -42,7 +43,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-dependent-apply as
-    of-type (poly2 Natural) for-all y as Natural to Natural
+    of-type (poly2 Natural) (Types::Function Natural Natural)
 
   define transparent sigma-id as
     function p (there-exists x as Type0 in x) returns (there-exists y as Type0 in y) value
@@ -58,7 +59,10 @@ module test::prelude::basics contains
     end
 
   define transparent check-dependent-sigma-apply as
-    of-type (wrap-sigma Natural) for-all p as (there-exists x as Natural in Natural) to (there-exists y as Natural in Natural)
+    of-type (wrap-sigma Natural)
+      (Types::Function
+        (there-exists x as Natural in Natural)
+        (there-exists y as Natural in Natural))
 
   define transparent compute-id as
     function A Type0 x A returns computation A compute
@@ -66,7 +70,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-compute-id as
-    of-type compute-id for-all A as Type0 to for-all x as A to computation A
+    of-type compute-id for-all A as Type0 to (Types::Function A (computation A))
 
   define transparent check-compute-id-apply as
     of-type (compute-id Natural 4) computation Natural
@@ -77,20 +81,21 @@ module test::prelude::basics contains
     end
 
   define transparent check-compute-pass as
-    of-type compute-pass for-all A as Type0 to for-all c as (computation A) to computation A
+    of-type compute-pass for-all A as Type0 to (Types::Function (computation A) (computation A))
 
   define transparent check-compute-pass-apply as
-    of-type (compute-pass Natural) for-all c as (computation Natural) to computation Natural
+    of-type (compute-pass Natural) (Types::Function (computation Natural) (computation Natural))
 
   define transparent compute-map as
-    function A Type0 B Type0 f (for-all x as A to B) c (computation A) returns computation B compute
+    function A Type0 B Type0 f (Types::Function A B) c (computation A) returns computation B compute
       bind x from perform c then
         return (f x)
       end
     end
 
   define transparent check-compute-map as
-    of-type compute-map for-all A as Type0 to for-all B as Type0 to for-all f as (for-all x as A to B) to for-all c as (computation A) to computation B
+    of-type compute-map for-all A as Type0 to for-all B as Type0 to for-all f as (Types::Function A B) to
+      (Types::Function (computation A) (computation B))
 
   define transparent check-bind-match-list as compute
     bind xs from perform (compute return nums end) then
@@ -158,7 +163,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-compute-nest as
-    of-type compute-nest for-all A as Type0 to for-all x as A to computation (computation A)
+    of-type compute-nest for-all A as Type0 to (Types::Function A (computation (computation A)))
 
   define transparent compute-perform-nest as
     function A Type0 x A returns computation A compute
@@ -166,7 +171,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-compute-perform-nest as
-    of-type compute-perform-nest for-all A as Type0 to for-all x as A to computation A
+    of-type compute-perform-nest for-all A as Type0 to (Types::Function A (computation A))
 
   define transparent bind-shadow as
     function A Type0 x A returns computation A compute
@@ -176,7 +181,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-bind-shadow as
-    of-type bind-shadow for-all A as Type0 to for-all x as A to computation A
+    of-type bind-shadow for-all A as Type0 to (Types::Function A (computation A))
 
   define transparent bind-shadow-nested as
     function A Type0 x A returns computation A compute
@@ -188,7 +193,7 @@ module test::prelude::basics contains
     end
 
   define transparent check-bind-shadow-nested as
-    of-type bind-shadow-nested for-all A as Type0 to for-all x as A to computation A
+    of-type bind-shadow-nested for-all A as Type0 to (Types::Function A (computation A))
 
   define transparent bind-shadow-global as
     compute
@@ -208,7 +213,10 @@ module test::prelude::basics contains
     end
 
   define transparent check-bind-sigma as
-    of-type bind-sigma for-all A as Type0 to for-all p as (there-exists x as A in A) to computation (there-exists y as A in A)
+    of-type bind-sigma for-all A as Type0 to
+      (Types::Function
+        (there-exists x as A in A)
+        (computation (there-exists y as A in A)))
 
   define transparent match-sigma as
     function A Type0 xs (List Natural) a (there-exists x as A in A) b (there-exists y as A in A) returns (there-exists z as A in A) value
@@ -219,7 +227,14 @@ module test::prelude::basics contains
     end
 
   define transparent check-match-sigma as
-    of-type match-sigma for-all A as Type0 to for-all xs as (List Natural) to for-all a as (there-exists x as A in A) to for-all b as (there-exists y as A in A) to (there-exists z as A in A)
+    of-type match-sigma for-all A as Type0 to
+      (Types::Function
+        (List Natural)
+        (Types::Function
+          (there-exists x as A in A)
+          (Types::Function
+            (there-exists y as A in A)
+            (there-exists z as A in A))))
 
   define transparent match-sigma-comp as
     function A Type0 xs (List Natural) a (there-exists x as A in A) b (there-exists y as A in A) returns computation (there-exists z as A in A) value
@@ -230,7 +245,14 @@ module test::prelude::basics contains
     end
 
   define transparent check-match-sigma-comp as
-    of-type match-sigma-comp for-all A as Type0 to for-all xs as (List Natural) to for-all a as (there-exists x as A in A) to for-all b as (there-exists y as A in A) to computation (there-exists z as A in A)
+    of-type match-sigma-comp for-all A as Type0 to
+      (Types::Function
+        (List Natural)
+        (Types::Function
+          (there-exists x as A in A)
+          (Types::Function
+            (there-exists y as A in A)
+            (computation (there-exists z as A in A)))))
 
   define transparent compute-return-natural as
     compute
@@ -257,15 +279,17 @@ module test::prelude::basics contains
   end
 
   define transparent check-sequence-nested as compute
-    sequence
-      (compute
-        sequence
-          (A::assert-eq Natural 2 2)
-          (A::assert-eq Natural 3 3)
-        end
-      end)
-      (A::assert-eq Natural 1 1)
-    end
+    perform (P::sequence-unit
+      [
+        (compute
+          perform (P::sequence-unit
+            [
+              (A::assert-eq Natural 2 2)
+            , (A::assert-eq Natural 3 3)
+            ])
+        end)
+      , (A::assert-eq Natural 1 1)
+      ])
   end
 
   define transparent check-match-comp-bool as compute
@@ -304,18 +328,20 @@ module test::prelude::basics contains
   end
 
   define transparent check-sequence as compute
-    sequence
-      (A::assert-eq Natural 1 1)
-      (A::assert-eq Natural 2 2)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural 1 1)
+      , (A::assert-eq Natural 2 2)
+      ])
   end
 
   define transparent check-prelude-nat as compute
-    sequence
-      (A::assert-eq Natural (P::add-nat 2 5) 7)
-      (A::assert-eq Natural (P::sub-nat 5 2) 3)
-      (A::assert-eq Natural (P::sub-nat 2 5) 0)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (P::add-nat 2 5) 7)
+      , (A::assert-eq Natural (P::sub-nat 5 2) 3)
+      , (A::assert-eq Natural (P::sub-nat 2 5) 0)
+      ])
   end
 
   define transparent check-prelude-id as compute
@@ -327,120 +353,126 @@ module test::prelude::basics contains
   end
 
   define transparent check-string-more as compute
-    sequence
-      (A::assert-eq String (S::trim "  hi  ") "hi")
-      (A::assert-eq String (S::concat "a" "b") "ab")
-      (A::assert-eq Natural (S::length "abc") 3)
-      (A::assert-eq Boolean (Eq::equals String "x" "x") true)
-      (A::assert-eq String (S::reverse "abc") "cba")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String (S::trim "  hi  ") "hi")
+      , (A::assert-eq String (S::concat "a" "b") "ab")
+      , (A::assert-eq Natural (S::length "abc") 3)
+      , (A::assert-eq Boolean (Eq::equals String "x" "x") true)
+      , (A::assert-eq String (S::reverse "abc") "cba")
+      ])
   end
 
   define transparent check-if-bool as compute
-    sequence
-      (A::assert-eq String
-        (match true of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "yes")
-      (A::assert-eq Boolean (P::not false) true)
-      (A::assert-eq String
-        (match false of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "no")
-      (A::assert-eq Boolean (P::is-falsy false) true)
-      (A::assert-eq Boolean (P::is-falsy true) false)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+                                                (match true of-type Boolean as ignored returns String
+                                                  case Boolean::false as "no"
+                                                  case Boolean::true as "yes"
+                                                end)
+                                                "yes")
+      , (A::assert-eq Boolean (P::not false) true)
+      , (A::assert-eq String
+                                                    (match false of-type Boolean as ignored returns String
+                                                      case Boolean::false as "no"
+                                                      case Boolean::true as "yes"
+                                                    end)
+                                                    "no")
+      , (A::assert-eq Boolean (P::is-falsy false) true)
+      , (A::assert-eq Boolean (P::is-falsy true) false)
+      ])
   end
 
   define transparent check-prelude-list-more as compute
-    sequence
-      (A::assert-eq Natural (P::length-list Natural empty-nums) 0)
-      (A::assert-eq Natural
-        (P::length-list Natural (P::append Natural empty-nums nums))
-        3)
-      (A::assert-eq Natural
-        (P::length-list Natural (P::append Natural nums empty-nums))
-        3)
-      (A::assert-eq Natural
-        (P::length-list Natural (P::tail Natural (P::cons Natural 9 (P::nil Natural))))
-        0)
-      (A::assert-eq String
-        (P::head String (L::reverse String strs))
-        "c")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (P::length-list Natural empty-nums) 0)
+      , (A::assert-eq Natural
+                                                  (P::length-list Natural (P::append Natural empty-nums nums))
+                                                  3)
+      , (A::assert-eq Natural
+                                                    (P::length-list Natural (P::append Natural nums empty-nums))
+                                                    3)
+      , (A::assert-eq Natural
+                                                      (P::length-list Natural (P::tail Natural [9]))
+                                                      0)
+      , (A::assert-eq String
+                                                        (P::head String (L::reverse String strs))
+                                                        "c")
+      ])
   end
 
   define transparent check-prelude-match as compute
-    sequence
-      (A::assert-eq String
-        (match nums of-type (List Natural) as ignored returns String
-          case List::empty as "empty"
-          case List::cons with h Natural t (List Natural) as "nonempty"
-        end)
-        "nonempty")
-      (A::assert-eq String
-        (match empty-nums of-type (List Natural) as ignored returns String
-          case List::empty as "empty"
-          case List::cons with h Natural t (List Natural) as "nonempty"
-        end)
-        "empty")
-      (A::assert-eq String
-        (match false of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "no")
-      (A::assert-eq String
-        (match sample-pair of-type (Pair Natural String) as ignored returns String
-          case Pair::pair with a Natural b String as b
-        end)
-        "three")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+                                                (match nums of-type (List Natural) as ignored returns String
+                                                  case List::empty as "empty"
+                                                  case List::cons with h Natural t (List Natural) as "nonempty"
+                                                end)
+                                                "nonempty")
+      , (A::assert-eq String
+                                                  (match empty-nums of-type (List Natural) as ignored returns String
+                                                    case List::empty as "empty"
+                                                    case List::cons with h Natural t (List Natural) as "nonempty"
+                                                  end)
+                                                  "empty")
+      , (A::assert-eq String
+                                                    (match false of-type Boolean as ignored returns String
+                                                      case Boolean::false as "no"
+                                                      case Boolean::true as "yes"
+                                                    end)
+                                                    "no")
+      , (A::assert-eq String
+                                                      (match sample-pair of-type (Pair Natural String) as ignored returns String
+                                                        case Pair::pair with a Natural b String as b
+                                                      end)
+                                                      "three")
+      ])
   end
 
   define transparent check-list-ops as compute
-    sequence
-      (A::assert-eq Natural (P::length-list Natural nums) 3)
-      (A::assert-eq Natural (P::head Natural nums) 1)
-      (A::assert-eq Natural (P::length-list Natural (P::tail Natural nums)) 2)
-      (A::assert-eq Natural
-        (P::length-list Natural
-          (P::append Natural nums (P::cons Natural 4 (P::nil Natural))))
-        4)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (P::length-list Natural nums) 3)
+      , (A::assert-eq Natural (P::head Natural nums) 1)
+      , (A::assert-eq Natural (P::length-list Natural (P::tail Natural nums)) 2)
+      , (A::assert-eq Natural
+                                                      (P::length-list Natural
+                                                        (P::append Natural nums [4]))
+                                                      4)
+      ])
   end
 
   define transparent check-map-filter-fold as compute
-    sequence
-      (A::assert-eq Natural
-        (P::head Natural
-          (P::map Natural Natural
-            (function x Natural returns Natural value
-              P::add-nat x x
-            end)
-            nums))
-        2)
-      (A::assert-eq Natural
-        (P::length-list Natural
-          (P::filter Natural
-            (function x Natural returns Boolean value
-              Order::greater-than Natural x 1
-            end)
-            nums))
-        2)
-      (A::assert-eq Natural
-        (P::fold Natural Natural
-          (function acc Natural x Natural returns Natural value
-            P::add-nat acc x
-          end)
-          0
-          nums)
-        6)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural
+                                                (P::head Natural
+                                                  (P::map Natural Natural
+                                                    (function x Natural returns Natural value
+                                                      P::add-nat x x
+                                                    end)
+                                                    nums))
+                                                2)
+      , (A::assert-eq Natural
+                                                  (P::length-list Natural
+                                                    (P::filter Natural
+                                                      (function x Natural returns Boolean value
+                                                        Order::greater-than Natural x 1
+                                                      end)
+                                                      nums))
+                                                  2)
+      , (A::assert-eq Natural
+                                                    (P::fold Natural Natural
+                                                      (function acc Natural x Natural returns Natural value
+                                                        P::add-nat acc x
+                                                      end)
+                                                      0
+                                                      nums)
+                                                    6)
+      ])
   end
 
   define transparent check-list-match as compute
@@ -453,14 +485,15 @@ module test::prelude::basics contains
   end
 
   define transparent check-pair-ops as compute
-    sequence
-      (A::assert-eq Natural (P::fst Natural String sample-pair) 3)
-      (A::assert-eq String (P::snd Natural String sample-pair) "three")
-      (A::assert-eq Natural
-        (P::length-list Natural
-          (P::pair-to-list Natural (P::pair Natural Natural 1 2)))
-        2)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (P::fst Natural String sample-pair) 3)
+      , (A::assert-eq String (P::snd Natural String sample-pair) "three")
+      , (A::assert-eq Natural
+                                                    (P::length-list Natural
+                                                      (P::pair-to-list Natural (P::pair Natural Natural 1 2)))
+                                                    2)
+      ])
   end
 
   define transparent check-pair-match as compute
@@ -489,34 +522,35 @@ module test::prelude::basics contains
   end
 
   define transparent all-tests as compute
-    sequence
-      hello
-      check-arithmetic
-      check-sequence
-      check-prelude-nat
-      check-prelude-id
-      check-string
-      check-string-more
-      check-if-bool
-      check-prelude-list-more
-      check-prelude-match
-      check-bind-match-list
-      check-bind-match-shadow
-      check-bind-match-comp
-      check-match-comp-shadow
-      check-perform-value
-      check-perform-nested
-      check-sequence-nested
-      check-match-comp-bool
-      check-list-ops
-      check-map-filter-fold
-      check-list-match
-      check-pair-ops
-      check-pair-match
-      check-match
-      check-let
-      check-open-use
-    end
+    perform (P::sequence-unit
+      [
+        hello
+      , check-arithmetic
+      , check-sequence
+      , check-prelude-nat
+      , check-prelude-id
+      , check-string
+      , check-string-more
+      , check-if-bool
+      , check-prelude-list-more
+      , check-prelude-match
+      , check-bind-match-list
+      , check-bind-match-shadow
+      , check-bind-match-comp
+      , check-match-comp-shadow
+      , check-perform-value
+      , check-perform-nested
+      , check-sequence-nested
+      , check-match-comp-bool
+      , check-list-ops
+      , check-map-filter-fold
+      , check-list-match
+      , check-pair-ops
+      , check-pair-match
+      , check-match
+      , check-let
+      , check-open-use
+      ])
   end
 
   define transparent main as compute

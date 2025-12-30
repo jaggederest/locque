@@ -17,7 +17,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as DT
 import Data.Void (Void)
-import Text.Megaparsec (Parsec, between, many, manyTill, optional, some, someTill, (<|>), notFollowedBy)
+import Text.Megaparsec (Parsec, between, many, manyTill, optional, sepBy, some, someTill, (<|>), notFollowedBy)
 import qualified Text.Megaparsec as M
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -261,6 +261,9 @@ fromExpr path (SList [SAtom "of-type", e, ty]) = do
   e' <- fromExpr path e
   ty' <- fromType path ty
   pure (EAnnot e' ty')
+fromExpr path (SList (SAtom "list" : elems)) = do
+  elems' <- mapM (fromExpr path) elems
+  pure (EListLiteral elems')
 fromExpr path (SList (f:args)) = do
   f' <- fromExpr path f
   args' <- mapM (fromExpr path) args
@@ -400,11 +403,6 @@ fromComp path se = case se of
     c1' <- fromComp path c1
     c2' <- fromComp path c2
     pure $ CBind v c1' c2'
-  SList (SAtom "sequence" : rest) -> do
-    exprs <- mapM (fromExpr path) rest
-    case exprs of
-      [] -> Left (path ++ ": sequence expects at least one computation")
-      _ -> pure (sequenceComp exprs)
   _ -> Left (path ++ ": invalid computation form " ++ renderHead se)
 
 fromType :: FilePath -> SExpr -> Either String Expr
@@ -575,13 +573,7 @@ pInstanceMethod = M.try $ do
 -- Computations
 
 pComp :: Parser Comp
-pComp = pSequence <|> pBind <|> pReturn <|> pPerform
-
-pSequence :: Parser Comp
-pSequence = M.try $ do
-  keyword "sequence"
-  exprs <- someTill pValueAtom (keyword "end")
-  pure (sequenceComp exprs)
+pComp = pBind <|> pReturn <|> pPerform
 
 pBind :: Parser Comp
 pBind = M.try $ do
@@ -796,6 +788,7 @@ pApp = do
 pValueAtom :: Parser Expr
 pValueAtom =
       parens pValue
+  <|> pListLiteral
   <|> (EVar "recur" <$ keyword "recur")
   <|> pLiteral
   <|> pUniverse
@@ -815,6 +808,13 @@ pStringLit = lexeme $ do
   _ <- C.char '"'
   content <- manyTill L.charLiteral (C.char '"')
   pure (ELit (LString (DT.pack content)))
+
+pListLiteral :: Parser Expr
+pListLiteral = M.try $ do
+  _ <- mSymbol "["
+  elems <- sepBy pValue (mSymbol ",")
+  _ <- mSymbol "]"
+  pure (EListLiteral elems)
 
 -- Type parsing
 
@@ -932,7 +932,7 @@ reservedWords :: [Text]
 reservedWords =
   [ "module", "contains", "import", "open", "define", "transparent", "opaque"
   , "as", "function", "returns", "value", "compute", "let", "bind", "from", "then"
-  , "perform", "return", "sequence", "match", "of-type", "exposing", "end", "be", "in", "with"
+  , "perform", "return", "match", "of-type", "exposing", "end", "be", "in", "with"
   , "data", "case"
   , "for-all", "there-exists", "computation", "to", "lift", "up", "down", "pack", "unpack"
   , "equal", "reflexive", "rewrite"
@@ -1023,6 +1023,8 @@ renderExpr :: Expr -> DT.Text
 renderExpr expr = case expr of
   EVar t          -> t
   ELit lit        -> renderLit lit
+  EListLiteral elems ->
+    "(list" <> renderList elems <> ")"
   ETypeConst tc   -> T.typeConstName tc
   ETypeUniverse n -> "Type" <> DT.pack (show n)
   EForAll v dom cod ->
@@ -1078,6 +1080,11 @@ renderExpr expr = case expr of
   EInstance className instTy methods ->
     "(instance " <> className <> " " <> T.typeToSExpr instTy <> " "
       <> DT.unwords (map renderInstanceMethod methods) <> ")"
+  where
+    renderList elems =
+      case elems of
+        [] -> ""
+        _ -> " " <> DT.unwords (map renderExpr elems)
 
 exprToSExprText :: Expr -> DT.Text
 exprToSExprText = renderExpr
@@ -1120,11 +1127,6 @@ renderComp comp = case comp of
   CReturn e      -> "(return " <> renderExpr e <> ")"
   CPerform e     -> "(perform " <> renderExpr e <> ")"
   CBind v c1 c2  -> "(bind (" <> v <> " " <> renderComp c1 <> ") " <> renderComp c2 <> ")"
-  CSeq c1 c2     -> "(bind (_ " <> renderComp c1 <> ") " <> renderComp c2 <> ")"
-
-sequenceComp :: [Expr] -> Comp
-sequenceComp exprs =
-  foldr (\expr acc -> CSeq (CPerform expr) acc) (CReturn (ELit LUnit)) exprs
 
 renderLit :: Literal -> DT.Text
 renderLit lit = case lit of
@@ -1170,6 +1172,10 @@ renderMExpr :: Expr -> DT.Text
 renderMExpr expr = case expr of
   EVar t      -> t
   ELit lit    -> renderLit lit
+  EListLiteral elems ->
+    case elems of
+      [] -> "[]"
+      _ -> "[" <> DT.intercalate ", " (map renderMExpr elems) <> "]"
   ETypeConst tc -> T.typeConstName tc
   ETypeUniverse n -> "Type" <> DT.pack (show n)
   EForAll v dom cod ->
@@ -1273,5 +1279,3 @@ renderMComp comp = case comp of
   CPerform e -> "perform " <> renderMExpr e
   CBind v c1 c2 ->
     "bind " <> v <> " from " <> renderMComp c1 <> " then " <> renderMComp c2 <> " end"
-  CSeq c1 c2 ->
-    "bind _ from " <> renderMComp c1 <> " then " <> renderMComp c2 <> " end"

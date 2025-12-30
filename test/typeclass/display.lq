@@ -1,4 +1,5 @@
 # Tests for Display typeclass
+import prelude as P
 import assert as A
 import typeclass::display as Display
 import typeclass::equality as Eq
@@ -44,18 +45,19 @@ module test::typeclass::display contains
     end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq String test-nat-zero "0")
-      (A::assert-eq String test-nat-42 "42")
-      (A::assert-eq String test-nat-large "12345")
-      (A::assert-eq String test-str-empty "\"\"")
-      (A::assert-eq String test-str-hello "\"hello\"")
-      (A::assert-eq String test-bool-true "true")
-      (A::assert-eq String test-bool-false "false")
-      (A::assert-eq String (test-nat-display-var 99) "99")
-      (A::assert-eq String (test-str-display-var "world") "\"world\"")
-      (A::assert-eq String (test-bool-display-var true) "true")
-      (A::assert-eq String (test-bool-display-var false) "false")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String test-nat-zero "0")
+      , (A::assert-eq String test-nat-42 "42")
+      , (A::assert-eq String test-nat-large "12345")
+      , (A::assert-eq String test-str-empty "\"\"")
+      , (A::assert-eq String test-str-hello "\"hello\"")
+      , (A::assert-eq String test-bool-true "true")
+      , (A::assert-eq String test-bool-false "false")
+      , (A::assert-eq String (test-nat-display-var 99) "99")
+      , (A::assert-eq String (test-str-display-var "world") "\"world\"")
+      , (A::assert-eq String (test-bool-display-var true) "true")
+      , (A::assert-eq String (test-bool-display-var false) "false")
+      ])
   end
 end

@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for file module
 # Runs all tests in test/file/
 
@@ -9,12 +10,13 @@ import test::file::stat as stat_tests
 
 module test::file contains
   define transparent main as compute
-    sequence
-      basics::main
-      file_io::main
-      io_tests::main
-      helpers::main
-      stat_tests::main
-    end
+    perform (P::sequence-unit
+      [
+        basics::main
+      , file_io::main
+      , io_tests::main
+      , helpers::main
+      , stat_tests::main
+      ])
   end
 end

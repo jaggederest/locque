@@ -59,9 +59,13 @@ module SmythConfig contains
                         "test/typecheck/perform_bind_result_mismatch.lq"
                         "Type mismatch")
                       (P::cons (Pair String String)
-                      (P::pair String String
-                        "test/typecheck/match_missing_false.lq"
-                        "Match error: missing case Boolean::false")
+                        (P::pair String String
+                          "test/typecheck/list_literal_hetero.lq"
+                          "Type mismatch")
+                        (P::cons (Pair String String)
+                          (P::pair String String
+                            "test/typecheck/match_missing_false.lq"
+                            "Match error: missing case Boolean::false")
                         (P::cons (Pair String String)
                           (P::pair String String
                             "test/typecheck/match_missing_true.lq"
@@ -114,5 +118,5 @@ module SmythConfig contains
                                               (P::pair String String
                                                 "test/errors/fuzzy_match_unqualified.lq"
                                                 "Variable not in scope: my-functoin")
-                                              (P::nil (Pair String String))))))))))))))))))))))))
+                                              (P::nil (Pair String String)))))))))))))))))))))))))
 end

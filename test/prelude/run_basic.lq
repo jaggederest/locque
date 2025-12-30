@@ -1,3 +1,4 @@
+import prelude as P
 # Test: smyth run - basic execution
 # This file tests that `smyth run` can execute a simple program
 
@@ -7,10 +8,11 @@ import string as S
 
 module test::prelude::run_basic contains
   define transparent test-run-basic as compute
-    sequence
-      (A::assert-eq Natural 1 1)
-      (A::assert-eq String "hello" "hello")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural 1 1)
+      , (A::assert-eq String "hello" "hello")
+      ])
   end
 
   define transparent main as compute

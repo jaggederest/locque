@@ -4,6 +4,7 @@ import prelude as P
 import assert as A
 import typeclass::equality as Eq
 import string as S
+import type_aliases as Types
 
 open A exposing assert-eq end
 open Eq exposing Equality end
@@ -16,12 +17,12 @@ module test::prelude::iota contains
 
   define transparent Test as data b Boolean in Type0
     case Test::make of-type
-      for-all x as
+      Types::Function
         (match b of-type Boolean as ignored returns Type0
           case Boolean::false as Natural
           case Boolean::true as String
         end)
-      to Test b
+        (Test b)
   end
 
   define transparent flag-false as
@@ -75,7 +76,7 @@ module test::prelude::iota contains
     of-type 0 bool-branch-type
 
   define transparent list-branch-type as
-    match (P::cons Natural 1 (P::nil Natural)) of-type (List Natural) as ignored returns Type0
+    match [1] of-type (List Natural) as ignored returns Type0
       case List::empty as String
       case List::cons with h Natural t (List Natural) as Natural
     end
@@ -98,10 +99,11 @@ module test::prelude::iota contains
     of-type 0 unpack-branch-type
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural (pick false flag-false) 7)
-      (A::assert-eq String (pick true flag-true) "ok")
-      (A::assert-eq Natural (unreachable-flag Flagged::true) 0)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (pick false flag-false) 7)
+      , (A::assert-eq String (pick true flag-true) "ok")
+      , (A::assert-eq Natural (unreachable-flag Flagged::true) 0)
+      ])
   end
 end

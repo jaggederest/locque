@@ -1,3 +1,4 @@
+import prelude as P
 # Test: Basic shell primitive functionality
 
 import shell as S
@@ -16,8 +17,9 @@ module test::shell::basic contains
   end
 
   define transparent main as compute
-    sequence
-      test-echo
-    end
+    perform (P::sequence-unit
+      [
+        test-echo
+      ])
   end
 end

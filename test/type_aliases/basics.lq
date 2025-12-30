@@ -12,11 +12,11 @@ module test::type_aliases::basics contains
       (P::Either Natural Natural)
 
   define transparent Wrapper as data A Type0 in Type0
-    case Wrapper::wrap of-type for-all x as A to Wrapper A
+    case Wrapper::wrap of-type Types::Function A (Wrapper A)
   end
 
   define transparent map-wrapper as
-    function A Type0 B Type0 f (for-all x as A to B) w (Wrapper A) returns (Wrapper B) value
+    function A Type0 B Type0 f (Types::Function A B) w (Wrapper A) returns (Wrapper B) value
       match w of-type (Wrapper A) as ignored returns (Wrapper B)
         case Wrapper::wrap with x A as Wrapper::wrap B (f x)
       end

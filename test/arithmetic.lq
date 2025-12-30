@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for Arithmetic module
 # Runs all tests in test/arithmetic/
 
@@ -5,8 +6,9 @@ import test::arithmetic::basics as basics
 
 module test::arithmetic contains
   define transparent main as compute
-    sequence
-      basics::main
-    end
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
   end
 end

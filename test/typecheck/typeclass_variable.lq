@@ -1,13 +1,15 @@
 # Test typeclass method resolution with variable arguments (not just literals)
 # This tests that ETyped wrappers propagate type info through DictPass
+import prelude as P
 import assert as A
 import typeclass::equality as Eq
 import string as S
+import type_aliases as Types
 
 module test::typecheck::typeclass_variable contains
   # Define a simple typeclass
   define transparent Show as typeclass A of-kind Type0 where
-    show of-type (for-all x as A to String)
+    show of-type (Types::Function A String)
   end
 
   # Define instances
@@ -36,7 +38,7 @@ module test::typecheck::typeclass_variable contains
 
   # Test: using show in a higher-order function
   define transparent apply-show as
-    function f (for-all x as Natural to String) returns (for-all y as Natural to String) value
+    function f (Types::Function Natural String) returns (Types::Function Natural String) value
       function x Natural returns String value
         f x
       end
@@ -54,11 +56,12 @@ module test::typecheck::typeclass_variable contains
     end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq String (show-var 42) "natural")
-      (A::assert-eq String (apply-show show-var 99) "natural")
-      (A::assert-eq String (show-nat-var 1) "natural")
-      (A::assert-eq String (show-bool-var true) "boolean")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String (show-var 42) "natural")
+      , (A::assert-eq String (apply-show show-var 99) "natural")
+      , (A::assert-eq String (show-nat-var 1) "natural")
+      , (A::assert-eq String (show-bool-var true) "boolean")
+      ])
   end
 end

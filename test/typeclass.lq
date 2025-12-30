@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for typeclass modules
 # Runs all tests in test/typeclass/
 
@@ -12,15 +13,16 @@ import test::typeclass::hash as hash
 
 module test::typeclass contains
   define transparent main as compute
-    sequence
-      equality::main
-      arithmetic::main
-      default::main
-      display::main
-      order::main
-      semigroup::main
-      monoid::main
-      hash::main
-    end
+    perform (P::sequence-unit
+      [
+        equality::main
+      , arithmetic::main
+      , default::main
+      , display::main
+      , order::main
+      , semigroup::main
+      , monoid::main
+      , hash::main
+      ])
   end
 end

@@ -51,9 +51,6 @@ module tools::formatter_indent contains
                                 case Boolean::true as true
                                 case Boolean::false as
                                   match (S::eq token "match") of-type Boolean as ignored returns Boolean
-                                case Boolean::true as true
-                                case Boolean::false as
-                                  match (S::eq token "sequence") of-type Boolean as ignored returns Boolean
                                     case Boolean::true as true
                                     case Boolean::false as
                                       match (S::eq token "pack") of-type Boolean as ignored returns Boolean
@@ -75,7 +72,6 @@ module tools::formatter_indent contains
                                   end
                               end
                           end
-                      end
                   end
               end
           end

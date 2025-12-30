@@ -1,3 +1,4 @@
+import prelude as P
 # Semigroup typeclass tests
 
 import assert as A
@@ -9,9 +10,10 @@ open Eq exposing Equality end
 
 module test::typeclass::semigroup contains
   define transparent main as compute
-    sequence
-      (assert-eq String (Semi::combine String "hello" "world") "helloworld")
-      (assert-eq String (Semi::combine String "" "x") "x")
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq String (Semi::combine String "hello" "world") "helloworld")
+      , (assert-eq String (Semi::combine String "" "x") "x")
+      ])
   end
 end

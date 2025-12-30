@@ -92,7 +92,7 @@ S-expr sketches:
 ## Block termination (M-expr)
 
 `end` is mandatory for any construct that can be multiline: `function`, `compute`,
-`let value`, `bind`, `match`, `sequence`, `pack`, `unpack`, `typeclass`,
+`let value`, `bind`, `match`, `pack`, `unpack`, `typeclass`,
 `instance`, `data`, `module`, `open`. `end` is never optional in M-expr, even
 for single-line bodies.
 
@@ -100,8 +100,7 @@ for single-line bodies.
 
 ```
 Value ::=
-    Identifier
-  | Literal
+    ValueAtom
   | Value Value                        -- application (left-assoc)
   | Function                           -- pure or effectful intro
   | compute Computation end            -- explicit computation value
@@ -118,8 +117,17 @@ Value ::=
 ValueAtom ::=
     Identifier
   | Literal
+  | ListLiteral
   | ( Value )
+
+ListLiteral ::=
+    [ ]
+  | [ Value (, Value)* ]
 ```
+
+- Commas are required; no trailing comma.
+- Empty lists require an explicit type annotation: `of-type [] (List A)`.
+- List literals desugar to `List::empty`/`List::cons`.
 
 ### Function (only form)
 
@@ -141,10 +149,11 @@ Computation ::=
     return Value
   | bind x from Computation then Computation end
   | perform Value                 -- value of type computation T
-  | sequence ValueAtom+ end       -- sugar for `perform` + `bind` sequencing
 
 - Computations are not identifiers; to run a named computation value, use `perform`.
-- `sequence` performs each value in order and returns `tt` (unit).
+- Sequencing helpers are in the prelude:
+  - `sequence` : `List (computation A)` → `computation (List A)`
+  - `sequence-unit` : `List (computation Unit)` → `computation Unit`
 ```
 
 ## Pattern matching (typed, unified `match`)
@@ -311,8 +320,8 @@ rewrite P p as t
 - S-expr uses `(of-type <expr> <Type>)` for explicit type annotations.
 - S-expr match shape is `(match (of-type <expr> <Type>) <binder> <Type> <cases...>)`.
 - S-expr case form is `(case <Constructor> <binders...> <body>)`, where binders are `(x Type)` and omitted for nullary constructors.
-- S-expr sequence form is `(sequence <expr> <expr> ...)`.
 - S-expr equality/transport: `(equal <Type> <expr> <expr>)`, `(reflexive <Type> <expr>)`, `(rewrite <expr> <expr> <expr>)`.
+- S-expr list literals are `(list <value> ...)` and `(list)` for empty.
 - S-expr binders are always parenthesized: `(x Type)`; M-expr requires parentheses only for non-atomic types.
 - S-expr may introduce additional keywords for desugared AST forms when the M-expr is ambiguous.
 - M-expr `of-type` accepts only a value atom; parenthesize applications: `of-type (f x) T`.

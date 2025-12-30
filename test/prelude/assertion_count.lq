@@ -1,3 +1,4 @@
+import prelude as P
 # Test: Assertion counting
 # This file tests that the assertion counter correctly counts all assertions
 # Expected: 5 assertions
@@ -8,13 +9,14 @@ import string as S
 
 module test::prelude::assertion_count contains
   define transparent test-five-assertions as compute
-    sequence
-      (A::assert-eq Natural 1 1)
-      (A::assert-eq Natural 2 2)
-      (A::assert-eq Natural 3 3)
-      (A::assert-eq String "a" "a")
-      (A::assert-eq String "b" "b")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural 1 1)
+      , (A::assert-eq Natural 2 2)
+      , (A::assert-eq Natural 3 3)
+      , (A::assert-eq String "a" "a")
+      , (A::assert-eq String "b" "b")
+      ])
   end
 
   define transparent main as compute

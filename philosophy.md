@@ -1,11 +1,11 @@
-LLM-first dependently typed language (working name TBD) guiding notes
+Locque guiding notes
 
 - Purpose: a language meant to be written and read by LLMs/agents, with English-like, verbose keywords and a predictable, canonical surface form. S-expressions are the canonical serialized/AST form; a matching M-expression surface provides readability without precedence traps.
 - Type discipline: pursue a strong, dependent type system (Π/Σ, universes, inductive types, normalization) to give maximal guarantees and make iterative generation/checking by LLMs easier.
-- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … value|compute … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type … as … returns …`).
+- Syntax posture: minimize punctuation; every construct starts with a keyword to avoid implicit precedence, except list literals (`[]`, `[a, b]`) which are canonical and 1:1 with S-expr. Application stays left-associative; other relationships are explicit words (e.g., `define`, `function … returns … value|compute … end`, `for-all`, `there-exists`, `bind … from … then … end`, `perform …`, `match … of-type … as … returns …`).
 - Assignment/definition: single, universal word with explicit transparency; definitions are values by default, and computation values use `compute ... end`. Namespaces are explicit modules with `::` qualification and file mapping.
-- S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism; one canonical spelling per construct.
-- Ergonomics for LLMs: keep whitespace/indentation cosmetic; ban implicit coercions; prefer explicit casts and effect boundaries. Provide canonical templates/patterns for completion and avoid ambiguous grammar.
+- S-exp ↔ M-exp: require a 1:1 mapping. S-exp used for storage/parse tree and debugging; M-exp used for human-facing editing. Avoid ad-hoc sugars that break determinism; one canonical spelling per construct (list literals map to S-expr `list`).
+- Ergonomics for LLMs: keep whitespace/indentation cosmetic; ban implicit coercions; prefer explicit casts and effect boundaries. Provide canonical templates/patterns for completion and avoid ambiguous grammar (e.g., empty list literals require `of-type [] (List A)`).
 - Effects/partiality: total core is preferred for predictability; any partiality/effects must be isolated with explicit keywords (e.g., `perform …`) to keep type checking and normalization clear.
 - Opacity and extensionality: allow explicit per-definition opacity markers to control unfolding during conversion; keep definitional equality lean (βδι) and provide extensionality as propositional lemmas, with opt-in definitional η only where safe for performance/purity.
 - Value semantics: defaults are immutable; variables are single-assignment; strings and collections are persistent/immutable. Any mutation lives in explicit computation constructs (e.g., a future `ref`/`set` effect), preserving predictability for LLMs and type checking.
@@ -24,6 +24,9 @@ LLM-first dependently typed language (working name TBD) guiding notes
 **Structural symbols** (kept minimal):
 - Parentheses for grouping type/term expressions
 - `::` for qualification (module/name)
+- `[]` and commas for list literals (canonical, not optional)
+
+List literal brackets are the only punctuation-level sugar; they desugar deterministically to `List::empty`/`List::cons`.
 
 **Semantic symbols** (avoid - use words instead):
 - NO `!` for linearity - use `once` keyword

@@ -8,7 +8,7 @@ module test::typecheck::primitives contains
   define transparent my-bool as true
 
   define transparent my-list as
-    List::cons Natural 1 (List::cons Natural 2 (List::empty Natural))
+    [1, 2]
 
   define transparent main as compute
     return five

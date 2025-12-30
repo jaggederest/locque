@@ -46,15 +46,16 @@ module test::option::basics contains
     Opt::to-result Natural String "missing" some1
 
   define transparent main as compute
-    sequence
-      (assert-eq Boolean (Opt::is-some Natural some1) true)
-      (assert-eq Boolean (Opt::is-none Natural none-nat) true)
-      (assert-eq Natural (Opt::unwrap-or Natural 0 map-some) 2)
-      (assert-eq Natural (Opt::unwrap-or Natural 0 map-none) 0)
-      (assert-eq Natural (Opt::unwrap-or Natural 0 bind-some) 4)
-      (assert-eq Natural (Opt::unwrap-or Natural 0 bind-none) 0)
-      (assert-eq Boolean (Res::is-err Natural String to-result-none) true)
-      (assert-eq Boolean (Res::is-ok Natural String to-result-some) true)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Opt::is-some Natural some1) true)
+      , (assert-eq Boolean (Opt::is-none Natural none-nat) true)
+      , (assert-eq Natural (Opt::unwrap-or Natural 0 map-some) 2)
+      , (assert-eq Natural (Opt::unwrap-or Natural 0 map-none) 0)
+      , (assert-eq Natural (Opt::unwrap-or Natural 0 bind-some) 4)
+      , (assert-eq Natural (Opt::unwrap-or Natural 0 bind-none) 0)
+      , (assert-eq Boolean (Res::is-err Natural String to-result-none) true)
+      , (assert-eq Boolean (Res::is-ok Natural String to-result-some) true)
+      ])
   end
 end

@@ -51,6 +51,7 @@ data MatchCase = MatchCase
 data Expr
   = EVar Text
   | ELit Literal
+  | EListLiteral [Expr]
   | ETypeConst TypeConst
   | ETypeUniverse Int
   | EForAll Text Expr Expr
@@ -84,7 +85,6 @@ data Comp
   = CReturn Expr
   | CBind Text Comp Comp
   | CPerform Expr
-  | CSeq Comp Comp -- sequencing where the result of the first is ignored
   deriving (Show, Eq)
 
 data Transparency = Transparent | Opaque deriving (Show, Eq)

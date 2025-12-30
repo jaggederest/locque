@@ -56,21 +56,22 @@ module test::typeclass::equality contains
   define transparent test-neq-diff as neq 5 10
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Boolean test-nat-eq-same true)
-      (A::assert-eq Boolean test-nat-eq-diff false)
-      (A::assert-eq Boolean test-str-eq-same true)
-      (A::assert-eq Boolean test-str-eq-diff false)
-      (A::assert-eq Boolean test-bool-eq-tt true)
-      (A::assert-eq Boolean test-bool-eq-ff true)
-      (A::assert-eq Boolean test-bool-eq-tf false)
-      (A::assert-eq Boolean test-bool-eq-ft false)
-      (A::assert-eq Boolean (test-nat-eq-var 99) true)
-      (A::assert-eq Boolean (test-str-eq-var "test") true)
-      (A::assert-eq Boolean (test-bool-eq-var true) true)
-      (A::assert-eq Boolean (test-bool-eq-var false) true)
-      (A::assert-eq Boolean test-neq-same false)
-      (A::assert-eq Boolean test-neq-diff true)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean test-nat-eq-same true)
+      , (A::assert-eq Boolean test-nat-eq-diff false)
+      , (A::assert-eq Boolean test-str-eq-same true)
+      , (A::assert-eq Boolean test-str-eq-diff false)
+      , (A::assert-eq Boolean test-bool-eq-tt true)
+      , (A::assert-eq Boolean test-bool-eq-ff true)
+      , (A::assert-eq Boolean test-bool-eq-tf false)
+      , (A::assert-eq Boolean test-bool-eq-ft false)
+      , (A::assert-eq Boolean (test-nat-eq-var 99) true)
+      , (A::assert-eq Boolean (test-str-eq-var "test") true)
+      , (A::assert-eq Boolean (test-bool-eq-var true) true)
+      , (A::assert-eq Boolean (test-bool-eq-var false) true)
+      , (A::assert-eq Boolean test-neq-same false)
+      , (A::assert-eq Boolean test-neq-diff true)
+      ])
   end
 end

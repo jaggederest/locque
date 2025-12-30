@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for Assert module
 
 import assert as A
@@ -8,13 +9,14 @@ open Eq exposing Equality end
 
 module test::assert contains
   define transparent main as compute
-    sequence
-      (assert-eq Natural 42 42)
-      (assert-eq String "locque" "locque")
-      (assert-eq Boolean false false)
-      (assert-eq Natural 2 2)
-      (assert-eq String "hello" "hello")
-      (assert-eq Boolean true true)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural 42 42)
+      , (assert-eq String "locque" "locque")
+      , (assert-eq Boolean false false)
+      , (assert-eq Natural 2 2)
+      , (assert-eq String "hello" "hello")
+      , (assert-eq Boolean true true)
+      ])
   end
 end

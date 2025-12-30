@@ -1,3 +1,4 @@
+import prelude as P
 import assert as A
 import string as S
 import tools::tokenizer as Tokenizer
@@ -23,16 +24,17 @@ module test::tools::tokenizer contains
     end
 
   define transparent main as compute
-    sequence
-      (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "a\tb") true)
-      (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "\"\t\"") false)
-      (assert-eq String
-        (tokens-joined (Tokenizer::scan-line "define transparent x as 1 # comment"))
-        "define|transparent|x|as|1")
-      (assert-eq String
-        (tokens-joined (Tokenizer::scan-line "import typeclass::equality as Eq"))
-        "import|typeclass::equality|as|Eq")
-      (assert-eq Boolean (scan-block-start "x /*") true)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "a\tb") true)
+      , (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "\"\t\"") false)
+      , (assert-eq String
+                                                    (tokens-joined (Tokenizer::scan-line "define transparent x as 1 # comment"))
+                                                    "define|transparent|x|as|1")
+      , (assert-eq String
+                                                      (tokens-joined (Tokenizer::scan-line "import typeclass::equality as Eq"))
+                                                      "import|typeclass::equality|as|Eq")
+      , (assert-eq Boolean (scan-block-start "x /*") true)
+      ])
   end
 end

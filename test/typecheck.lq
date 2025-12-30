@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for positive typecheck modules
 # Runs selected tests in test/typecheck/
 
@@ -14,17 +15,18 @@ import test::typecheck::opaque_import as opaque_import
 
 module test::typecheck contains
   define transparent main as compute
-    sequence
-      simple::main
-      primitives::main
-      match::main
-      fold_inline::main
-      mono::main
-      type_family::main
-      typeclass_parse::main
-      typeclass_resolution::main
-      typeclass_variable::main
-      opaque_import::main
-    end
+    perform (P::sequence-unit
+      [
+        (P::discard Natural simple::main)
+      , (P::discard Natural primitives::main)
+      , match::main
+      , fold_inline::main
+      , mono::main
+      , type_family::main
+      , typeclass_parse::main
+      , typeclass_resolution::main
+      , typeclass_variable::main
+      , opaque_import::main
+      ])
   end
 end

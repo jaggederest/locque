@@ -7,6 +7,7 @@ import cli as Cli
 import natural as N
 import io as IO
 import typeclass::order as Order
+import type_aliases as Types
 import tools::tokenizer as Tokenizer
 import tools::formatter_indent as Indent
 
@@ -15,29 +16,31 @@ module tools::formatter contains
 
   define transparent FormatState as data in Type0
     case FormatState::state of-type
-      for-all indent as Natural to
-      for-all pending as Natural to
-      for-all pending-line as Natural to
-      for-all in-block as Boolean to
-      for-all line as Natural to
-      for-all errors as (List String) to
-      FormatState
+      Types::Function Natural
+        (Types::Function Natural
+          (Types::Function Natural
+            (Types::Function Boolean
+              (Types::Function Natural
+                (Types::Function (List String) FormatState)))))
   end
 
   define transparent line-comment-prefixes as
-    P::cons String "#"
-      (P::cons String ";"
-        (P::nil String))
+    [
+      "#"
+    , ";"
+    ]
 
   define transparent block-comment-openers as
-    P::cons String "/*"
-      (P::cons String "#|"
-        (P::nil String))
+    [
+      "/*"
+    , "#|"
+    ]
 
   define transparent block-comment-closers as
-    P::cons String "*/"
-      (P::cons String "|#"
-        (P::nil String))
+    [
+      "*/"
+    , "|#"
+    ]
 
   define transparent format-error as
     function path String line Natural msg String returns String value
@@ -373,17 +376,18 @@ module tools::formatter contains
     end
 
   define transparent skip-patterns as
-    P::cons String "node_modules"
-      (P::cons String "/node_modules/"
-        (P::cons String ".git"
-          (P::cons String "/.git/"
-            (P::cons String "dist-newstyle"
-              (P::cons String "/dist-newstyle/"
-                (P::cons String ".stack-work"
-                  (P::cons String "/.stack-work/"
-                    (P::cons String "tmp/"
-                      (P::cons String "/tmp/"
-                        (P::nil String))))))))))
+    [
+      "node_modules"
+    , "/node_modules/"
+    , ".git"
+    , "/.git/"
+    , "dist-newstyle"
+    , "/dist-newstyle/"
+    , ".stack-work"
+    , "/.stack-work/"
+    , "tmp/"
+    , "/tmp/"
+    ]
 
   define transparent should-skip-path as
     function path String returns Boolean value
@@ -438,7 +442,7 @@ module tools::formatter contains
                       (match is-file of-type Boolean as ignored returns (computation (List String))
                         case Boolean::true as
                           match (is-lq target) of-type Boolean as ignored returns (computation (List String))
-                            case Boolean::true as compute return (P::cons String target (P::nil String)) end
+                            case Boolean::true as compute return [target] end
                             case Boolean::false as
                               compute
                                 return
@@ -474,15 +478,6 @@ module tools::formatter contains
       end
     end
 
-  define transparent fold-compute as
-    function A Type0 B Type0
-             f (for-all acc as (computation B) to for-all x as A to computation B)
-             acc (computation B)
-             xs (List A)
-    returns computation B value
-      P::fold A (computation B) f acc xs
-    end
-
   define transparent check-files as
     function files (List String) returns computation (List String) value
       let value step be
@@ -496,7 +491,7 @@ module tools::formatter contains
           end
         end
       in
-        fold-compute String (List String) step (compute return (P::nil String) end) files
+        P::fold-compute String (List String) step (compute return (P::nil String) end) files
       end
     end
 
@@ -522,15 +517,16 @@ module tools::formatter contains
           end
         end
       in
-        fold-compute String Unit step (compute return tt end) errors
+        P::fold-compute String Unit step (compute return tt end) errors
       end
     end
 
   define transparent default-targets as
-    P::cons String "lib"
-      (P::cons String "test"
-        (P::cons String "Smythfile.lq"
-          (P::nil String)))
+    [
+      "lib"
+    , "test"
+    , "Smythfile.lq"
+    ]
 
   define transparent collect-targets as
     function targets (List String) returns computation (List String) value
@@ -545,7 +541,7 @@ module tools::formatter contains
           end
         end
       in
-        fold-compute String (List String) step (compute return (P::nil String) end) targets
+        P::fold-compute String (List String) step (compute return (P::nil String) end) targets
       end
     end
 

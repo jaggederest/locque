@@ -1,12 +1,14 @@
 # Test constraint resolution
+import prelude as P
 import assert as A
 import typeclass::equality as Eq
 import string as S
+import type_aliases as Types
 
 module test::typecheck::typeclass_resolution contains
   # Define a simple typeclass
   define transparent Show as typeclass A of-kind Type0 where
-    show of-type (for-all x as A to String)
+    show of-type (Types::Function A String)
   end
 
   # Define instances
@@ -36,9 +38,10 @@ module test::typecheck::typeclass_resolution contains
     show-value Boolean true
 
   define transparent main as compute
-    sequence
-      (A::assert-eq String test-show-nat "nat")
-      (A::assert-eq String test-show-bool "bool")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String test-show-nat "nat")
+      , (A::assert-eq String test-show-bool "bool")
+      ])
   end
 end

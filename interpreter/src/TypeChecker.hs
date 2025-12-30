@@ -65,6 +65,7 @@ data TypeError
   | NotAComputation SrcLoc Expr
   | ExpectedType SrcLoc Expr
   | InvalidLift SrcLoc Int Int
+  | EmptyListLiteral SrcLoc
   | ExpectedThereExists SrcLoc Expr
   | ExpectedEquality SrcLoc Expr
   | MatchCaseError SrcLoc Text
@@ -118,6 +119,10 @@ instance Show TypeError where
           ("Invalid lift: from Type" <> T.pack (show fromLevel) <>
            " to Type" <> T.pack (show toLevel) <> " (from must be <= to)")
           Nothing [] Nothing
+    in T.unpack (formatError msg)
+
+  show (EmptyListLiteral loc) =
+    let msg = ErrorMsg loc "Empty list literal requires type annotation" Nothing [] Nothing
     in T.unpack (formatError msg)
 
   show (ExpectedThereExists loc ty) =
@@ -418,6 +423,8 @@ freeVarsWithBound :: Set.Set Text -> Expr -> Set.Set Text
 freeVarsWithBound bound expr = case expr of
   EVar v -> if v `Set.member` bound then Set.empty else Set.singleton v
   ELit _ -> Set.empty
+  EListLiteral elems ->
+    Set.unions (map (freeVarsWithBound bound) elems)
   ETypeConst _ -> Set.empty
   ETypeUniverse _ -> Set.empty
   EForAll v dom cod ->
@@ -496,8 +503,6 @@ freeVarsComp bound comp = case comp of
   CPerform e -> freeVarsWithBound bound e
   CBind v c1 c2 ->
     freeVarsComp bound c1 `Set.union` freeVarsComp (Set.insert v bound) c2
-  CSeq c1 c2 ->
-    freeVarsComp bound c1 `Set.union` freeVarsComp bound c2
 
 freeVarsParamsSeq :: Set.Set Text -> [Param] -> (Set.Set Text, Set.Set Text)
 freeVarsParamsSeq bound params =
@@ -525,6 +530,7 @@ subst name replacement expr = go Set.empty expr
         | v == name && v `Set.notMember` bound -> pure replacement
         | otherwise -> pure e
       ELit _ -> pure e
+      EListLiteral elems -> EListLiteral <$> mapM (go bound) elems
       ETypeConst _ -> pure e
       ETypeUniverse _ -> pure e
       EForAll v dom cod -> do
@@ -722,7 +728,6 @@ subst name replacement expr = go Set.empty expr
             (v', c2') <- refreshBinderComp bound v c2
             c2'' <- goComp (Set.insert v' bound) c2'
             pure (CBind v' c1' c2'')
-      CSeq c1 c2 -> CSeq <$> goComp bound c1 <*> goComp bound c2
 
     goCase bound (MatchCase ctor binders body) = do
       (binders', body') <- goCaseBinders bound binders body
@@ -810,6 +815,8 @@ normalize :: TCEnv -> Expr -> TypeCheckM Expr
 normalize env expr = do
   wh <- whnf env expr
   case wh of
+    EListLiteral elems ->
+      EListLiteral <$> mapM (normalize env) elems
     EApp f args -> do
       f' <- normalize env f
       args' <- mapM (normalize env) args
@@ -932,6 +939,7 @@ whnf :: TCEnv -> Expr -> TypeCheckM Expr
 whnf env expr = case expr of
   EAnnot e1 _ -> whnf env e1
   ETyped e1 _ -> whnf env e1
+  EListLiteral elems -> pure (EListLiteral elems)
   ELet v val body -> do
     body' <- subst v val body
     whnf env body'
@@ -996,6 +1004,10 @@ whnf env expr = case expr of
         reduceCtor "List::empty" []
       EApp (EVar "List::cons") [_elemTy, headExpr, tailExpr] ->
         reduceCtor "List::cons" [headExpr, tailExpr]
+      EListLiteral [] ->
+        reduceCtor "List::empty" []
+      EListLiteral (headExpr:tailExprs) ->
+        reduceCtor "List::cons" [headExpr, EListLiteral tailExprs]
       EApp (EVar "Pair::pair") [_aTy, _bTy, leftExpr, rightExpr] ->
         reduceCtor "Pair::pair" [leftExpr, rightExpr]
       EVar name ->
@@ -1142,6 +1154,8 @@ unifyIndices env solvables left right = go Map.empty left right
     unifyRigid sub a b = case (a, b) of
       (EVar v1, EVar v2) | v1 == v2 -> pure (Just sub)
       (ELit l1, ELit l2) | l1 == l2 -> pure (Just sub)
+      (EListLiteral xs, EListLiteral ys)
+        | length xs == length ys -> unifyArgs sub xs ys
       (ETypeConst c1, ETypeConst c2) | c1 == c2 -> pure (Just sub)
       (ETypeUniverse n1, ETypeUniverse n2) | n1 == n2 -> pure (Just sub)
       (EApp f1 args1, EApp f2 args2)
@@ -1182,6 +1196,8 @@ alphaEq env a b = case (a, b) of
       Just v2' -> v2 == v2'
       Nothing -> v1 == v2
   (ELit l1, ELit l2) -> l1 == l2
+  (EListLiteral xs, EListLiteral ys) ->
+    length xs == length ys && and (zipWith (alphaEq env) xs ys)
   (ETypeConst c1, ETypeConst c2) -> c1 == c2
   (ETypeUniverse i, ETypeUniverse j) -> i == j
   (EForAll v1 d1 c1, EForAll v2 d2 c2) ->
@@ -1271,7 +1287,6 @@ alphaEqComp env c1 c2 = case (c1, c2) of
   (CPerform e1, CPerform e2) -> alphaEq env e1 e2
   (CBind v1 a1 b1, CBind v2 a2 b2) ->
     alphaEqComp env a1 a2 && alphaEqComp (Map.insert v1 v2 env) b1 b2
-  (CSeq a1 b1, CSeq a2 b2) -> alphaEqComp env a1 a2 && alphaEqComp env b1 b2
   _ -> False
 
 alphaEqCases :: Map.Map Text Text -> [MatchCase] -> [MatchCase] -> Bool
@@ -1373,6 +1388,8 @@ checkExprRec env structParams allowed allowRecur expr = case expr of
       then checkRecurCall structParams allowed args
       else lift (Left (RecursionError noLoc "recur is only allowed in value recursion"))
     mapM_ (checkExprRec env structParams allowed allowRecur) args
+  EListLiteral elems ->
+    mapM_ (checkExprRec env structParams allowed allowRecur) elems
   EApp f args -> do
     checkExprRec env structParams allowed allowRecur f
     mapM_ (checkExprRec env structParams allowed allowRecur) args
@@ -1453,9 +1470,6 @@ checkCompRec env structParams allowed allowRecur comp = case comp of
     checkCompRec env structParams allowed' allowRecur c2
   CPerform e1 ->
     checkExprRec env structParams allowed allowRecur e1
-  CSeq c1 c2 -> do
-    checkCompRec env structParams allowed allowRecur c1
-    checkCompRec env structParams allowed allowRecur c2
 
 checkRecurCall :: [StructParam] -> Set.Set Text -> [Expr] -> TypeCheckM ()
 checkRecurCall structParams allowed args = do
@@ -1483,6 +1497,12 @@ infer env expr = case expr of
     LString _ -> tString
     LBoolean _ -> tBool
     LUnit -> tUnit
+  EListLiteral elems -> case elems of
+    [] -> lift (Left (EmptyListLiteral noLoc))
+    (first:rest) -> do
+      elemTy <- infer env first
+      mapM_ (\e -> check env e elemTy) rest
+      pure (tList elemTy)
   ETypeConst tc -> pure (typeOfTypeConst tc)
   ETypeUniverse n -> pure (ETypeUniverse (n + 1))
   EForAll v dom cod -> do
@@ -1651,9 +1671,17 @@ infer env expr = case expr of
     pure (EApp (EVar (className classInfo)) [instTy])
 
 check :: TCEnv -> Expr -> Expr -> TypeCheckM ()
-check env expr expected = do
-  inferred <- infer env expr
-  ensureConvWith env inferred expected (Just (exprToMExprText expr))
+check env expr expected = case expr of
+  EListLiteral elems -> do
+    expectedWhnf <- whnf env expected
+    case expectedWhnf of
+      EApp (ETypeConst TCList) [elemTy] -> mapM_ (\e -> check env e elemTy) elems
+      _ -> do
+        inferred <- infer env expr
+        ensureConvWith env inferred expected (Just (exprToMExprText expr))
+  _ -> do
+    inferred <- infer env expr
+    ensureConvWith env inferred expected (Just (exprToMExprText expr))
 
 inferComp :: TCEnv -> Comp -> TypeCheckM Expr
 inferComp env comp = case comp of
@@ -1665,9 +1693,6 @@ inferComp env comp = case comp of
     t <- infer env e1
     inner <- expectCompType env t
     pure inner
-  CSeq c1 c2 -> do
-    _ <- inferComp env c1
-    inferComp env c2
 
 checkMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
 checkMatch env scrutName retTy scrutTy cases = do

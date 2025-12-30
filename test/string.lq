@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for String module
 # Runs all tests in test/string/
 
@@ -5,8 +6,9 @@ import test::string::utils as utils
 
 module test::string contains
   define transparent main as compute
-    sequence
-      utils::main
-    end
+    perform (P::sequence-unit
+      [
+        utils::main
+      ])
   end
 end

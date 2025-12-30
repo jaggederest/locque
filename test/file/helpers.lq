@@ -41,27 +41,28 @@ module test::file::helpers contains
     end
 
   define transparent setup-tree as compute
-    sequence
-      (File::remove-directory base-dir)
-      (File::make-directory base-dir)
-      (File::make-directory (path "/src"))
-      (File::make-directory (path "/src/sub"))
-      (File::write-file (path "/src/file.txt") "hello")
-      (File::write-file (path "/src/sub/nested.txt") "nested")
-      (File::remove-directory (path "/dest"))
-    end
+    perform (P::sequence-unit
+      [
+        (File::remove-directory base-dir)
+      , (File::make-directory base-dir)
+      , (File::make-directory (path "/src"))
+      , (File::make-directory (path "/src/sub"))
+      , (File::write-file (path "/src/file.txt") "hello")
+      , (File::write-file (path "/src/sub/nested.txt") "nested")
+      , (File::remove-directory (path "/dest"))
+      ])
   end
 
   define transparent check-lines as compute
     bind ignored from perform (File::write-lines (path "/lines.txt")
-      (P::cons String "a" (P::cons String "b" (P::nil String))))
+      ["a", "b"])
     then
       bind lines1 from perform (File::read-lines (path "/lines.txt")) then
         bind ignored from perform
           (A::assert-eq String (S::join-with "," lines1) "a,b")
         then
           bind ignored from perform (File::append-lines (path "/lines.txt")
-            (P::cons String "c" (P::nil String)))
+            ["c"])
           then
             bind lines2 from perform (File::read-lines (path "/lines.txt")) then
               perform (A::assert-eq String (S::join-with "," lines2) "a,b,c")
@@ -74,23 +75,24 @@ module test::file::helpers contains
 
   define transparent check-walk as compute
     bind entries from perform (File::walk (path "/src")) then
-      sequence
-        (A::assert-eq Boolean
-          (contains-path (path "/src/file.txt") entries)
-          true)
-        (A::assert-eq Boolean
-          (contains-path (path "/src/sub") entries)
-          true)
-        (A::assert-eq Boolean
-          (contains-path (path "/src/sub/nested.txt") entries)
-          true)
-        (A::assert-eq Boolean
-          (find-is-directory (path "/src/sub") entries)
-          true)
-        (A::assert-eq Boolean
-          (find-is-directory (path "/src/file.txt") entries)
-          false)
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq Boolean
+                                                              (contains-path (path "/src/file.txt") entries)
+                                                              true)
+        , (A::assert-eq Boolean
+                                                                (contains-path (path "/src/sub") entries)
+                                                                true)
+        , (A::assert-eq Boolean
+                                                                  (contains-path (path "/src/sub/nested.txt") entries)
+                                                                  true)
+        , (A::assert-eq Boolean
+                                                                    (find-is-directory (path "/src/sub") entries)
+                                                                    true)
+        , (A::assert-eq Boolean
+                                                                      (find-is-directory (path "/src/file.txt") entries)
+                                                                      false)
+        ])
     end
   end
 
@@ -107,11 +109,12 @@ module test::file::helpers contains
   end
 
   define transparent main as compute
-    sequence
-      setup-tree
-      check-lines
-      check-walk
-      check-copy-tree
-    end
+    perform (P::sequence-unit
+      [
+        setup-tree
+      , check-lines
+      , check-walk
+      , check-copy-tree
+      ])
   end
 end

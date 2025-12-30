@@ -1,8 +1,11 @@
 # Test error when no instance exists
 
+import type_aliases as Types
+
 module test::typecheck::typeclass_no_instance contains
+
   define transparent Show as typeclass A of-kind Type0 where
-    show of-type (for-all x as A to String)
+    show of-type (Types::Function A String)
   end
 
   # Only instance for Natural, NOT for String

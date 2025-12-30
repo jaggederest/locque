@@ -6,6 +6,7 @@ import list as L
 import prelude as P
 import string as S
 import typeclass::equality as Eq
+import type_aliases as Types
 
 open A exposing assert-eq end
 open Eq exposing Equality end
@@ -14,7 +15,7 @@ module test::helpers contains
   define transparent with-output as
     function A Type0
              action (computation A)
-             check (for-all output as (List String) to for-all result as A to computation Unit)
+             check (Types::Function (List String) (Types::Function A (computation Unit)))
     returns computation A value
       compute
         bind result from perform (IO::capture-output A action) then
@@ -46,10 +47,11 @@ module test::helpers contains
     function A Type0 expected String action (computation A) returns computation A value
       with-output A action
         (function output (List String) ignored A returns computation Unit compute
-          sequence
-            (assert-eq Natural (P::length-list String output) 1)
-            (assert-eq String (L::nth String 0 output) expected)
-          end
+          perform (P::sequence-unit
+            [
+              (assert-eq Natural (P::length-list String output) 1)
+            , (assert-eq String (L::nth String 0 output) expected)
+            ])
         end)
     end
 

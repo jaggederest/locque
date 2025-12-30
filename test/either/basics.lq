@@ -51,41 +51,42 @@ module test::either::basics contains
     E::swap Natural Natural right5
 
   define transparent main as compute
-    sequence
-      (assert-eq Boolean (E::is-left Natural Natural left1) true)
-      (assert-eq Boolean (E::is-right Natural Natural right5) true)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        map-left-left) 2)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        map-left-right) 5)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        map-right-left) 1)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        map-right-right) 6)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        bind-right-right) 8)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        bind-right-left) 1)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        swap-left) 1)
-      (assert-eq Natural (E::fold Natural Natural Natural
-        (function x Natural returns Natural value x end)
-        (function y Natural returns Natural value y end)
-        swap-right) 5)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (E::is-left Natural Natural left1) true)
+      , (assert-eq Boolean (E::is-right Natural Natural right5) true)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                    (function x Natural returns Natural value x end)
+                                                    (function y Natural returns Natural value y end)
+                                                    map-left-left) 2)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                      (function x Natural returns Natural value x end)
+                                                      (function y Natural returns Natural value y end)
+                                                      map-left-right) 5)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                        (function x Natural returns Natural value x end)
+                                                        (function y Natural returns Natural value y end)
+                                                        map-right-left) 1)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                          (function x Natural returns Natural value x end)
+                                                          (function y Natural returns Natural value y end)
+                                                          map-right-right) 6)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                            (function x Natural returns Natural value x end)
+                                                            (function y Natural returns Natural value y end)
+                                                            bind-right-right) 8)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                              (function x Natural returns Natural value x end)
+                                                              (function y Natural returns Natural value y end)
+                                                              bind-right-left) 1)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                                (function x Natural returns Natural value x end)
+                                                                (function y Natural returns Natural value y end)
+                                                                swap-left) 1)
+      , (assert-eq Natural (E::fold Natural Natural Natural
+                                                                  (function x Natural returns Natural value x end)
+                                                                  (function y Natural returns Natural value y end)
+                                                                  swap-right) 5)
+      ])
   end
 end

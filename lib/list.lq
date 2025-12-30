@@ -234,16 +234,16 @@ module list contains
                   match (cmp x y) of-type Boolean as ignored returns (Pair (List A) Boolean)
                     case Boolean::false as
                       P::pair (List A) Boolean
-                        (P::append A built (P::cons A y (P::nil A)))
+                        (P::append A built [y])
                         false
                     case Boolean::true as
                       P::pair (List A) Boolean
-                        (P::append A built (P::cons A x (P::cons A y (P::nil A))))
+                        (P::append A built [x, y])
                         true
                   end
                 case Boolean::true as
                   P::pair (List A) Boolean
-                    (P::append A built (P::cons A y (P::nil A)))
+                    (P::append A built [y])
                     inserted
               end
           end
@@ -254,7 +254,7 @@ module list contains
             match result of-type (Pair (List A) Boolean) as ignored returns (List A)
               case Pair::pair with built (List A) inserted Boolean as
                 match inserted of-type Boolean as ignored returns (List A)
-                  case Boolean::false as P::append A built (P::cons A x (P::nil A))
+                  case Boolean::false as P::append A built [x]
                   case Boolean::true as built
                 end
             end

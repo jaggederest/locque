@@ -1,3 +1,4 @@
+import prelude as P
 # Time module basics
 
 import assert as A
@@ -13,10 +14,11 @@ module test::time::basics contains
         (match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
           case Pair::pair with val Natural elapsed Natural as
             compute
-              sequence
-                (assert-eq Natural val 42)
-                (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
-              end
+              perform (P::sequence-unit
+                [
+                  (assert-eq Natural val 42)
+                , (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
+                ])
             end
         end)
     end

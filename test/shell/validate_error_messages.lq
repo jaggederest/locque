@@ -1,3 +1,4 @@
+import prelude as P
 # Test: Validate error message fuzzy matching using shell
 # This test runs smyth with intentionally broken code and validates the error output
 
@@ -33,9 +34,10 @@ module test::shell::validate_error_messages contains
   end
 
   define transparent main as compute
-    sequence
-      test-unqualified-fuzzy-match
-      test-qualified-fuzzy-match
-    end
+    perform (P::sequence-unit
+      [
+        test-unqualified-fuzzy-match
+      , test-qualified-fuzzy-match
+      ])
   end
 end

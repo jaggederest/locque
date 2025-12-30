@@ -20,9 +20,10 @@ module test::prelude::let_binding contains
     end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural simple-let 5)
-      (A::assert-eq Natural multi-let 3)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural simple-let 5)
+      , (A::assert-eq Natural multi-let 3)
+      ])
   end
 end

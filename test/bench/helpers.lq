@@ -43,7 +43,7 @@ module test::bench::helpers contains
           end
         end
       in
-        P::fold Unit (computation (List Natural)) step (compute return (P::nil Natural) end) tokens
+        P::fold Unit (computation (List Natural)) step (compute return [] end) tokens
       end
     end
 
@@ -88,13 +88,15 @@ module test::bench::helpers contains
   define transparent stats-message as
     function label String avg Natural min Natural max Natural returns String value
       S::join-with " "
-        (P::cons String label
-          (P::cons String "avg-us"
-            (P::cons String (N::to-string avg)
-              (P::cons String "min-us"
-                (P::cons String (N::to-string min)
-                  (P::cons String "max-us"
-                    (P::cons String (N::to-string max) (P::nil String))))))))
+        [
+          label
+        , "avg-us"
+        , N::to-string avg
+        , "min-us"
+        , N::to-string min
+        , "max-us"
+        , N::to-string max
+        ]
     end
 
   define transparent measure-with-threshold as

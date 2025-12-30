@@ -24,18 +24,20 @@ module test::new_syntax_test contains
 
   define transparent test-bind as compute
     bind result from return 42 then
-      sequence
-        (A::assert-eq Natural result 42)
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq Natural result 42)
+        ])
     end
   end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural (const-five 0) 5)
-      (A::assert-eq Natural (add-wrapper 3 4) 7)
-      (A::assert-eq Natural (test-let 1) 16)
-      test-bind
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (const-five 0) 5)
+      , (A::assert-eq Natural (add-wrapper 3 4) 7)
+      , (A::assert-eq Natural (test-let 1) 16)
+      , test-bind
+      ])
   end
 end

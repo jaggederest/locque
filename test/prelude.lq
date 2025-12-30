@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for prelude basics only
 
 import test::prelude::assertion_count as assertion_count
@@ -19,23 +20,24 @@ import test::prelude::run_basic as run_basic
 
 module test::prelude contains
   define transparent main as compute
-    sequence
-      assertion_count::main
-      basics::main
-      data::main
-      equality::main
-      lift::main
-      exists::main
-      fold::main
-      imports::main
-      iota::main
-      lambda::main
-      let_binding::main
-      match::main
-      match_semantics::main
-      new_primitives::main
-      primitives::main
-      run_basic::main
-    end
+    perform (P::sequence-unit
+      [
+        assertion_count::main
+      , basics::main
+      , data::main
+      , equality::main
+      , lift::main
+      , exists::main
+      , fold::main
+      , imports::main
+      , iota::main
+      , lambda::main
+      , let_binding::main
+      , match::main
+      , match_semantics::main
+      , new_primitives::main
+      , primitives::main
+      , run_basic::main
+      ])
   end
 end

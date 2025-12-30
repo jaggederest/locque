@@ -12,23 +12,19 @@ open Eq exposing Equality end
 
 module test::list::basics contains
   define transparent nums as
-    P::cons Natural 1 (P::cons Natural 2 (P::cons Natural 3 (P::nil Natural)))
+    [1, 2, 3]
 
   define transparent strs as
-    P::cons String "a" (P::cons String "b" (P::cons String "c" (P::nil String)))
+    ["a", "b", "c"]
 
   define transparent unsorted-strings as
-    P::cons String "bbb" (P::cons String "a" (P::cons String "cc" (P::nil String)))
+    ["bbb", "a", "cc"]
 
   define transparent unsorted-nats as
-    P::cons Natural 3 (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
+    [3, 1, 2]
 
   define transparent list-of-lists as
-    P::cons (List Natural)
-      (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
-      (P::cons (List Natural)
-        (P::cons Natural 3 (P::nil Natural))
-        (P::nil (List Natural)))
+    [[1, 2], [3]]
 
   define transparent sum as
     function xs (List Natural) returns Natural value
@@ -40,118 +36,119 @@ module test::list::basics contains
     end
 
   define transparent test-basics as compute
-    sequence
-      (assert-eq Boolean (L::is-empty Natural nums) false)
-      (assert-eq Boolean (L::is-empty Natural (P::nil Natural)) true)
-      (assert-eq Natural (L::length Natural nums) 3)
-      (assert-eq Natural (L::first Natural nums) 1)
-      (assert-eq Natural (L::last Natural nums) 3)
-      (assert-eq Natural (L::nth Natural 0 nums) 1)
-      (assert-eq Natural (L::nth Natural 2 nums) 3)
-      (assert-eq Natural
-        (P::length-list Natural (L::init Natural nums))
-        2)
-      (assert-eq Natural
-        (P::head Natural (L::init Natural nums))
-        1)
-      (assert-eq Natural
-        (P::head Natural (L::take Natural 2 nums))
-        1)
-      (assert-eq Natural
-        (P::head Natural (L::drop Natural 1 nums))
-        2)
-      (assert-eq String
-        (P::head String (L::drop-until String "b" strs))
-        "b")
-      (assert-eq Boolean (L::member String "b" strs) true)
-      (assert-eq Boolean (L::member String "z" strs) false)
-      (assert-eq Boolean
-        (L::any Natural
-          (function x Natural returns Boolean value
-            Order::greater-than Natural x 2
-          end)
-          nums)
-        true)
-      (assert-eq Natural
-        (L::count Natural
-          (function x Natural returns Boolean value
-            Order::greater-than Natural x 1
-          end)
-          nums)
-        2)
-      (assert-eq Boolean
-        (L::all Natural
-          (function x Natural returns Boolean value
-            Order::greater-than Natural x 0
-          end)
-          nums)
-        true)
-      (assert-eq Natural
-        (L::count-prefix Natural
-          (function x Natural returns Boolean value
-            Order::less-than Natural x 3
-          end)
-          nums)
-        2)
-      (assert-eq Natural
-        (P::length-list Natural (L::slice Natural 1 2 nums))
-        2)
-      (assert-eq Natural
-        (P::head Natural (L::slice Natural 1 2 nums))
-        2)
-      (assert-eq Natural
-        (L::last Natural (L::slice Natural 1 2 nums))
-        3)
-      (assert-eq Natural (sum nums) 6)
-      (assert-eq Natural
-        (P::length-list Natural (L::reverse Natural nums))
-        3)
-      (assert-eq Natural
-        (P::head Natural (L::reverse Natural nums))
-        3)
-      (assert-eq Natural
-        (P::length-list Natural (L::concat Natural list-of-lists))
-        3)
-      (assert-eq Natural
-        (P::head Natural (L::concat Natural list-of-lists))
-        1)
-      (assert-eq Natural
-        (L::last Natural (L::concat Natural list-of-lists))
-        3)
-      (assert-eq String
-        (P::head String (L::sort-strings-by-length unsorted-strings))
-        "a")
-      (assert-eq String
-        (L::nth String 1 (L::sort-strings-by-length unsorted-strings))
-        "cc")
-      (assert-eq String
-        (L::last String (L::sort-strings-by-length unsorted-strings))
-        "bbb")
-      (assert-eq Natural
-        (P::head Natural
-          (L::sort-by Natural
-            (function a Natural b Natural returns Boolean value
-              Order::less-than Natural a b
-            end)
-            unsorted-nats))
-        1)
-      (assert-eq Natural
-        (L::nth Natural 1
-          (L::sort-by Natural
-            (function a Natural b Natural returns Boolean value
-              Order::less-than Natural a b
-            end)
-            unsorted-nats))
-        2)
-      (assert-eq Natural
-        (L::last Natural
-          (L::sort-by Natural
-            (function a Natural b Natural returns Boolean value
-              Order::less-than Natural a b
-            end)
-            unsorted-nats))
-        3)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (L::is-empty Natural nums) false)
+      , (assert-eq Boolean (L::is-empty Natural (of-type [] (List Natural))) true)
+      , (assert-eq Natural (L::length Natural nums) 3)
+      , (assert-eq Natural (L::first Natural nums) 1)
+      , (assert-eq Natural (L::last Natural nums) 3)
+      , (assert-eq Natural (L::nth Natural 0 nums) 1)
+      , (assert-eq Natural (L::nth Natural 2 nums) 3)
+      , (assert-eq Natural
+                                                              (P::length-list Natural (L::init Natural nums))
+                                                              2)
+      , (assert-eq Natural
+                                                                (P::head Natural (L::init Natural nums))
+                                                                1)
+      , (assert-eq Natural
+                                                                  (P::head Natural (L::take Natural 2 nums))
+                                                                  1)
+      , (assert-eq Natural
+                                                                    (P::head Natural (L::drop Natural 1 nums))
+                                                                    2)
+      , (assert-eq String
+                                                                      (P::head String (L::drop-until String "b" strs))
+                                                                      "b")
+      , (assert-eq Boolean (L::member String "b" strs) true)
+      , (assert-eq Boolean (L::member String "z" strs) false)
+      , (assert-eq Boolean
+                                                                            (L::any Natural
+                                                                              (function x Natural returns Boolean value
+                                                                                Order::greater-than Natural x 2
+                                                                              end)
+                                                                              nums)
+                                                                            true)
+      , (assert-eq Natural
+                                                                              (L::count Natural
+                                                                                (function x Natural returns Boolean value
+                                                                                  Order::greater-than Natural x 1
+                                                                                end)
+                                                                                nums)
+                                                                              2)
+      , (assert-eq Boolean
+                                                                                (L::all Natural
+                                                                                  (function x Natural returns Boolean value
+                                                                                    Order::greater-than Natural x 0
+                                                                                  end)
+                                                                                  nums)
+                                                                                true)
+      , (assert-eq Natural
+                                                                                  (L::count-prefix Natural
+                                                                                    (function x Natural returns Boolean value
+                                                                                      Order::less-than Natural x 3
+                                                                                    end)
+                                                                                    nums)
+                                                                                  2)
+      , (assert-eq Natural
+                                                                                    (P::length-list Natural (L::slice Natural 1 2 nums))
+                                                                                    2)
+      , (assert-eq Natural
+                                                                                      (P::head Natural (L::slice Natural 1 2 nums))
+                                                                                      2)
+      , (assert-eq Natural
+                                                                                        (L::last Natural (L::slice Natural 1 2 nums))
+                                                                                        3)
+      , (assert-eq Natural (sum nums) 6)
+      , (assert-eq Natural
+                                                                                            (P::length-list Natural (L::reverse Natural nums))
+                                                                                            3)
+      , (assert-eq Natural
+                                                                                              (P::head Natural (L::reverse Natural nums))
+                                                                                              3)
+      , (assert-eq Natural
+                                                                                                (P::length-list Natural (L::concat Natural list-of-lists))
+                                                                                                3)
+      , (assert-eq Natural
+                                                                                                  (P::head Natural (L::concat Natural list-of-lists))
+                                                                                                  1)
+      , (assert-eq Natural
+                                                                                                    (L::last Natural (L::concat Natural list-of-lists))
+                                                                                                    3)
+      , (assert-eq String
+                                                                                                      (P::head String (L::sort-strings-by-length unsorted-strings))
+                                                                                                      "a")
+      , (assert-eq String
+                                                                                                        (L::nth String 1 (L::sort-strings-by-length unsorted-strings))
+                                                                                                        "cc")
+      , (assert-eq String
+                                                                                                          (L::last String (L::sort-strings-by-length unsorted-strings))
+                                                                                                          "bbb")
+      , (assert-eq Natural
+                                                                                                            (P::head Natural
+                                                                                                              (L::sort-by Natural
+                                                                                                                (function a Natural b Natural returns Boolean value
+                                                                                                                  Order::less-than Natural a b
+                                                                                                                end)
+                                                                                                                unsorted-nats))
+                                                                                                            1)
+      , (assert-eq Natural
+                                                                                                              (L::nth Natural 1
+                                                                                                                (L::sort-by Natural
+                                                                                                                  (function a Natural b Natural returns Boolean value
+                                                                                                                    Order::less-than Natural a b
+                                                                                                                  end)
+                                                                                                                  unsorted-nats))
+                                                                                                              2)
+      , (assert-eq Natural
+                                                                                                                (L::last Natural
+                                                                                                                  (L::sort-by Natural
+                                                                                                                    (function a Natural b Natural returns Boolean value
+                                                                                                                      Order::less-than Natural a b
+                                                                                                                    end)
+                                                                                                                    unsorted-nats))
+                                                                                                                3)
+      ])
   end
 
   define transparent main as compute

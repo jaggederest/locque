@@ -1,3 +1,4 @@
+import prelude as P
 # Test: Dump output via smyth for type and core views
 
 import shell as S
@@ -35,14 +36,15 @@ module test::shell::dump contains
     bind output from perform
       (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/prelude.lq map")
     then
-      sequence
-        (assert-eq Boolean
-          (Str::string-contains "(for-all (x A) B)" output)
-          true)
-        (assert-eq Boolean
-          (Str::string-contains "Types::Function" output)
-          false)
-      end
+      perform (P::sequence-unit
+        [
+          (assert-eq Boolean
+                                                              (Str::string-contains "(for-all (x A) B)" output)
+                                                              true)
+        , (assert-eq Boolean
+                                                                (Str::string-contains "Types::Function" output)
+                                                                false)
+        ])
     end
   end
 
@@ -50,14 +52,15 @@ module test::shell::dump contains
     bind output from perform
       (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/either.lq map-right")
     then
-      sequence
-        (assert-eq Boolean
-          (Str::string-contains "(Types::Function B C)" output)
-          false)
-        (assert-eq Boolean
-          (Str::string-contains "(for-all (x B) C)" output)
-          true)
-      end
+      perform (P::sequence-unit
+        [
+          (assert-eq Boolean
+                                                              (Str::string-contains "(Types::Function B C)" output)
+                                                              false)
+        , (assert-eq Boolean
+                                                                (Str::string-contains "(for-all (x B) C)" output)
+                                                                true)
+        ])
     end
   end
 
@@ -73,12 +76,13 @@ module test::shell::dump contains
   end
 
   define transparent main as compute
-    sequence
-      test-dump-types
-      test-dump-core
-      test-dump-types-normalized
-      test-dump-types-normalized-either
-      test-dump-types-elaborated
-    end
+    perform (P::sequence-unit
+      [
+        test-dump-types
+      , test-dump-core
+      , test-dump-types-normalized
+      , test-dump-types-normalized-either
+      , test-dump-types-elaborated
+      ])
   end
 end

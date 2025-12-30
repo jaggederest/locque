@@ -8,80 +8,82 @@ import typeclass::equality as Eq
 
 module test::prelude::new_primitives contains
   define transparent list-abc as
-    P::cons String "a"
-      (P::cons String "b"
-        (P::cons String "c" (P::nil String)))
+    ["a", "b", "c"]
 
   define transparent list-abc-init as
     L::list-init String list-abc
 
   define transparent list-single as
-    P::cons String "x" (P::nil String)
+    ["x"]
 
   define transparent list-single-init as
     L::list-init String list-single
 
   define transparent test-ends-with as compute
-    sequence
-      (A::assert-eq String
-        (match (S::string-ends-with "" "hello") of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "yes")
-      (A::assert-eq String
-        (match (S::string-ends-with "lo" "hello") of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "yes")
-      (A::assert-eq String
-        (match (S::string-ends-with "hello" "hello") of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "yes")
-      (A::assert-eq String
-        (match (S::string-ends-with "hi" "hello") of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "no")
-      (A::assert-eq String
-        (match (S::string-ends-with "ello" "hello") of-type Boolean as ignored returns String
-          case Boolean::false as "no"
-          case Boolean::true as "yes"
-        end)
-        "yes")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+                                                (match (S::string-ends-with "" "hello") of-type Boolean as ignored returns String
+                                                  case Boolean::false as "no"
+                                                  case Boolean::true as "yes"
+                                                end)
+                                                "yes")
+      , (A::assert-eq String
+                                                  (match (S::string-ends-with "lo" "hello") of-type Boolean as ignored returns String
+                                                    case Boolean::false as "no"
+                                                    case Boolean::true as "yes"
+                                                  end)
+                                                  "yes")
+      , (A::assert-eq String
+                                                    (match (S::string-ends-with "hello" "hello") of-type Boolean as ignored returns String
+                                                      case Boolean::false as "no"
+                                                      case Boolean::true as "yes"
+                                                    end)
+                                                    "yes")
+      , (A::assert-eq String
+                                                      (match (S::string-ends-with "hi" "hello") of-type Boolean as ignored returns String
+                                                        case Boolean::false as "no"
+                                                        case Boolean::true as "yes"
+                                                      end)
+                                                      "no")
+      , (A::assert-eq String
+                                                        (match (S::string-ends-with "ello" "hello") of-type Boolean as ignored returns String
+                                                          case Boolean::false as "no"
+                                                          case Boolean::true as "yes"
+                                                        end)
+                                                        "yes")
+      ])
   end
 
   define transparent test-index-of as compute
-    sequence
-      (A::assert-eq Natural (S::string-index-of "ell" "hello") 1)
-      (A::assert-eq Natural (S::string-index-of "h" "hello") 0)
-      (A::assert-eq Natural (S::string-index-of "o" "hello") 4)
-      (A::assert-eq Natural (S::string-index-of "xyz" "hello") 5)
-      (A::assert-eq Natural (S::string-index-of "lo" "hello") 3)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (S::string-index-of "ell" "hello") 1)
+      , (A::assert-eq Natural (S::string-index-of "h" "hello") 0)
+      , (A::assert-eq Natural (S::string-index-of "o" "hello") 4)
+      , (A::assert-eq Natural (S::string-index-of "xyz" "hello") 5)
+      , (A::assert-eq Natural (S::string-index-of "lo" "hello") 3)
+      ])
   end
 
   define transparent test-list-last-init as compute
-    sequence
-      (A::assert-eq String (L::list-last String list-abc) "c")
-      (A::assert-eq Natural (P::length-list String list-abc-init) 2)
-      (A::assert-eq String (L::nth String 0 list-abc-init) "a")
-      (A::assert-eq String (L::nth String 1 list-abc-init) "b")
-      (A::assert-eq String (L::list-last String list-single) "x")
-      (A::assert-eq Natural (P::length-list String list-single-init) 0)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String (L::list-last String list-abc) "c")
+      , (A::assert-eq Natural (P::length-list String list-abc-init) 2)
+      , (A::assert-eq String (L::nth String 0 list-abc-init) "a")
+      , (A::assert-eq String (L::nth String 1 list-abc-init) "b")
+      , (A::assert-eq String (L::list-last String list-single) "x")
+      , (A::assert-eq Natural (P::length-list String list-single-init) 0)
+      ])
   end
 
   define transparent main as compute
-    sequence
-      test-ends-with
-      test-index-of
-      test-list-last-init
-    end
+    perform (P::sequence-unit
+      [
+        test-ends-with
+      , test-index-of
+      , test-list-last-init
+      ])
   end
 end

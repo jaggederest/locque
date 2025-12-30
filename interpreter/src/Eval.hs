@@ -698,6 +698,7 @@ evalExpr env expr = case expr of
     LString s -> VString s
     LBoolean b   -> VBoolean b
     LUnit     -> VUnit
+  EListLiteral elems -> VList <$> mapM (evalExpr env) elems
   ETypeConst tc -> pure (VTypeConst tc)
   EData _ _ _ -> pure (VTypeData "<data>")
   ETypeUniverse n -> pure (VTypeUniverse n)
@@ -838,9 +839,6 @@ runComp env comp = case comp of
     case val of
       VComp action -> action
       _ -> error "perform expects a computation value"
-  CSeq c1 c2 -> do
-    _ <- runComp env c1
-    runComp env c2
 
 -- Import loading
 

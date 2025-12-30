@@ -10,63 +10,69 @@ open Eq exposing Equality end
 
 module test::arithmetic::basics contains
   define transparent test-min-max as compute
-    sequence
-      (assert-eq Natural (Ar::min 5 3) 3)
-      (assert-eq Natural (Ar::min 2 8) 2)
-      (assert-eq Natural (Ar::min 7 7) 7)
-      (assert-eq Natural (Ar::max 5 3) 5)
-      (assert-eq Natural (Ar::max 2 8) 8)
-      (assert-eq Natural (Ar::max 7 7) 7)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (Ar::min 5 3) 3)
+      , (assert-eq Natural (Ar::min 2 8) 2)
+      , (assert-eq Natural (Ar::min 7 7) 7)
+      , (assert-eq Natural (Ar::max 5 3) 5)
+      , (assert-eq Natural (Ar::max 2 8) 8)
+      , (assert-eq Natural (Ar::max 7 7) 7)
+      ])
   end
 
   define transparent test-abs-diff as compute
-    sequence
-      (assert-eq Natural (Ar::abs-diff 10 3) 7)
-      (assert-eq Natural (Ar::abs-diff 3 10) 7)
-      (assert-eq Natural (Ar::abs-diff 5 5) 0)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (Ar::abs-diff 10 3) 7)
+      , (assert-eq Natural (Ar::abs-diff 3 10) 7)
+      , (assert-eq Natural (Ar::abs-diff 5 5) 0)
+      ])
   end
 
   define transparent test-clamp as compute
-    sequence
-      (assert-eq Natural (Ar::clamp 10 20 15) 15)
-      (assert-eq Natural (Ar::clamp 10 20 5) 10)
-      (assert-eq Natural (Ar::clamp 10 20 25) 20)
-      (assert-eq Natural (Ar::clamp 10 20 10) 10)
-      (assert-eq Natural (Ar::clamp 10 20 20) 20)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (Ar::clamp 10 20 15) 15)
+      , (assert-eq Natural (Ar::clamp 10 20 5) 10)
+      , (assert-eq Natural (Ar::clamp 10 20 25) 20)
+      , (assert-eq Natural (Ar::clamp 10 20 10) 10)
+      , (assert-eq Natural (Ar::clamp 10 20 20) 20)
+      ])
   end
 
   define transparent test-even-odd as compute
-    sequence
-      (assert-eq Boolean (Ar::even 0) true)
-      (assert-eq Boolean (Ar::even 2) true)
-      (assert-eq Boolean (Ar::even 1) false)
-      (assert-eq Boolean (Ar::even 42) true)
-      (assert-eq Boolean (Ar::odd 1) true)
-      (assert-eq Boolean (Ar::odd 2) false)
-      (assert-eq Boolean (Ar::odd 17) true)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Ar::even 0) true)
+      , (assert-eq Boolean (Ar::even 2) true)
+      , (assert-eq Boolean (Ar::even 1) false)
+      , (assert-eq Boolean (Ar::even 42) true)
+      , (assert-eq Boolean (Ar::odd 1) true)
+      , (assert-eq Boolean (Ar::odd 2) false)
+      , (assert-eq Boolean (Ar::odd 17) true)
+      ])
   end
 
   define transparent test-is-zero-positive as compute
-    sequence
-      (assert-eq Boolean (Ar::is-zero 0) true)
-      (assert-eq Boolean (Ar::is-zero 1) false)
-      (assert-eq Boolean (Ar::is-positive 0) false)
-      (assert-eq Boolean (Ar::is-positive 1) true)
-      (assert-eq Boolean (Ar::is-positive 100) true)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Ar::is-zero 0) true)
+      , (assert-eq Boolean (Ar::is-zero 1) false)
+      , (assert-eq Boolean (Ar::is-positive 0) false)
+      , (assert-eq Boolean (Ar::is-positive 1) true)
+      , (assert-eq Boolean (Ar::is-positive 100) true)
+      ])
   end
 
   define transparent main as compute
-    sequence
-      test-min-max
-      test-abs-diff
-      test-clamp
-      test-even-odd
-      test-is-zero-positive
-    end
+    perform (P::sequence-unit
+      [
+        test-min-max
+      , test-abs-diff
+      , test-clamp
+      , test-even-odd
+      , test-is-zero-positive
+      ])
   end
 end

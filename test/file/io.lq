@@ -1,3 +1,4 @@
+import prelude as P
 import assert as A
 import file as File
 import string as S
@@ -30,14 +31,15 @@ module test::file::io contains
     end
 
   define transparent ensure-clean as compute
-    sequence
-      (File::remove-file (path "/a.txt"))
-      (File::remove-file (path "/b.txt"))
-      (File::remove-file (path "/c.txt"))
-      (File::remove-directory (path "/dir_old"))
-      (File::remove-directory (path "/dir_new"))
-      (File::remove-directory (path "/dir_remove"))
-    end
+    perform (P::sequence-unit
+      [
+        (File::remove-file (path "/a.txt"))
+      , (File::remove-file (path "/b.txt"))
+      , (File::remove-file (path "/c.txt"))
+      , (File::remove-directory (path "/dir_old"))
+      , (File::remove-directory (path "/dir_new"))
+      , (File::remove-directory (path "/dir_remove"))
+      ])
   end
 
   define transparent ensure-base as compute
@@ -87,23 +89,24 @@ module test::file::io contains
   end
 
   define transparent main as compute
-    sequence
-      ensure-clean
-      ensure-base
-      write-base
-      append-and-read
-      copy-and-read
-      rename-copy
-      (assert-path-exists (path "/b.txt") false)
-      (assert-path-exists (path "/c.txt") true)
-      (assert-is-file (path "/c.txt") true)
-      remove-copy
-      (assert-path-exists (path "/c.txt") false)
-      rename-dir
-      (assert-path-exists (path "/dir_new") true)
-      (assert-is-file (path "/dir_new") false)
-      remove-dir-recursive
-      (assert-path-exists (path "/dir_remove") false)
-    end
+    perform (P::sequence-unit
+      [
+        ensure-clean
+      , ensure-base
+      , write-base
+      , append-and-read
+      , copy-and-read
+      , rename-copy
+      , (assert-path-exists (path "/b.txt") false)
+      , (assert-path-exists (path "/c.txt") true)
+      , (assert-is-file (path "/c.txt") true)
+      , remove-copy
+      , (assert-path-exists (path "/c.txt") false)
+      , rename-dir
+      , (assert-path-exists (path "/dir_new") true)
+      , (assert-is-file (path "/dir_new") false)
+      , remove-dir-recursive
+      , (assert-path-exists (path "/dir_remove") false)
+      ])
   end
 end

@@ -95,12 +95,13 @@ module test::project contains
                 let value expected be P::map String String lib-to-test lib-files in
                   let value missing be missing-tests expected test-files in
                     compute
-                      sequence
-                        (A::assert-false (uppercase-message upper-all)
-                          (P::not (L::is-empty String upper-all)))
-                        (A::assert-false (missing-message missing)
-                          (P::not (L::is-empty String missing)))
-                      end
+                      perform (P::sequence-unit
+                        [
+                          (A::assert-false (uppercase-message upper-all)
+                                                                                                                                                                              (P::not (L::is-empty String upper-all)))
+                        , (A::assert-false (missing-message missing)
+                                                                                                                                                                                (P::not (L::is-empty String missing)))
+                        ])
                     end
                   end
                 end
@@ -120,8 +121,9 @@ module test::project contains
   end
 
   define transparent main as compute
-    sequence
-      check-lib-tests
-    end
+    perform (P::sequence-unit
+      [
+        check-lib-tests
+      ])
   end
 end

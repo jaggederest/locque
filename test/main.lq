@@ -1,3 +1,4 @@
+import prelude as P
 # Main test entry point
 # Runs all library rollups
 
@@ -29,32 +30,33 @@ import test::new_syntax_test as test_new_syntax_test
 
 module test::main contains
   define transparent run-tests as compute
-    sequence
-      test_project::main
-      test_prelude::main
-      test_arithmetic::main
-      test_list::main
-      test_natural::main
-      test_assert::main
-      test_string::main
-      test_io::main
-      test_time::main
-      test_file::main
-      test_cli::main
-      test_path::main
-      test_option::main
-      test_result::main
-      test_either::main
-      test_shell::main
-      test_testimport::main
-      test_typeclass::main
-      test_type_aliases::main
-      test_logic::main
-      test_typecheck::main
-      test_syntax::main
-      test_tools::main
-      test_new_syntax_test::main
-    end
+    perform (P::sequence-unit
+      [
+        test_project::main
+      , test_prelude::main
+      , test_arithmetic::main
+      , test_list::main
+      , test_natural::main
+      , test_assert::main
+      , test_string::main
+      , test_io::main
+      , test_time::main
+      , test_file::main
+      , test_cli::main
+      , test_path::main
+      , test_option::main
+      , test_result::main
+      , test_either::main
+      , test_shell::main
+      , test_testimport::main
+      , test_typeclass::main
+      , test_type_aliases::main
+      , test_logic::main
+      , test_typecheck::main
+      , test_syntax::main
+      , test_tools::main
+      , test_new_syntax_test::main
+      ])
   end
 
   define transparent main as compute

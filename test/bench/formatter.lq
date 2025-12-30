@@ -6,10 +6,11 @@ import test::bench::helpers as Bench
 
 module test::bench::formatter contains
   define transparent lines as
-    P::cons String "module bench contains"
-      (P::cons String "  define transparent x as 1"
-        (P::cons String "end"
-          (P::nil String)))
+    [
+      "module bench contains"
+    , "  define transparent x as 1"
+    , "end"
+    ]
 
   define transparent main as compute
     bind ignored from perform

@@ -16,14 +16,14 @@ Value vs computation (CBPV-flavored)
   - M:
     ```
     define transparent read-two as compute
-      bind a from perform read-number then
-        bind b from perform read-number then
+      bind a from perform P::get-line then
+        bind b from perform P::get-line then
           return Pair::pair a b
         end
       end
     end
     ```
-  - S: `(define transparent read-two (compute (bind (a (perform read-number)) (bind (b (perform read-number)) (return (Pair::pair a b))))))`
+  - S: `(define transparent read-two (compute (bind (a (perform P::get-line)) (bind (b (perform P::get-line)) (return (Pair::pair a b))))))`
 
 Opacity and unfolding
 
@@ -60,8 +60,9 @@ Notes on surface cues
 - `define transparent|opaque name as <Value> ...` declares a value; opacity controls δ-unfolding in conversion.
 - Computation values are explicit: `define ... as compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr).
 - `value` and `compute` mark function bodies.
-- `perform ...`, `return ...`, `bind name from ... then ... end`, and `sequence ... end` are the computation sequencing vocabulary.
+- `perform ...`, `return ...`, `bind name from ... then ... end`, plus prelude `sequence`/`sequence-unit` form the computation sequencing vocabulary.
 - `end` closes every multiline construct (function, compute, bind, match, module, open).
+- List literals are canonical: `[]` and `[a, b]` (commas required). Empty lists require an expected `List` type or an explicit `of-type`.
 
 Universe choices and examples
 
@@ -88,11 +89,11 @@ Pattern matching (current surface)
   - M:
     ```
     match xs of-type List A as ignored returns List A
-      case List::empty as List::empty
+      case List::empty as []
       case List::cons with h A t (List A) as List::cons h t
     end
     ```
-  - S: `(match (of-type xs (List A)) ignored (List A) (case List::empty List::empty) (case List::cons (h A) (t (List A)) (List::cons h t)))`
+  - S: `(match (of-type xs (List A)) ignored (List A) (case List::empty (list)) (case List::cons (h A) (t (List A)) (List::cons h t)))`
 
 - Boolean:
   - M:
@@ -136,20 +137,22 @@ Total values vs. effectful computations
 - Effectful computation:
   - M:
     ```
-    define transparent read-and-increment as compute
-      bind n from perform read-number then
-        return add-nat n 1
+    define transparent read-and-echo as compute
+      bind line from perform P::get-line then
+        bind ignored from perform (IO::print line) then
+          return Unit::tt
+        end
       end
     end
     ```
-  - S: `(define transparent read-and-increment (compute (bind (n (perform read-number)) (return (add-nat n 1)))))`
+  - S: `(define transparent read-and-echo (compute (bind (line (perform P::get-line)) (bind (ignored (perform (IO::print line))) (return Unit::tt)))))`
   - It is a computation value; it does not run until `perform`.
 
 Operators as ordinary identifiers (no infix)
 
 - Addition as prefix application:
-  - M: `define transparent add4 as add-nat 2 2 2 4`
-  - S: `(define transparent add4 (add-nat 2 2 2 4))`
+  - M: `define transparent add4 as add-nat 2 2`
+  - S: `(define transparent add4 (add-nat 2 2))`
   - Meaning: left-associated application; no precedence rules beyond application.
 
 Termination and coverage illustrations

@@ -44,30 +44,31 @@ module test::logic::basics contains
   define transparent decide-list-true as
     unpack
       (P::decide-eq-list Natural P::decide-eq-nat
-        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
-        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural))))
+        [1, 2]
+        [1, 2])
       as b ignored in b end
 
   define transparent decide-list-false as
     unpack
       (P::decide-eq-list Natural P::decide-eq-nat
-        (P::cons Natural 1 (P::cons Natural 2 (P::nil Natural)))
-        (P::cons Natural 1 (P::cons Natural 3 (P::nil Natural))))
+        [1, 2]
+        [1, 3])
       as b ignored in b end
 
   define transparent test-decisions as compute
-    sequence
-      (assert-eq Boolean decide-nat-true true)
-      (assert-eq Boolean decide-nat-false false)
-      (assert-eq Boolean decide-string-true true)
-      (assert-eq Boolean decide-string-false false)
-      (assert-eq Boolean decide-bool-true true)
-      (assert-eq Boolean decide-bool-false false)
-      (assert-eq Boolean decide-pair-true true)
-      (assert-eq Boolean decide-pair-false false)
-      (assert-eq Boolean decide-list-true true)
-      (assert-eq Boolean decide-list-false false)
-    end
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean decide-nat-true true)
+      , (assert-eq Boolean decide-nat-false false)
+      , (assert-eq Boolean decide-string-true true)
+      , (assert-eq Boolean decide-string-false false)
+      , (assert-eq Boolean decide-bool-true true)
+      , (assert-eq Boolean decide-bool-false false)
+      , (assert-eq Boolean decide-pair-true true)
+      , (assert-eq Boolean decide-pair-false false)
+      , (assert-eq Boolean decide-list-true true)
+      , (assert-eq Boolean decide-list-false false)
+      ])
   end
 
   define transparent main as compute

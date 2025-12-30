@@ -1,3 +1,4 @@
+import prelude as P
 import assert as A
 import tools::validator as V
 import typeclass::equality as Eq
@@ -10,9 +11,10 @@ module test::tools::validator contains
     "module sample::bad contains\n  define transparent main as compute\n    return tt\n  end\n"
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Boolean (V::validate-string valid-source) true)
-      (A::assert-eq Boolean (V::validate-string invalid-source) false)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean (V::validate-string valid-source) true)
+      , (A::assert-eq Boolean (V::validate-string invalid-source) false)
+      ])
   end
 end

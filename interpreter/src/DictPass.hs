@@ -336,6 +336,7 @@ transformExpr ctx expr = case expr of
         | not (Set.member name (ctxBound ctx)) -> EVar replacement
       _ -> expr
   ELit _ -> expr
+  EListLiteral elems -> EListLiteral (map (transformExpr ctx) elems)
   ETypeConst _ -> expr
   ETypeUniverse _ -> expr
   EForAll v dom cod ->
@@ -423,7 +424,6 @@ transformComp ctx comp = case comp of
         ctx' = ctx { ctxBound = Set.insert name (ctxBound ctx) }
         c2' = transformComp ctx' c2
     in CBind name c1' c2'
-  CSeq c1 c2 -> CSeq (transformComp ctx c1) (transformComp ctx c2)
 
 transformMatchCase :: TransformCtx -> MatchCase -> MatchCase
 transformMatchCase ctx (MatchCase ctor binders body) =

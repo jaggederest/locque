@@ -1,3 +1,4 @@
+import prelude as P
 # Test rollup for io module
 # Runs all tests in test/io/
 
@@ -5,8 +6,9 @@ import test::io::print as print_tests
 
 module test::io contains
   define transparent main as compute
-    sequence
-      print_tests::main
-    end
+    perform (P::sequence-unit
+      [
+        print_tests::main
+      ])
   end
 end

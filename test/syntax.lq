@@ -1,12 +1,16 @@
+import prelude as P
 # Test rollup for syntax modules
 # Runs all tests in test/syntax/
 
 import test::syntax::comments as comments
+import test::syntax::list_literals as list_literals
 
 module test::syntax contains
   define transparent main as compute
-    sequence
-      comments::main
-    end
+    perform (P::sequence-unit
+      [
+        comments::main
+      , list_literals::main
+      ])
   end
 end

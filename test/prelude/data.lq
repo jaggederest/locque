@@ -4,6 +4,7 @@ import prelude as P
 import assert as A
 import typeclass::equality as Eq
 import string as S
+import type_aliases as Types
 
 open A exposing assert-eq end
 open Eq exposing Equality end
@@ -18,7 +19,7 @@ module test::prelude::data contains
   end
 
   define transparent Wrapper as data A Type0 n Natural in Type0
-    case Wrapper::wrap of-type for-all x as A to Wrapper A n
+    case Wrapper::wrap of-type Types::Function A (Wrapper A n)
   end
 
   define transparent Tagged as data n Natural in Type0
@@ -33,16 +34,17 @@ module test::prelude::data contains
 
   define transparent Peano as data in Type0
     case Peano::zero of-type Peano
-    case Peano::succ of-type for-all n as Peano to Peano
+    case Peano::succ of-type Types::Function Peano Peano
   end
 
   define transparent Vec as data A Type0 n Peano in Type0
     case Vec::nil of-type Vec A Peano::zero
     case Vec::cons of-type
       for-all n as Peano to
-      for-all h as A to
-      for-all t as Vec A n to
-      Vec A (Peano::succ n)
+      Types::Function A
+        (Types::Function
+          (Vec A n)
+          (Vec A (Peano::succ n)))
   end
 
   define transparent option-default as
@@ -125,7 +127,7 @@ module test::prelude::data contains
     end
 
   define transparent map-vec as
-    function A Type0 B Type0 n Peano f (for-all x as A to B) xs (Vec A n) returns (Vec B n) value
+    function A Type0 B Type0 n Peano f (Types::Function A B) xs (Vec A n) returns (Vec B n) value
       match xs of-type (Vec A n) as ignored returns (Vec B n)
         case Vec::nil as Vec::nil B
         case Vec::cons with n Peano h A t (Vec A n) as
@@ -143,20 +145,21 @@ module test::prelude::data contains
     end
 
   define transparent main as compute
-    sequence
-      (A::assert-eq Natural (option-default Natural 1 (Option::none Natural)) 1)
-      (A::assert-eq Natural (option-default Natural 1 (Option::some Natural 2)) 2)
-      (A::assert-eq Natural (result-default Natural String 9 (Result::ok Natural String 5)) 5)
-      (A::assert-eq Natural (result-default Natural String 9 (Result::err Natural String "no")) 9)
-      (A::assert-eq Natural (either-sum (Either::left Natural Natural 1)) 2)
-      (A::assert-eq Natural (either-sum (Either::right Natural Natural 1)) 11)
-      (A::assert-eq Natural (unwrap Natural 2 (Wrapper::wrap Natural 2 9)) 9)
-      (A::assert-eq Natural (flagged-value false Flagged::false) 0)
-      (A::assert-eq String (flagged-value true Flagged::true) "yes")
-      (A::assert-eq Natural (head-vec Natural peano-zero vec-one) 7)
-      (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one vec-two)) 7)
-      (A::assert-eq Natural (head-vec Natural peano-zero (map-vec Natural Natural peano-one inc vec-one)) 8)
-      (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one (map-vec Natural Natural peano-two inc vec-two))) 8)
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (option-default Natural 1 (Option::none Natural)) 1)
+      , (A::assert-eq Natural (option-default Natural 1 (Option::some Natural 2)) 2)
+      , (A::assert-eq Natural (result-default Natural String 9 (Result::ok Natural String 5)) 5)
+      , (A::assert-eq Natural (result-default Natural String 9 (Result::err Natural String "no")) 9)
+      , (A::assert-eq Natural (either-sum (Either::left Natural Natural 1)) 2)
+      , (A::assert-eq Natural (either-sum (Either::right Natural Natural 1)) 11)
+      , (A::assert-eq Natural (unwrap Natural 2 (Wrapper::wrap Natural 2 9)) 9)
+      , (A::assert-eq Natural (flagged-value false Flagged::false) 0)
+      , (A::assert-eq String (flagged-value true Flagged::true) "yes")
+      , (A::assert-eq Natural (head-vec Natural peano-zero vec-one) 7)
+      , (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one vec-two)) 7)
+      , (A::assert-eq Natural (head-vec Natural peano-zero (map-vec Natural Natural peano-one inc vec-one)) 8)
+      , (A::assert-eq Natural (head-vec Natural peano-zero (tail-vec Natural peano-one (map-vec Natural Natural peano-two inc vec-two))) 8)
+      ])
   end
 end

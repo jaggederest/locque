@@ -7,33 +7,36 @@ import string as S
 
 module test::prelude::match contains
   define transparent bool-match as compute
-    sequence
-      (A::assert-eq String
-        (match (P::not false) of-type Boolean as ignored returns String
-          case Boolean::false as "false-branch"
-          case Boolean::true as "true-branch"
-        end)
-        "true-branch")
-    end
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+                                                (match (P::not false) of-type Boolean as ignored returns String
+                                                  case Boolean::false as "false-branch"
+                                                  case Boolean::true as "true-branch"
+                                                end)
+                                                "true-branch")
+      ])
   end
 
   define transparent list-match as compute
     bind result from return
-      (match (P::cons String "x" (P::nil String)) of-type (List String) as ignored returns String
+      (match ["x"] of-type (List String) as ignored returns String
         case List::empty as "empty"
         case List::cons with h String t (List String) as h
       end)
     then
-      sequence
-        (A::assert-eq String result "x")
-      end
+      perform (P::sequence-unit
+        [
+          (A::assert-eq String result "x")
+        ])
     end
   end
 
   define transparent main as compute
-    sequence
-      bool-match
-      list-match
-    end
+    perform (P::sequence-unit
+      [
+        bool-match
+      , list-match
+      ])
   end
 end

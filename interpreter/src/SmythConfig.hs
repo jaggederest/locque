@@ -128,6 +128,7 @@ parseErrorTests path expr = do
 
 parseList :: Expr -> Either String [Expr]
 parseList expr = case stripExpr expr of
+  EListLiteral elems -> Right elems
   EVar name
     | isNilName name -> Right []
   EApp f args -> case stripExpr f of
