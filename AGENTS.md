@@ -46,6 +46,7 @@ Notes and working agreements
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
 - Tests under `test/`; run with `smyth test` (entry `test/main.lq`), or `smyth test <file>`.
+- Use `smyth test --slow` to report the slowest test suites from `test/main.lq`.
 - Benchmarks live under `test/bench.lq`; run with `smyth bench`.
 - All tests run with type checking enabled by default (legacy `--skip-typecheck` still available).
 

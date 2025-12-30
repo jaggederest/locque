@@ -2,6 +2,14 @@ import prelude as P
 # Main test entry point
 # Runs all library rollups
 
+import cli as CLI
+import io as IO
+import list as L
+import natural as N
+import string as S
+import time as Time
+import typeclass::order as Order
+
 import test::helpers as TH
 import test::project as test_project
 import test::prelude as test_prelude
@@ -29,37 +37,133 @@ import test::tools as test_tools
 import test::new_syntax_test as test_new_syntax_test
 
 module test::main contains
+  define transparent suites as
+    [
+      (P::pair String (computation Unit) "test_project" test_project::main)
+    , (P::pair String (computation Unit) "test_prelude" test_prelude::main)
+    , (P::pair String (computation Unit) "test_arithmetic" test_arithmetic::main)
+    , (P::pair String (computation Unit) "test_list" test_list::main)
+    , (P::pair String (computation Unit) "test_natural" test_natural::main)
+    , (P::pair String (computation Unit) "test_assert" test_assert::main)
+    , (P::pair String (computation Unit) "test_string" test_string::main)
+    , (P::pair String (computation Unit) "test_io" test_io::main)
+    , (P::pair String (computation Unit) "test_time" test_time::main)
+    , (P::pair String (computation Unit) "test_file" test_file::main)
+    , (P::pair String (computation Unit) "test_cli" test_cli::main)
+    , (P::pair String (computation Unit) "test_path" test_path::main)
+    , (P::pair String (computation Unit) "test_option" test_option::main)
+    , (P::pair String (computation Unit) "test_result" test_result::main)
+    , (P::pair String (computation Unit) "test_either" test_either::main)
+    , (P::pair String (computation Unit) "test_shell" test_shell::main)
+    , (P::pair String (computation Unit) "test_testimport" test_testimport::main)
+    , (P::pair String (computation Unit) "test_typeclass" test_typeclass::main)
+    , (P::pair String (computation Unit) "test_type_aliases" test_type_aliases::main)
+    , (P::pair String (computation Unit) "test_logic" test_logic::main)
+    , (P::pair String (computation Unit) "test_typecheck" test_typecheck::main)
+    , (P::pair String (computation Unit) "test_syntax" test_syntax::main)
+    , (P::pair String (computation Unit) "test_tools" test_tools::main)
+    , (P::pair String (computation Unit) "test_new_syntax_test" test_new_syntax_test::main)
+    ]
+
+  define transparent suite-action as
+    function entry (Pair String (computation Unit)) returns (computation Unit) value
+      match entry of-type (Pair String (computation Unit)) as ignored returns (computation Unit)
+        case Pair::pair with ignored String action (computation Unit) as action
+      end
+    end
+
+  define transparent suite-action-checked as
+    function entry (Pair String (computation Unit)) returns (computation Unit) value
+      match entry of-type (Pair String (computation Unit)) as ignored returns (computation Unit)
+        case Pair::pair with ignored String action (computation Unit) as
+          TH::assert-no-output Unit action
+      end
+    end
+
   define transparent run-tests as compute
     perform (P::sequence-unit
-      [
-        test_project::main
-      , test_prelude::main
-      , test_arithmetic::main
-      , test_list::main
-      , test_natural::main
-      , test_assert::main
-      , test_string::main
-      , test_io::main
-      , test_time::main
-      , test_file::main
-      , test_cli::main
-      , test_path::main
-      , test_option::main
-      , test_result::main
-      , test_either::main
-      , test_shell::main
-      , test_testimport::main
-      , test_typeclass::main
-      , test_type_aliases::main
-      , test_logic::main
-      , test_typecheck::main
-      , test_syntax::main
-      , test_tools::main
-      , test_new_syntax_test::main
-      ])
+      (P::map (Pair String (computation Unit)) (computation Unit) suite-action suites))
   end
 
+  define transparent measure-suite as
+    function entry (Pair String (computation Unit)) returns computation (Pair String Natural) value
+      match entry of-type (Pair String (computation Unit)) as ignored returns computation (Pair String Natural)
+        case Pair::pair with name String action (computation Unit) as
+          compute
+            bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
+              return (P::pair String Natural name (P::snd Unit Natural measured))
+            end
+          end
+      end
+    end
+
+  define transparent measure-suites as
+    function xs (List (Pair String (computation Unit))) returns computation (List (Pair String Natural)) value
+      P::fold-compute (Pair String (computation Unit)) (List (Pair String Natural))
+        (function acc (computation (List (Pair String Natural)))
+                  entry (Pair String (computation Unit))
+        returns computation (List (Pair String Natural)) value
+          compute
+            bind results from perform acc then
+              bind measured from perform (measure-suite entry) then
+                return (P::cons (Pair String Natural) measured results)
+              end
+            end
+          end
+        end)
+        (compute return (of-type [] (List (Pair String Natural))) end)
+        xs
+    end
+
+  define transparent compare-suites as
+    function a (Pair String Natural) b (Pair String Natural) returns Boolean value
+      Order::greater-than Natural (P::snd String Natural a) (P::snd String Natural b)
+    end
+
+  define transparent suite-line as
+    function entry (Pair String Natural) returns String value
+      match entry of-type (Pair String Natural) as ignored returns String
+        case Pair::pair with name String elapsed Natural as
+          S::concat name (S::concat ": " (S::concat (N::to-string elapsed) "us"))
+      end
+    end
+
+  define transparent report-slowest as
+    function results (List (Pair String Natural)) returns computation Unit value
+      let value sorted be L::sort-by (Pair String Natural) compare-suites results in
+        let value top be L::take (Pair String Natural) 5 sorted in
+          let value lines be P::map (Pair String Natural) String suite-line top in
+            compute
+              bind ignored from perform (IO::print "Slowest test suites (us):") then
+                bind ignored from perform (P::sequence-unit
+                  (P::map String (computation Unit) IO::print lines)) then
+                  return Unit::tt
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent run-tests-slow as compute
+    bind results from perform (measure-suites suites) then
+      perform (report-slowest results)
+    end
+  end
+
+  define transparent slow-enabled as
+    function args (List String) returns Boolean value
+      L::contains-string "--slow" args
+    end
+
   define transparent main as compute
-    perform (TH::assert-no-output Unit run-tests)
+    bind args from perform CLI::args then
+      perform
+        (match (slow-enabled args) of-type Boolean as ignored returns (computation Unit)
+          case Boolean::true as run-tests-slow
+          case Boolean::false as TH::assert-no-output Unit run-tests
+        end)
+    end
   end
 end

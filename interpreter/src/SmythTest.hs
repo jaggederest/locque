@@ -51,9 +51,10 @@ runTests :: SmythConfig -> [String] -> IO ()
 runTests config args = do
   -- Change to project root so all paths are relative to it
   setCurrentDirectory (projectRoot config)
-  case args of
-    []    -> runAllTests config
-    files -> runPositiveTests config files
+  let files = filter (/= "--slow") args
+  case files of
+    [] -> runAllTests config
+    _  -> runPositiveTests config files
 
 runAllTests :: SmythConfig -> IO ()
 runAllTests config = do
