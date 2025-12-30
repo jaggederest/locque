@@ -1,6 +1,8 @@
 # Test typeclass method resolution with variable arguments (not just literals)
 # This tests that ETyped wrappers propagate type info through DictPass
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::typecheck::typeclass_variable contains
   # Define a simple typeclass

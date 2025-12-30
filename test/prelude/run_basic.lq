@@ -2,6 +2,8 @@
 # This file tests that `smyth run` can execute a simple program
 
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::prelude::run_basic contains
   define transparent test-run-basic as compute

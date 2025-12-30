@@ -1,5 +1,6 @@
 import prelude as P
 import string as S
+import typeclass::equality as Eq
 
 module cli contains
   define transparent args as cli-args-prim
@@ -76,7 +77,7 @@ module cli contains
       match args of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
         case List::empty as empty-options
         case List::cons with h String t (List String) as
-          match (S::eq h "--") of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+          match (Eq::equals String h "--") of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
             case Boolean::true as P::pair (List String) (List (Pair String String)) t (P::nil (Pair String String))
             case Boolean::false as
               match (S::string-starts-with "--" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))

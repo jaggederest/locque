@@ -33,7 +33,7 @@ module test::file::helpers contains
       match entries of-type (List (Pair String Boolean)) as ignored returns Boolean
         case List::empty as false
         case List::cons with h (Pair String Boolean) t (List (Pair String Boolean)) as
-          match (S::eq (File::walk-path h) target) of-type Boolean as ignored returns Boolean
+          match (Eq::equals String (File::walk-path h) target) of-type Boolean as ignored returns Boolean
             case Boolean::true as File::walk-is-directory h
             case Boolean::false as recur target t
           end

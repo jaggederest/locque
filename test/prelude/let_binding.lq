@@ -2,6 +2,7 @@
 
 import prelude as P
 import assert as A
+import typeclass::equality as Eq
 
 module test::prelude::let_binding contains
   define transparent simple-let as

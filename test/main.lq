@@ -1,18 +1,22 @@
 # Main test entry point
 # Runs all library rollups
 
+import test::helpers as TH
 import test::project as test_project
 import test::prelude as test_prelude
 import test::arithmetic as test_arithmetic
 import test::list as test_list
 import test::natural as test_natural
 import test::assert as test_assert
-import test::comparison as test_comparison
 import test::string as test_string
 import test::io as test_io
+import test::time as test_time
 import test::file as test_file
 import test::cli as test_cli
 import test::path as test_path
+import test::option as test_option
+import test::result as test_result
+import test::either as test_either
 import test::shell as test_shell
 import test::testimport as test_testimport
 import test::typeclass as test_typeclass
@@ -23,7 +27,7 @@ import test::tools as test_tools
 import test::new_syntax_test as test_new_syntax_test
 
 module test::main contains
-  define transparent main as compute
+  define transparent run-tests as compute
     sequence
       test_project::main
       test_prelude::main
@@ -31,12 +35,15 @@ module test::main contains
       test_list::main
       test_natural::main
       test_assert::main
-      test_comparison::main
       test_string::main
       test_io::main
+      test_time::main
       test_file::main
       test_cli::main
       test_path::main
+      test_option::main
+      test_result::main
+      test_either::main
       test_shell::main
       test_testimport::main
       test_typeclass::main
@@ -46,5 +53,9 @@ module test::main contains
       test_tools::main
       test_new_syntax_test::main
     end
+  end
+
+  define transparent main as compute
+    perform (TH::assert-no-output Unit run-tests)
   end
 end

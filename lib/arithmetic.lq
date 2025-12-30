@@ -1,5 +1,6 @@
 import prelude as P
-import comparison as C
+import typeclass::order as Order
+import typeclass::equality as Eq
 
 module arithmetic contains
   define transparent add-nat as add-nat-prim
@@ -10,7 +11,7 @@ module arithmetic contains
 
   define transparent min as
     function a Natural b Natural returns Natural value
-      match (C::lt-nat a b) of-type Boolean as ignored returns Natural
+      match (Order::less-than Natural a b) of-type Boolean as ignored returns Natural
         case Boolean::false as b
         case Boolean::true as a
       end
@@ -18,7 +19,7 @@ module arithmetic contains
 
   define transparent max as
     function a Natural b Natural returns Natural value
-      match (C::gt-nat a b) of-type Boolean as ignored returns Natural
+      match (Order::greater-than Natural a b) of-type Boolean as ignored returns Natural
         case Boolean::false as b
         case Boolean::true as a
       end
@@ -26,7 +27,7 @@ module arithmetic contains
 
   define transparent abs-diff as
     function a Natural b Natural returns Natural value
-      match (C::gt-nat a b) of-type Boolean as ignored returns Natural
+      match (Order::greater-than Natural a b) of-type Boolean as ignored returns Natural
         case Boolean::false as sub-nat b a
         case Boolean::true as sub-nat a b
       end
@@ -39,7 +40,7 @@ module arithmetic contains
 
   define transparent even as
     function n Natural returns Boolean value
-      C::eq-nat (mod-nat n 2) 0
+      Eq::equals Natural (mod-nat n 2) 0
     end
 
   define transparent odd as
@@ -49,11 +50,11 @@ module arithmetic contains
 
   define transparent is-zero as
     function n Natural returns Boolean value
-      C::eq-nat n 0
+      Eq::equals Natural n 0
     end
 
   define transparent is-positive as
     function n Natural returns Boolean value
-      C::gt-nat n 0
+      Order::greater-than Natural n 0
     end
 end

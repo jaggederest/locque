@@ -10,6 +10,7 @@ import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((</>), isAbsolute)
 import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
@@ -56,18 +57,22 @@ runTests config args = do
 
 runAllTests :: SmythConfig -> IO ()
 runAllTests config = do
+  start <- getPOSIXTime
   let testFile = projectRoot config </> testRoot config </> "main.lq"
   (assertions, baseErrors) <- runPositiveTestsWithCounts config [testFile]
   (expectedCount, expectedErrors) <- runExpectedFailures config
   let errors = baseErrors ++ expectedErrors
+  end <- getPOSIXTime
+  let elapsedUs = floor ((end - start) * 1000000) :: Integer
   if null errors
     then do
       putStrLn $
         "✓ All tests passed (" ++ show assertions ++ " assertions, "
-        ++ show expectedCount ++ " expected failures)"
+        ++ show expectedCount ++ " expected failures, "
+        ++ show elapsedUs ++ "us)"
       exitSuccess
     else do
-      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
+      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed (" ++ show elapsedUs ++ "us)\n"
       mapM_ printError errors
       exitFailure
 

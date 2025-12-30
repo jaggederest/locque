@@ -1,3 +1,5 @@
+import prelude as P
+
 module logic contains
   define transparent False as
     equal Boolean true false
@@ -16,7 +18,7 @@ module logic contains
         end
     end
 
-  define transparent decide-eq-nat as decide-eq-nat-prim
-  define transparent decide-eq-string as decide-eq-string-prim
-  define transparent decide-eq-bool as decide-eq-bool-prim
+  define transparent decide-eq-nat as P::decide-eq-nat
+  define transparent decide-eq-string as P::decide-eq-string
+  define transparent decide-eq-bool as P::decide-eq-bool
 end

@@ -10,20 +10,21 @@ Interpreter (Haskell, `interpreter/`)
   - Module names use `::` separator (e.g., `Some::Module::Name`)
   - Map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`)
   - Qualifies names with module/alias and can open explicit names
-- CLI: `locque-interpreter run <file>` (type check + run .lq/.lqs), `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`. Smyth tool: `smyth run <file>` (type check + run), `smyth test` (all via test/main.lq), `smyth test <file>` (one). Installed at `~/.local/bin/smyth`.
-- Smyth tool: `smyth run <file>`, `smyth test` (all), `smyth test <file>` (one). Installed at `~/.local/bin/smyth`.
+- CLI: `locque-interpreter run <file>` (type check + run .lq/.lqs), `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`. Smyth tool: `smyth run <file>` (type check + run), `smyth test` (all via test/main.lq), `smyth test <file>` (one), `smyth bench` (runs test/bench.lq). Installed at `~/.local/bin/smyth`.
+- Smyth tool: `smyth run <file>`, `smyth test` (all), `smyth test <file>` (one), `smyth bench` (benchmarks). Installed at `~/.local/bin/smyth`.
 - Smythfile: `Smythfile.lq` lives at repo root; the only config currently read is `error-tests`, a list of `(file, substring)` expected-failure cases consumed by `smyth test`.
 - Type checker: dependent (Pi/Sigma), explicit universes, strict CBPV; iota for `match`/`unpack`, exhaustiveness checking; native typeclass checking for classes/instances/constraints (DictPass still used for dictionary insertion during evaluation).
 - Validator: checks nonempty names and kind/body match; paren checker with line/col reporting; `validate-prim` returns Boolean for a string (adds trailing newline automatically).
 
 Libraries (`lib/`)
 - Prelude: arithmetic; list ops (nil/cons/head/tail/length/append/map/filter/fold/reverse/drop-until); bool ops (not); pair ops; Option/Either/Result data; id/is-falsy.
-- Assert: assert-eq-nat/string/bool, assert-false.
+- Assert: assert-eq, assert-false.
 - IO: print/shell.
 - String: concat/eq/length/split-on/join-with/trim/substring/index-of/contains/starts/ends/reverse/character/to-list/from-list.
 - File: read/write/append/copy/copy-tree/rename/list-dir/current-directory/path-exists/is-directory/is-file/make-directory/remove-file/remove-directory/walk/stat/lines helpers.
 - CLI: args/options + simple flag parsing helpers.
 - Path: join/dirname/basename/ext/is-absolute.
+- Option/Result/Either: common helpers (map/bind/unwrap/or, conversions).
 - Tools: tokenizer; validator (validate-string via validate-prim).
 - Note: primitives are Haskell scaffolding; aim to replace with locque implementations over time.
 
@@ -37,10 +38,12 @@ Notes and working agreements
 - Use `gsed` (GNU sed) on macOS for `\b`.
 - One test rollup per library module: every `lib/**/*.lq` must have a matching `test/**/*.lq` path; enforced by tooling.
 - Lowercase file paths required for `lib/**/*.lq` and `test/**/*.lq` (module/file names map to lowercase paths); enforced by tooling.
+- Always run `smyth test` after changes.
 
 Examples/tests
 - `examples/00_hello_world.{lq,lqs}`.
-- Tests under `test/`; run all from `interpreter/` with `smyth test` (entry `test/main.lq`), or `smyth test <file>`.
+- Tests under `test/`; run with `smyth test` (entry `test/main.lq`), or `smyth test <file>`.
+- Benchmarks live under `test/bench.lq`; run with `smyth bench`.
 - All tests run with type checking enabled by default (legacy `--skip-typecheck` still available).
 
 Outstanding alignment work

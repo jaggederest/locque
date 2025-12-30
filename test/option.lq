@@ -1,0 +1,12 @@
+# Test rollup for Option module
+# Runs all tests in test/option/
+
+import test::option::basics as basics
+
+module test::option contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

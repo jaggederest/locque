@@ -1,7 +1,8 @@
 import assert as A
-import comparison as C
 import file as File
 import string as S
+import typeclass::equality as Eq
+import typeclass::order as Order
 
 module test::file::stat contains
   define transparent base-dir as "test/tmp/fs_stat"
@@ -25,7 +26,7 @@ module test::file::stat contains
       sequence
         (A::assert-eq String (File::stat-type info) "file")
         (A::assert-eq Natural (File::stat-size info) 4)
-        (A::assert-eq Boolean (C::gt-nat (File::stat-mtime info) 0) true)
+        (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
       end
     end
   end
@@ -35,7 +36,7 @@ module test::file::stat contains
       sequence
         (A::assert-eq String (File::stat-type info) "directory")
         (A::assert-eq Natural (File::stat-size info) 0)
-        (A::assert-eq Boolean (C::gt-nat (File::stat-mtime info) 0) true)
+        (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
       end
     end
   end

@@ -1,5 +1,7 @@
 # Test constraint resolution
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::typecheck::typeclass_resolution contains
   # Define a simple typeclass

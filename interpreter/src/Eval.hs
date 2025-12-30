@@ -4,7 +4,7 @@ module Eval
   ) where
 
 import           AST
-import           Control.Exception (catch, IOException)
+import           Control.Exception (catch, IOException, SomeException, throwIO, try)
 import           Control.Monad (when)
 import           Data.IORef
 import           Data.List (isPrefixOf)
@@ -12,6 +12,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Data.Char (ord)
 import           System.FilePath ((</>), (<.>), takeExtension)
 import           System.Directory
   ( copyFile
@@ -28,7 +29,7 @@ import           System.Directory
   , renameDirectory
   , renameFile
   )
-import           Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import           Data.Time.Clock.POSIX (getPOSIXTime, utcTimeToPOSIXSeconds)
 import qualified Data.Text.IO as TIO
 import           System.Environment (getArgs)
 import           System.IO.Unsafe (unsafePerformIO)
@@ -45,6 +46,11 @@ import qualified TypeChecker as TC
 {-# NOINLINE assertionCounter #-}
 assertionCounter :: IORef Int
 assertionCounter = unsafePerformIO (newIORef 0)
+
+-- Captured output stack (top of stack is current capture, reversed order).
+{-# NOINLINE outputCapture #-}
+outputCapture :: IORef [[Text]]
+outputCapture = unsafePerformIO (newIORef [])
 
 -- Runtime values
 
@@ -113,11 +119,14 @@ primEnv = Map.fromList
   , (T.pack "decide-eq-pair-prim", BVal (VPrim primDecideEqPair))
   , (T.pack "decide-eq-list-prim", BVal (VPrim primDecideEqList))
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
+  , (T.pack "char-code-prim", BVal (VPrim primCharCode))
   , (T.pack "print-prim", BVal (VPrim primPrint))
+  , (T.pack "capture-output-prim", BVal (VPrim primCaptureOutput))
   , (T.pack "assert-hit-prim", BVal (VComp primAssertHit))
   , (T.pack "get-line-prim", BVal (VComp primGetLine))
   , (T.pack "cli-args-prim", BVal (VComp primCliArgs))
   , (T.pack "current-directory-prim", BVal (VComp primCurrentDirectory))
+  , (T.pack "time-now-prim", BVal (VComp primTimeNow))
   , (T.pack "read-file-prim", BVal (VPrim primReadFile))
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
   , (T.pack "shell-prim", BVal (VPrim primShell))
@@ -255,6 +264,13 @@ primConcatString vals = do
   ss <- mapM expectString vals
   pure $ VString (mconcat ss)
 
+primCharCode :: [Value] -> IO Value
+primCharCode [VString s] =
+  case T.unpack s of
+    [c] -> pure $ VNatural (toInteger (ord c))
+    _ -> error "char-code-prim expects a single-character string"
+primCharCode _ = error "char-code-prim expects 1 string arg"
+
 primNil :: [Value] -> IO Value
 primNil [ty] = do
   expectTypeArg ty
@@ -284,11 +300,28 @@ primValidate _ = error "validate-prim expects 1 string"
 
 primPrint :: [Value] -> IO Value
 primPrint [v] = do
-  let action = case v of
-        VString s -> TIO.putStrLn s
-        other     -> TIO.putStrLn (T.pack (show other))
-  pure (VComp (action >> pure VUnit))
+  let line = case v of
+        VString s -> s
+        other     -> T.pack (show other)
+  pure (VComp (writeOutput line >> pure VUnit))
 primPrint _ = error "print-prim expects 1 arg"
+
+primCaptureOutput :: [Value] -> IO Value
+primCaptureOutput [ty, VComp action] = do
+  expectTypeArg ty
+  pure $ VComp $ do
+    modifyIORef' outputCapture ([]:)
+    resultOrEx <- try action
+    stack <- readIORef outputCapture
+    case stack of
+      [] -> error "capture-output-prim stack empty"
+      (buf:rest) -> do
+        writeIORef outputCapture rest
+        case resultOrEx of
+          Left (ex :: SomeException) -> throwIO ex
+          Right result ->
+            pure (VPair (VList (map VString (reverse buf))) result)
+primCaptureOutput _ = error "capture-output-prim expects (Type, computation)"
 
 primAssertHit :: IO Value
 primAssertHit = do
@@ -300,6 +333,13 @@ primGetLine = do
   line <- TIO.getLine
   pure (VString (line <> T.pack "\n"))
 
+writeOutput :: Text -> IO ()
+writeOutput line = do
+  stack <- readIORef outputCapture
+  case stack of
+    [] -> TIO.putStrLn line
+    (buf:rest) -> writeIORef outputCapture ((line : buf) : rest)
+
 primCliArgs :: IO Value
 primCliArgs = do
   args <- getArgs
@@ -309,6 +349,12 @@ primCurrentDirectory :: IO Value
 primCurrentDirectory = do
   dir <- getCurrentDirectory
   pure (VString (T.pack dir))
+
+primTimeNow :: IO Value
+primTimeNow = do
+  t <- getPOSIXTime
+  let micros = floor (t * 1000000)
+  pure (VNatural micros)
 
 primReadFile :: [Value] -> IO Value
 primReadFile [VString path] =

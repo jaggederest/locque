@@ -1,0 +1,25 @@
+# Formatter indent micro-benchmark
+
+import prelude as P
+import tools::formatter_indent as Indent
+import tools::tokenizer as Tokenizer
+import test::bench::helpers as Bench
+
+module test::bench::formatter_indent contains
+  define transparent line as
+    "define transparent example as function x Natural returns Natural value x end"
+
+  define transparent tokens as
+    P::fst (List String) Boolean (Tokenizer::scan-line line)
+
+  define transparent main as compute
+    bind ignored from perform
+      (Bench::bench-value Natural
+        "formatter indent count-openers"
+        200000
+        (Indent::count-openers false tokens))
+    then
+      return tt
+    end
+  end
+end

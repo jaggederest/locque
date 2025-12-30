@@ -1,0 +1,22 @@
+# String micro-benchmark
+
+import string as S
+import test::bench::helpers as Bench
+
+module test::bench::string contains
+  define transparent sample as
+    S::concat
+      "locque benchmarking string with letters and numbers "
+      "0123456789abcdefghijklmnopqrstuvwxyz"
+
+  define transparent main as compute
+    bind ignored from perform
+      (Bench::bench-value String
+        "string sort"
+        500000
+        (S::sort sample))
+    then
+      return tt
+    end
+  end
+end

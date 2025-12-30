@@ -2,6 +2,7 @@
 
 import prelude as P
 import string as S
+import typeclass::equality as Eq
 
 module test::typecheck::fold_inline contains
   define transparent has-item as
@@ -9,7 +10,7 @@ module test::typecheck::fold_inline contains
       P::fold String Boolean
         (function acc Boolean x String returns Boolean value
           match acc of-type Boolean as ignored returns Boolean
-            case Boolean::false as S::eq item x
+            case Boolean::false as Eq::equals String item x
             case Boolean::true as true
           end
         end)

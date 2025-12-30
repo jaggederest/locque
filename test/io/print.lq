@@ -1,14 +1,10 @@
 # IO print smoke test
 
 import io as IO
-import assert as A
-
-open A exposing assert-eq Equality end
+import test::helpers as TH
 
 module test::io::print contains
   define transparent main as compute
-    bind ignored from perform (IO::print "io::print") then
-      perform (assert-eq Boolean true true)
-    end
+    perform (TH::assert-single-output Unit "io::print" (IO::print "io::print"))
   end
 end

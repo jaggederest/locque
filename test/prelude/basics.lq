@@ -4,10 +4,13 @@ import prelude as P
 import assert as A
 import io as IO
 import string as S
-import comparison as C
 import list as L
+import typeclass::equality as Eq
+import typeclass::order as Order
+import test::helpers as TH
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::prelude::basics contains
   define transparent nums as
@@ -27,7 +30,7 @@ module test::prelude::basics contains
 
   define transparent poly as
     function x Type0 returns x value
-      error-prim x "poly"
+      P::error x "poly"
     end
 
   define transparent check-dependent-binders as
@@ -282,9 +285,7 @@ module test::prelude::basics contains
     end
 
   define transparent hello as compute
-    bind ignored from perform (IO::print "Hello, locque!") then
-      return tt
-    end
+    perform (TH::assert-single-output Unit "Hello, locque!" (IO::print "Hello, locque!"))
   end
 
   define transparent check-arithmetic as compute
@@ -330,7 +331,7 @@ module test::prelude::basics contains
       (A::assert-eq String (S::trim "  hi  ") "hi")
       (A::assert-eq String (S::concat "a" "b") "ab")
       (A::assert-eq Natural (S::length "abc") 3)
-      (A::assert-eq Boolean (S::eq "x" "x") true)
+      (A::assert-eq Boolean (Eq::equals String "x" "x") true)
       (A::assert-eq String (S::reverse "abc") "cba")
     end
   end
@@ -427,7 +428,7 @@ module test::prelude::basics contains
         (P::length-list Natural
           (P::filter Natural
             (function x Natural returns Boolean value
-              C::gt-nat x 1
+              Order::greater-than Natural x 1
             end)
             nums))
         2)

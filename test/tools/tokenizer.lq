@@ -1,15 +1,38 @@
-import prelude as P
 import assert as A
+import string as S
+import tools::tokenizer as Tokenizer
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::tools::tokenizer contains
+  define transparent tokens-joined as
+    function pair (Pair (List String) Boolean) returns String value
+      match pair of-type (Pair (List String) Boolean) as ignored returns String
+        case Pair::pair with tokens (List String) ignored Boolean as
+          S::join-with "|" tokens
+      end
+    end
+
+  define transparent scan-block-start as
+    function line String returns Boolean value
+      match (Tokenizer::scan-line line) of-type (Pair (List String) Boolean) as ignored returns Boolean
+        case Pair::pair with ignored (List String) block-start Boolean as block-start
+      end
+    end
+
   define transparent main as compute
     sequence
-      (A::assert-eq Natural
-        (P::length-list String (string-to-list-prim "hi"))
-        2)
-      (A::assert-eq String
-        (P::head String (string-to-list-prim "hi"))
-        "h")
+      (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "a\tb") true)
+      (assert-eq Boolean (Tokenizer::line-has-tab-outside-string "\"\t\"") false)
+      (assert-eq String
+        (tokens-joined (Tokenizer::scan-line "define transparent x as 1 # comment"))
+        "define|transparent|x|as|1")
+      (assert-eq String
+        (tokens-joined (Tokenizer::scan-line "import typeclass::equality as Eq"))
+        "import|typeclass::equality|as|Eq")
+      (assert-eq Boolean (scan-block-start "x /*") true)
     end
   end
 end

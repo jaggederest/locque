@@ -10,6 +10,7 @@ import AST
 import qualified Type as T
 import Data.Char (isAlphaNum, isLetter, isSpace, isAscii)
 import Data.List (intercalate)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as DT
@@ -98,6 +99,7 @@ moduleFromSExprs path sexprs = do
   imports <- mapM (fromImport path) importForms
   opens <- mapM (fromOpen path) openForms
   modVal <- fromSExprModule path modExpr
+  validateImports path imports
   pure modVal { modImports = imports, modOpens = opens }
   where
     partitionImportsOpens :: [SExpr] -> ([SExpr], [SExpr])
@@ -131,6 +133,28 @@ fromImport :: FilePath -> SExpr -> Either String Import
 fromImport _ (SList [SAtom "import", SAtom modName]) = Right (Import modName modName)
 fromImport _ (SList [SAtom "import", SAtom modName, SAtom alias]) = Right (Import modName alias)
 fromImport path other = Left (path ++ ": invalid import form " ++ renderHead other)
+
+validateImports :: FilePath -> [Import] -> Either String ()
+validateImports path imports =
+  case conflicts of
+    (modName, aliases):_ ->
+      Left (path ++ ": conflicting import aliases for module "
+        ++ DT.unpack modName ++ " (" ++ renderAliases aliases ++ ")")
+    [] -> Right ()
+  where
+    grouped = Map.fromListWith (++) [(impModule i, [impAlias i]) | i <- imports]
+    conflicts =
+      [ (modName, aliases)
+      | (modName, aliases) <- Map.toList grouped
+      , not (allSame aliases)
+      ]
+
+    allSame :: [Text] -> Bool
+    allSame [] = True
+    allSame (x:xs) = all (== x) xs
+
+    renderAliases :: [Text] -> String
+    renderAliases = intercalate ", " . map DT.unpack
 
 fromOpen :: FilePath -> SExpr -> Either String Open
 fromOpen _ (SList (SAtom "open" : SAtom modAlias : rest)) =
@@ -455,7 +479,9 @@ parseMExprFile path rawTxt = do
   txt <- preprocessInput path rawTxt
   case M.parse (mExprSpaceConsumer *> pMModule <* mExprSpaceConsumer <* M.eof) path txt of
     Left err -> Left (whitespaceHelp <> M.errorBundlePretty err)
-    Right m  -> Right m
+    Right m  -> do
+      validateImports path (modImports m)
+      Right m
 
 pMModule :: Parser Module
 pMModule = do

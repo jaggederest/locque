@@ -1,0 +1,60 @@
+# Option helpers tests
+
+import assert as A
+import option as Opt
+import prelude as P
+import result as Res
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some Result::ok Result::err end
+
+module test::option::basics contains
+  define transparent inc as
+    function x Natural returns Natural value
+      P::add-nat x 1
+    end
+
+  define transparent some1 as Option::some Natural 1
+  define transparent none-nat as Option::none Natural
+
+  define transparent map-some as
+    Opt::map Natural Natural inc some1
+
+  define transparent map-none as
+    Opt::map Natural Natural inc none-nat
+
+  define transparent bind-some as
+    Opt::and-then Natural Natural
+      (function x Natural returns (P::Option Natural) value
+        Option::some Natural (P::add-nat x 3)
+      end)
+      some1
+
+  define transparent bind-none as
+    Opt::and-then Natural Natural
+      (function x Natural returns (P::Option Natural) value
+        Option::some Natural (P::add-nat x 3)
+      end)
+      none-nat
+
+  define transparent to-result-none as
+    Opt::to-result Natural String "missing" none-nat
+
+  define transparent to-result-some as
+    Opt::to-result Natural String "missing" some1
+
+  define transparent main as compute
+    sequence
+      (assert-eq Boolean (Opt::is-some Natural some1) true)
+      (assert-eq Boolean (Opt::is-none Natural none-nat) true)
+      (assert-eq Natural (Opt::unwrap-or Natural 0 map-some) 2)
+      (assert-eq Natural (Opt::unwrap-or Natural 0 map-none) 0)
+      (assert-eq Natural (Opt::unwrap-or Natural 0 bind-some) 4)
+      (assert-eq Natural (Opt::unwrap-or Natural 0 bind-none) 0)
+      (assert-eq Boolean (Res::is-err Natural String to-result-none) true)
+      (assert-eq Boolean (Res::is-ok Natural String to-result-some) true)
+    end
+  end
+end

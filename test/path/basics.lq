@@ -1,5 +1,7 @@
 import assert as A
 import path as Path
+import typeclass::equality as Eq
+import string as S
 
 module test::path::basics contains
   define transparent main as compute

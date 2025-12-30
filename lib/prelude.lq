@@ -3,6 +3,7 @@ module prelude contains
   define transparent sub-nat as sub-nat-prim
   define transparent nil as List::empty
   define transparent cons as List::cons
+  define transparent error as error-prim
 
   define transparent Option as data A Type0 in Type0
     case Option::none of-type Option A
@@ -21,7 +22,7 @@ module prelude contains
   define transparent head as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        case List::empty as error-prim A "head expects a non-empty list"
+        case List::empty as error A "head expects a non-empty list"
         case List::cons with h A t (List A) as h
       end
     end

@@ -1,28 +1,49 @@
 import prelude as P
-import comparison as C
 import string as S
 import typeclass::equality as Eq
+import typeclass::order as Order
 
 open Eq exposing Equality eq end
 
 module list contains
   define transparent drop-until as
-    function target String xs (List String) returns (List String) value
-      match xs of-type (List String) as ignored returns (List String)
-        case List::empty as P::nil String
-        case List::cons with h String t (List String) as
-          match (S::eq target h) of-type Boolean as ignored returns (List String)
-            case Boolean::false as recur target t
-            case Boolean::true as P::cons String h t
+    function A Type0 target A xs (List A) requires Equality A returns (List A) value
+      let value step be
+        function acc (Pair (List A) Boolean) x A returns (Pair (List A) Boolean) value
+          match acc of-type (Pair (List A) Boolean) as ignored returns (Pair (List A) Boolean)
+            case Pair::pair with kept (List A) found Boolean as
+              match found of-type Boolean as ignored returns (Pair (List A) Boolean)
+                case Boolean::true as P::pair (List A) Boolean (P::cons A x kept) true
+                case Boolean::false as
+                  match (eq target x) of-type Boolean as ignored returns (Pair (List A) Boolean)
+                    case Boolean::true as P::pair (List A) Boolean (P::cons A x kept) true
+                    case Boolean::false as P::pair (List A) Boolean kept false
+                  end
+              end
           end
+        end
+      in
+        let value initial be P::pair (List A) Boolean (P::nil A) false in
+          let value result be P::fold A (Pair (List A) Boolean) step initial xs in
+            match result of-type (Pair (List A) Boolean) as ignored returns (List A)
+              case Pair::pair with kept (List A) found Boolean as
+                P::fold A (List A)
+                  (function acc (List A) x A returns (List A) value
+                    P::cons A x acc
+                  end)
+                  (P::nil A)
+                  kept
+            end
+          end
+        end
       end
     end
   define transparent nth as
     function A Type0 idx Natural xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        case List::empty as error-prim A "nth expects index in bounds"
+        case List::empty as P::error A "nth expects index in bounds"
         case List::cons with h A t (List A) as
-          match (C::eq-nat idx 0) of-type Boolean as ignored returns A
+          match (Eq::equals Natural idx 0) of-type Boolean as ignored returns A
             case Boolean::false as recur A (P::sub-nat idx 1) t
             case Boolean::true as h
           end
@@ -33,7 +54,7 @@ module list contains
       match xs of-type (List A) as ignored returns (List A)
         case List::empty as P::nil A
         case List::cons with h A t (List A) as
-          match (C::eq-nat n 0) of-type Boolean as ignored returns (List A)
+          match (Eq::equals Natural n 0) of-type Boolean as ignored returns (List A)
             case Boolean::false as P::cons A h (recur A (P::sub-nat n 1) t)
             case Boolean::true as P::nil A
           end
@@ -44,7 +65,7 @@ module list contains
       match xs of-type (List A) as ignored returns (List A)
         case List::empty as P::nil A
         case List::cons with h A t (List A) as
-          match (C::eq-nat n 0) of-type Boolean as ignored returns (List A)
+          match (Eq::equals Natural n 0) of-type Boolean as ignored returns (List A)
             case Boolean::false as recur A (P::sub-nat n 1) t
             case Boolean::true as P::cons A h t
           end
@@ -53,7 +74,7 @@ module list contains
   define transparent list-last as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
-        case List::empty as error-prim A "last expects a non-empty list"
+        case List::empty as P::error A "last expects a non-empty list"
         case List::cons with h A t (List A) as
           match t of-type (List A) as ignored returns A
             case List::empty as h
@@ -115,6 +136,11 @@ module list contains
         xs
     end
 
+  define transparent includes as
+    function A Type0 item A xs (List A) requires Equality A returns Boolean value
+      member A item xs
+    end
+
   define transparent contains-string as
     function item String xs (List String) returns Boolean value
       member String item xs
@@ -133,6 +159,19 @@ module list contains
       P::fold A Boolean (any-fn A predicate) false xs
     end
 
+  define transparent count as
+    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Natural value
+      P::fold A Natural
+        (function acc Natural x A returns Natural value
+          match (predicate x) of-type Boolean as ignored returns Natural
+            case Boolean::true as P::add-nat acc 1
+            case Boolean::false as acc
+          end
+        end)
+        0
+        xs
+    end
+
   define transparent all-fn as
     function A Type0 predicate (for-all x as A to Boolean) acc Boolean x A returns Boolean value
       match acc of-type Boolean as ignored returns Boolean
@@ -144,6 +183,18 @@ module list contains
   define transparent all as
     function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Boolean value
       P::fold A Boolean (all-fn A predicate) true xs
+    end
+
+  define transparent count-prefix as
+    function A Type0 predicate (for-all x as A to Boolean) xs (List A) returns Natural value
+      match xs of-type (List A) as ignored returns Natural
+        case List::empty as 0
+        case List::cons with h A t (List A) as
+          match (predicate h) of-type Boolean as ignored returns Natural
+            case Boolean::true as P::add-nat 1 (recur A predicate t)
+            case Boolean::false as 0
+          end
+      end
     end
 
   define transparent slice as
@@ -223,7 +274,7 @@ module list contains
 
   define transparent lt-string-length as
     function a String b String returns Boolean value
-      C::lt-nat (S::length a) (S::length b)
+      Order::less-than Natural (S::length a) (S::length b)
     end
 
   define transparent sort-strings-by-length as

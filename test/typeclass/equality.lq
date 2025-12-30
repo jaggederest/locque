@@ -2,36 +2,12 @@
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import assert as A
 import prelude as P
+import typeclass::equality as Eq
+import string as S
+
+open Eq exposing Equality eq end
 
 module test::typeclass::equality contains
-  # Define Equality typeclass
-  define transparent Equality as typeclass A where
-    eq of-type for-all x as A to for-all y as A to Boolean
-  end
-
-  # Instance: Natural
-  define transparent Equality-Natural as instance Equality Natural where
-    eq as function x Natural y Natural returns Boolean value
-      eq-nat-prim x y
-    end
-  end
-
-  # Instance: String
-  define transparent Equality-String as instance Equality String where
-    eq as function x String y String returns Boolean value
-      eq-string-prim x y
-    end
-  end
-
-  # Instance: Boolean
-  define transparent Equality-Boolean as instance Equality Boolean where
-    eq as function x Boolean y Boolean returns Boolean value
-      match x of-type Boolean as ignored returns Boolean
-        case Boolean::false as P::not y
-        case Boolean::true as y
-      end
-    end
-  end
 
   # Generic equality with constraint
   define transparent eq-value as

@@ -1,8 +1,10 @@
 # Prelude tests for there-exists pack/unpack
 
 import assert as A
+import typeclass::equality as Eq
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::prelude::exists contains
   define transparent sigma-flag as

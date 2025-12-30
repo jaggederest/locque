@@ -2,8 +2,11 @@
 
 import prelude as P
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::prelude::iota contains
   define transparent Flagged as data b Boolean in Type0

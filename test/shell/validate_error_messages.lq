@@ -4,8 +4,10 @@
 import shell as S
 import string as Str
 import assert as A
+import typeclass::equality as Eq
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::shell::validate_error_messages contains
   define transparent test-unqualified-fuzzy-match as compute

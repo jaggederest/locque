@@ -1,0 +1,160 @@
+import prelude as P
+import string as S
+import list as L
+
+open S exposing Character end
+
+  module tools::tokenizer contains
+    define transparent string-token as "<string>"
+
+  define transparent flush-token as
+    function current (List Character) tokens (List String) returns (List String) value
+      match current of-type (List Character) as ignored returns (List String)
+        case List::empty as tokens
+        case List::cons with ignored Character ignored-tail (List Character) as
+          P::cons String (S::from-list (L::reverse Character current)) tokens
+      end
+    end
+
+  define transparent finalize-tokens as
+    function current (List Character) tokens (List String) returns (List String) value
+      L::reverse String (flush-token current tokens)
+    end
+
+  define transparent scan-chars as
+    function chars (List Character)
+             in-string Boolean
+             escaped Boolean
+             current (List Character)
+             tokens (List String)
+    returns (Pair (List String) Boolean) value
+      match chars of-type (List Character) as ignored returns (Pair (List String) Boolean)
+        case List::empty as
+          P::pair (List String) Boolean (finalize-tokens current tokens) false
+        case List::cons with h Character t (List Character) as
+          match in-string of-type Boolean as ignored returns (Pair (List String) Boolean)
+            case Boolean::true as
+              match escaped of-type Boolean as ignored returns (Pair (List String) Boolean)
+                case Boolean::true as recur t true false current tokens
+                case Boolean::false as
+                  match (S::char-is h "\\") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                    case Boolean::true as recur t true true current tokens
+                    case Boolean::false as
+                      match (S::char-is h "\"") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                        case Boolean::true as
+                          let value tokens2 be P::cons String string-token tokens in
+                            recur t false false current tokens2
+                          end
+                        case Boolean::false as recur t true false current tokens
+                      end
+                  end
+              end
+            case Boolean::false as
+              match (S::char-is h "\"") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                case Boolean::true as
+                  let value tokens2 be flush-token current tokens in
+                    recur t true false (P::nil Character) tokens2
+                  end
+                case Boolean::false as
+                  match (S::char-is h "#") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                    case Boolean::true as
+                      match t of-type (List Character) as ignored returns (Pair (List String) Boolean)
+                        case List::empty as
+                          P::pair (List String) Boolean (finalize-tokens current tokens) false
+                        case List::cons with next Character rest (List Character) as
+                          match (S::char-is next "|") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                            case Boolean::true as
+                              let value rest-str be S::from-list rest in
+                                let value closed be S::string-contains "|#" rest-str in
+                                  P::pair (List String) Boolean (finalize-tokens current tokens) (P::not closed)
+                                end
+                              end
+                            case Boolean::false as
+                              P::pair (List String) Boolean (finalize-tokens current tokens) false
+                          end
+                      end
+                    case Boolean::false as
+                      match (S::char-is h ";") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                        case Boolean::true as
+                          P::pair (List String) Boolean (finalize-tokens current tokens) false
+                        case Boolean::false as
+                          match (S::char-is h "/") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                            case Boolean::true as
+                              match t of-type (List Character) as ignored returns (Pair (List String) Boolean)
+                                case List::empty as
+                                  let value tokens2 be flush-token current tokens in
+                                    recur t false false (P::nil Character) tokens2
+                                  end
+                                case List::cons with next Character rest (List Character) as
+                                  match (S::char-is next "*") of-type Boolean as ignored returns (Pair (List String) Boolean)
+                                    case Boolean::true as
+                                      let value rest-str be S::from-list rest in
+                                        let value closed be S::string-contains "*/" rest-str in
+                                          P::pair (List String) Boolean (finalize-tokens current tokens) (P::not closed)
+                                        end
+                                      end
+                                    case Boolean::false as
+                                      let value tokens2 be flush-token current tokens in
+                                        recur t false false (P::nil Character) tokens2
+                                      end
+                                  end
+                              end
+                            case Boolean::false as
+                              match (S::char-is-word h) of-type Boolean as ignored returns (Pair (List String) Boolean)
+                                case Boolean::true as
+                                  recur t false false (P::cons Character h current) tokens
+                                case Boolean::false as
+                                  let value tokens2 be flush-token current tokens in
+                                    recur t false false (P::nil Character) tokens2
+                                  end
+                              end
+                          end
+                      end
+                  end
+              end
+      end
+    end
+    end
+
+  define transparent scan-line as
+    function line String returns (Pair (List String) Boolean) value
+      scan-chars (S::to-list line) false false (P::nil Character) (P::nil String)
+    end
+
+  define transparent scan-tab as
+    function chars (List Character) in-string Boolean escaped Boolean returns Boolean value
+      match chars of-type (List Character) as ignored returns Boolean
+        case List::empty as false
+        case List::cons with h Character t (List Character) as
+          match in-string of-type Boolean as ignored returns Boolean
+            case Boolean::true as
+              match escaped of-type Boolean as ignored returns Boolean
+                case Boolean::true as recur t true false
+                case Boolean::false as
+                  match (S::char-is h "\\") of-type Boolean as ignored returns Boolean
+                    case Boolean::true as recur t true true
+                    case Boolean::false as
+                      match (S::char-is h "\"") of-type Boolean as ignored returns Boolean
+                        case Boolean::true as recur t false false
+                        case Boolean::false as recur t true false
+                      end
+                  end
+              end
+            case Boolean::false as
+              match (S::char-is h "\t") of-type Boolean as ignored returns Boolean
+                case Boolean::true as true
+                case Boolean::false as
+                  match (S::char-is h "\"") of-type Boolean as ignored returns Boolean
+                    case Boolean::true as recur t true false
+                    case Boolean::false as recur t false false
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent line-has-tab-outside-string as
+    function line String returns Boolean value
+      scan-tab (S::to-list line) false false
+    end
+end

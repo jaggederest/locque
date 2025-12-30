@@ -1,0 +1,40 @@
+import prelude as P
+import typeclass::order as Order
+
+module time contains
+  define opaque now as time-now-prim
+
+  define transparent measure as
+    function A Type0 comp (computation A) returns computation (Pair A Natural) value
+      compute
+        bind start from perform now then
+          bind result from perform comp then
+            bind stop from perform now then
+              return
+                (let value elapsed be
+                  match (Order::less-than Natural stop start) of-type Boolean as ignored returns Natural
+                    case Boolean::true as 0
+                    case Boolean::false as P::sub-nat stop start
+                  end
+                in
+                  P::pair A Natural result elapsed
+                end)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent measure-unit as
+    function comp (computation Unit) returns computation Natural value
+      compute
+        bind measured from perform (measure Unit comp) then
+          perform
+            (match measured of-type (Pair Unit Natural) as ignored returns (computation Natural)
+              case Pair::pair with ignored Unit elapsed Natural as
+                compute return elapsed end
+            end)
+        end
+      end
+    end
+end

@@ -1,19 +1,23 @@
 # Migrated from ../99_typecheck_mono.lq
 
+import arithmetic as Arith
+import io as IO
+import string as S
+import typeclass::equality as Eq
+import test::helpers as TH
+
 module test::typecheck::mono contains
   define transparent five as 5
 
-  define transparent ten as add-nat-prim 5 5
+  define transparent ten as Arith::add-nat 5 5
 
   define transparent hello as "hello world"
 
-  define transparent combined as concat-string-prim "hello" " world"
+  define transparent combined as S::concat "hello" " world"
 
-  define transparent is-equal as eq-nat-prim 5 10
+  define transparent is-equal as Eq::equals Natural 5 10
 
   define transparent main as compute
-    sequence
-      (print-prim "Testing type checker")
-    end
+    perform (TH::assert-single-output Unit "Testing type checker" (IO::print "Testing type checker"))
   end
 end

@@ -65,9 +65,20 @@ mergeEnvs :: DictEnvs -> DictEnvs -> DictEnvs
 mergeEnvs left right =
   DictEnvs
     { envClasses = Map.union (envClasses left) (envClasses right)
-    , envInstances = Map.unionWith (++) (envInstances left) (envInstances right)
+    , envInstances =
+        Map.map dedupeInstances
+          (Map.unionWith (++) (envInstances left) (envInstances right))
     , envFns = Map.union (envFns left) (envFns right)
     }
+
+dedupeInstances :: [InstanceInfo] -> [InstanceInfo]
+dedupeInstances insts =
+  let step (seen, acc) inst =
+        let name = instDefName inst
+        in if Set.member name seen
+            then (seen, acc)
+            else (Set.insert name seen, acc ++ [inst])
+  in snd (foldl step (Set.empty, []) insts)
 
 --------------------------------------------------------------------------------
 -- Entry point
@@ -133,7 +144,7 @@ loadDictImport projectRoot (Import modName alias) = do
       localInstancesMap = collectLocalInstances classEnvForResolution openAliases (modDefs parsed)
       localInfo = LocalInfo localClassesMap localFnsMap localInstancesMap
 
-  pure (qualifyLocalInfo alias localInfo)
+  pure (mergeEnvs (qualifyLocalInfo alias localInfo) importEnvs)
   where
     tryLoadFile p = do
       c <- TIO.readFile p

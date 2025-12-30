@@ -1,0 +1,15 @@
+import assert as A
+import tools::formatter_indent as Indent
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::tools::formatter_indent contains
+  define transparent main as compute
+    sequence
+      (assert-eq Natural Indent::indent-step 2)
+      (assert-eq Natural (Indent::indent-width 3) 6)
+    end
+  end
+end

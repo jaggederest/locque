@@ -1,0 +1,9 @@
+# Time module rollup
+
+import test::time::basics as basics
+
+module test::time contains
+  define transparent main as compute
+    perform basics::main
+  end
+end

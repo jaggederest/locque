@@ -9,6 +9,11 @@ module typeclass::equality contains
     eq of-type for-all x as A to for-all y as A to Boolean
   end
 
+  define transparent equals as
+    function A Type0 x A y A requires Equality A returns Boolean value
+      eq x y
+    end
+
   # Instance: Natural
   define transparent Equality-Natural as instance Equality Natural where
     eq as function x Natural y Natural returns Boolean value
@@ -16,12 +21,7 @@ module typeclass::equality contains
     end
   end
 
-  # Instance: String
-  define transparent Equality-String as instance Equality String where
-    eq as function x String y String returns Boolean value
-      eq-string-prim x y
-    end
-  end
+  # Instance: String lives in string module to avoid import cycles.
 
   # Instance: Boolean
   define transparent Equality-Boolean as instance Equality Boolean where

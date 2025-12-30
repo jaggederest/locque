@@ -1735,6 +1735,7 @@ buildPrimitiveEnv = Map.fromList
   , ("ge-nat-prim", tFun tNat (tFun tNat tBool))
 
   , ("concat-string-prim", tFun tString (tFun tString tString))
+  , ("char-code-prim", tFun tString tNat)
   , ("eq-string-prim", tFun tString (tFun tString tBool))
   , ("decide-eq-nat-prim",
       EForAll "x" tNat
@@ -1777,10 +1778,15 @@ buildPrimitiveEnv = Map.fromList
   , ("Unit::tt", tUnit)
 
   , ("print-prim", tFun tString (tComp tUnit))
+  , ("capture-output-prim",
+      EForAll "A" (tType 0)
+        (tFun (tComp (EVar "A"))
+          (tComp (tPair (tList tString) (EVar "A")))))
   , ("assert-hit-prim", tComp tUnit)
   , ("get-line-prim", tComp tString)
   , ("cli-args-prim", tComp (tList tString))
   , ("current-directory-prim", tComp tString)
+  , ("time-now-prim", tComp tNat)
   , ("read-file-prim", tFun tString (tComp tString))
   , ("write-file-prim", tFun tString (tFun tString (tComp tUnit)))
   , ("shell-prim", tFun tString (tComp tString))

@@ -1,0 +1,75 @@
+# Result helpers tests
+
+import assert as A
+import option as Opt
+import prelude as P
+import result as Res
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Result::ok Result::err Option::none Option::some end
+
+module test::result::basics contains
+  define transparent inc as
+    function x Natural returns Natural value
+      P::add-nat x 1
+    end
+
+  define transparent ok1 as Result::ok Natural String 1
+  define transparent err1 as Result::err Natural String "bad"
+
+  define transparent map-ok as
+    Res::map Natural Natural String inc ok1
+
+  define transparent map-err as
+    Res::map Natural Natural String inc err1
+
+  define transparent map-error as
+    Res::map-error Natural String String
+      (function msg String returns String value
+        S::concat msg "!"
+      end)
+      err1
+
+  define transparent bind-ok as
+    Res::and-then Natural Natural String
+      (function x Natural returns (P::Result Natural String) value
+        Result::ok Natural String (P::add-nat x 3)
+      end)
+      ok1
+
+  define transparent bind-err as
+    Res::and-then Natural Natural String
+      (function x Natural returns (P::Result Natural String) value
+        Result::ok Natural String (P::add-nat x 3)
+      end)
+      err1
+
+  define transparent to-option-ok as
+    Res::to-option Natural String ok1
+
+  define transparent to-option-err as
+    Res::to-option Natural String err1
+
+  define transparent main as compute
+    sequence
+      (assert-eq Boolean (Res::is-ok Natural String ok1) true)
+      (assert-eq Boolean (Res::is-err Natural String err1) true)
+      (assert-eq Natural (Res::unwrap-or Natural String 0 map-ok) 2)
+      (assert-eq Natural (Res::unwrap-or Natural String 0 map-err) 0)
+      (assert-eq Natural (Res::unwrap-or Natural String 0 bind-ok) 4)
+      (assert-eq Natural (Res::unwrap-or Natural String 0 bind-err) 0)
+      (assert-eq Boolean (Opt::is-some Natural to-option-ok) true)
+      (assert-eq Boolean (Opt::is-none Natural to-option-err) true)
+      (assert-eq Natural
+        (Res::unwrap-or-else Natural String
+          (function msg String returns Natural value
+            P::add-nat (S::length msg) 1
+          end)
+          err1)
+        4)
+    end
+  end
+end

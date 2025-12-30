@@ -1,74 +1,19 @@
 import prelude as P
-import comparison as C
-import string as S
+import typeclass::equality as Eq
+
+open Eq exposing Equality eq end
 
 module assert contains
   define transparent assert-hit as assert-hit-prim
 
-  define transparent assert-eq-nat as
-    function x Natural y Natural returns computation Unit value
-      compute
-        perform
-          match (C::eq-nat x y) of-type Boolean as ignored returns (computation Unit)
-            case Boolean::false as error-prim (computation Unit) "assert-eq-nat failed"
-            case Boolean::true as assert-hit
-          end
-      end
-    end
-  define transparent assert-eq-string as
-    function x String y String returns computation Unit value
-      compute
-        perform
-          match (S::eq x y) of-type Boolean as ignored returns (computation Unit)
-            case Boolean::false as error-prim (computation Unit) "assert-eq-string failed"
-            case Boolean::true as assert-hit
-          end
-      end
-    end
-  define transparent assert-eq-bool as
-    function x Boolean y Boolean returns computation Unit value
-      compute
-        perform
-          match x of-type Boolean as ignored returns (computation Unit)
-            case Boolean::false as
-              match y of-type Boolean as ignored returns (computation Unit)
-                case Boolean::false as assert-hit
-                case Boolean::true as error-prim (computation Unit) "assert-eq-bool failed"
-              end
-            case Boolean::true as
-              match y of-type Boolean as ignored returns (computation Unit)
-                case Boolean::false as error-prim (computation Unit) "assert-eq-bool failed"
-                case Boolean::true as assert-hit
-              end
-          end
-      end
-    end
-
-  define transparent Equality as typeclass A where
-    eq of-type for-all x as A to for-all y as A to Boolean
-  end
-
-  define transparent Equality-Natural as instance Equality Natural where
-    eq as C::eq-nat
-  end
-
-  define transparent Equality-String as instance Equality String where
-    eq as S::eq
-  end
-
-  define transparent Equality-Boolean as instance Equality Boolean where
-    eq as function x Boolean y Boolean returns Boolean value
-      match x of-type Boolean as ignored returns Boolean
-        case Boolean::false as P::not y
-        case Boolean::true as y
-      end
-    end
-  end
-
   define transparent assert-eq as
     function A Type0 x A y A requires Equality A returns computation Unit value
       compute
-        perform (assert-eq-bool (eq x y) true)
+        perform
+          match (eq x y) of-type Boolean as ignored returns (computation Unit)
+            case Boolean::false as P::error (computation Unit) "assert-eq failed"
+            case Boolean::true as assert-hit
+          end
       end
     end
 
@@ -78,7 +23,7 @@ module assert contains
         perform
           match cond of-type Boolean as ignored returns (computation Unit)
             case Boolean::false as assert-hit
-            case Boolean::true as error-prim (computation Unit) msg
+            case Boolean::true as P::error (computation Unit) msg
           end
       end
     end

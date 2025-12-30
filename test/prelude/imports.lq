@@ -2,6 +2,8 @@
 
 import testimport as T
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::prelude::imports contains
   define transparent main as compute

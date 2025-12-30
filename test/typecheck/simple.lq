@@ -1,11 +1,13 @@
 # Migrated from ../99_typecheck_simple.lq
 
+import arithmetic as Arith
+
 module test::typecheck::simple contains
   define transparent five as 5
 
   define transparent add-five as
     function x Natural returns Natural value
-      add-nat-prim x five
+      Arith::add-nat x five
     end
 
   define transparent main as compute

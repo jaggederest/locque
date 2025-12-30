@@ -39,12 +39,15 @@
 - [x] Dictionary pass: resolve constraints, insert method params, and resolve instances.
 - [x] Update stdlib/tests to use `Equality` + `assert-eq` (explicit type args).
 - [x] Typechecker native typeclass support (classes/instances/constraints); DictPass still used for dictionary insertion.
+- [x] Use stdlib wrappers in `typeclass::equality` instances (no raw prims).
 
 ## Error Message Improvements
 - [x] Suggestions, SourceLoc/ErrorMsg infra, TypeError locations, runtime fuzzy matching, source threading.
 
 ## Core Tooling (smyth)
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`).
+- [x] `smyth bench` with benchmark rollup (`test/bench.lq`) and thresholds.
+- [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.
@@ -65,6 +68,8 @@
 - [x] CLI helpers (args/options).
 - [x] Path utilities (join/dirname/basename/ext/is-absolute).
 - [x] Result/Option/Either data types in prelude.
+- [x] Simplify `assert` to use `assert-eq` without per-type wrappers.
+- [x] Generalize `list::drop-until` via `Equality`.
 
 ## Documentation
 - [x] Document `lift`/`up`/`down` in grammar and reference docs.

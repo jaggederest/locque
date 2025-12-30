@@ -3,4 +3,9 @@ module natural contains
     function n Natural returns List Unit value
       natural-to-peano-prim n
     end
+
+  define transparent to-string as
+    function n Natural returns String value
+      nat-to-string-prim n
+    end
 end

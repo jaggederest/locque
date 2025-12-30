@@ -1,0 +1,15 @@
+# Tests for tools::formatter
+
+import assert as A
+import typeclass::equality as Eq
+import tools::formatter as F
+
+open A exposing assert-eq end
+
+module test::tools::formatter contains
+  define transparent main as compute
+    sequence
+      (assert-eq Natural F::indent-step 2)
+    end
+  end
+end

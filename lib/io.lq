@@ -1,4 +1,5 @@
 module io contains
   define opaque print as print-prim
+  define opaque capture-output as capture-output-prim
   define opaque shell as shell-prim
 end

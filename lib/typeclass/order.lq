@@ -14,6 +14,11 @@ module typeclass::order contains
     lt of-type for-all x as A to for-all y as A to Boolean
   end
 
+  define transparent less-than as
+    function A Type0 x A y A requires LessThan A returns Boolean value
+      lt x y
+    end
+
   define transparent LessThan-Natural as instance LessThan Natural where
     lt as function x Natural y Natural returns Boolean value
       lt-nat-prim x y
@@ -33,6 +38,11 @@ module typeclass::order contains
   define transparent LessOrEqual as typeclass A where
     le of-type for-all x as A to for-all y as A to Boolean
   end
+
+  define transparent less-or-equal as
+    function A Type0 x A y A requires LessOrEqual A returns Boolean value
+      le x y
+    end
 
   define transparent LessOrEqual-Natural as instance LessOrEqual Natural where
     le as function x Natural y Natural returns Boolean value
@@ -54,6 +64,11 @@ module typeclass::order contains
     gt of-type for-all x as A to for-all y as A to Boolean
   end
 
+  define transparent greater-than as
+    function A Type0 x A y A requires GreaterThan A returns Boolean value
+      gt x y
+    end
+
   define transparent GreaterThan-Natural as instance GreaterThan Natural where
     gt as function x Natural y Natural returns Boolean value
       gt-nat-prim x y
@@ -73,6 +88,11 @@ module typeclass::order contains
   define transparent GreaterOrEqual as typeclass A where
     ge of-type for-all x as A to for-all y as A to Boolean
   end
+
+  define transparent greater-or-equal as
+    function A Type0 x A y A requires GreaterOrEqual A returns Boolean value
+      ge x y
+    end
 
   define transparent GreaterOrEqual-Natural as instance GreaterOrEqual Natural where
     ge as function x Natural y Natural returns Boolean value

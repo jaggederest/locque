@@ -1,5 +1,6 @@
 import prelude as P
 import assert as A
+import typeclass::equality as Eq
 
 module test::new_syntax_test contains
   define transparent const-five as

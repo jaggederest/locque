@@ -1,0 +1,72 @@
+import prelude as P
+
+open P exposing Either::left Either::right end
+
+module either contains
+  define transparent is-left as
+    function A Type0 B Type0 e (P::Either A B) returns Boolean value
+      match e of-type (P::Either A B) as ignored returns Boolean
+        case Either::left with ignored A as true
+        case Either::right with ignored B as false
+      end
+    end
+
+  define transparent is-right as
+    function A Type0 B Type0 e (P::Either A B) returns Boolean value
+      P::not (is-left A B e)
+    end
+
+  define transparent map-left as
+    function A Type0 B Type0 C Type0 f (for-all x as A to C) e (P::Either A B) returns (P::Either C B) value
+      match e of-type (P::Either A B) as ignored returns (P::Either C B)
+        case Either::left with x A as Either::left C B (f x)
+        case Either::right with y B as Either::right C B y
+      end
+    end
+
+  define transparent map-right as
+    function A Type0 B Type0 C Type0 f (for-all x as B to C) e (P::Either A B) returns (P::Either A C) value
+      match e of-type (P::Either A B) as ignored returns (P::Either A C)
+        case Either::left with x A as Either::left A C x
+        case Either::right with y B as Either::right A C (f y)
+      end
+    end
+
+  define transparent map as
+    function A Type0 B Type0 C Type0 f (for-all x as B to C) e (P::Either A B) returns (P::Either A C) value
+      map-right A B C f e
+    end
+
+  define transparent bind-right as
+    function A Type0 B Type0 C Type0 f (for-all x as B to (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
+      match e of-type (P::Either A B) as ignored returns (P::Either A C)
+        case Either::left with x A as Either::left A C x
+        case Either::right with y B as f y
+      end
+    end
+
+  define transparent and-then as
+    function A Type0 B Type0 C Type0 f (for-all x as B to (P::Either A C)) e (P::Either A B) returns (P::Either A C) value
+      bind-right A B C f e
+    end
+
+  define transparent swap as
+    function A Type0 B Type0 e (P::Either A B) returns (P::Either B A) value
+      match e of-type (P::Either A B) as ignored returns (P::Either B A)
+        case Either::left with x A as Either::right B A x
+        case Either::right with y B as Either::left B A y
+      end
+    end
+
+  define transparent fold as
+    function A Type0 B Type0 C Type0
+             on-left (for-all x as A to C)
+             on-right (for-all y as B to C)
+             e (P::Either A B)
+    returns C value
+      match e of-type (P::Either A B) as ignored returns C
+        case Either::left with x A as on-left x
+        case Either::right with y B as on-right y
+      end
+    end
+end

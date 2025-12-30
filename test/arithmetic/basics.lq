@@ -3,8 +3,10 @@
 import prelude as P
 import assert as A
 import arithmetic as Ar
+import typeclass::equality as Eq
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::arithmetic::basics contains
   define transparent test-min-max as compute

@@ -6,6 +6,8 @@
 #
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 
+import arithmetic as A
+
 module typeclass::arithmetic contains
   # Addition typeclass
   define transparent Add as typeclass A where
@@ -14,7 +16,7 @@ module typeclass::arithmetic contains
 
   define transparent Add-Natural as instance Add Natural where
     add as function x Natural y Natural returns Natural value
-      add-nat-prim x y
+      A::add-nat x y
     end
   end
 
@@ -25,7 +27,7 @@ module typeclass::arithmetic contains
 
   define transparent Sub-Natural as instance Sub Natural where
     sub as function x Natural y Natural returns Natural value
-      sub-nat-prim x y
+      A::sub-nat x y
     end
   end
 
@@ -36,7 +38,7 @@ module typeclass::arithmetic contains
 
   define transparent Mul-Natural as instance Mul Natural where
     mul as function x Natural y Natural returns Natural value
-      mul-nat-prim x y
+      A::mul-nat x y
     end
   end
 
@@ -47,7 +49,7 @@ module typeclass::arithmetic contains
 
   define transparent Div-Natural as instance Div Natural where
     div as function x Natural y Natural returns Natural value
-      div-nat-prim x y
+      A::div-nat x y
     end
   end
 
@@ -58,7 +60,7 @@ module typeclass::arithmetic contains
 
   define transparent Mod-Natural as instance Mod Natural where
     mod as function x Natural y Natural returns Natural value
-      mod-nat-prim x y
+      A::mod-nat x y
     end
   end
 

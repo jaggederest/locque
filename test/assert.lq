@@ -1,7 +1,10 @@
 # Test rollup for Assert module
 
 import assert as A
-open A exposing assert-eq Equality end
+import typeclass::equality as Eq
+import string as S
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::assert contains
   define transparent main as compute

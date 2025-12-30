@@ -1,0 +1,83 @@
+import prelude as P
+
+open P exposing Option::none Option::some Result::ok Result::err end
+
+module option contains
+  define transparent is-some as
+    function A Type0 opt (P::Option A) returns Boolean value
+      match opt of-type (P::Option A) as ignored returns Boolean
+        case Option::none as false
+        case Option::some with ignored A as true
+      end
+    end
+
+  define transparent is-none as
+    function A Type0 opt (P::Option A) returns Boolean value
+      P::not (is-some A opt)
+    end
+
+  define transparent map as
+    function A Type0 B Type0 f (for-all x as A to B) opt (P::Option A) returns (P::Option B) value
+      match opt of-type (P::Option A) as ignored returns (P::Option B)
+        case Option::none as Option::none B
+        case Option::some with x A as Option::some B (f x)
+      end
+    end
+
+  define transparent and-then as
+    function A Type0 B Type0 f (for-all x as A to (P::Option B)) opt (P::Option A) returns (P::Option B) value
+      match opt of-type (P::Option A) as ignored returns (P::Option B)
+        case Option::none as Option::none B
+        case Option::some with x A as f x
+      end
+    end
+
+  define transparent unwrap-or as
+    function A Type0 fallback A opt (P::Option A) returns A value
+      match opt of-type (P::Option A) as ignored returns A
+        case Option::none as fallback
+        case Option::some with x A as x
+      end
+    end
+
+  define transparent unwrap-or-else as
+    function A Type0 fallback (for-all ignored as Unit to A) opt (P::Option A) returns A value
+      match opt of-type (P::Option A) as ignored returns A
+        case Option::none as fallback tt
+        case Option::some with x A as x
+      end
+    end
+
+  define transparent unwrap as
+    function A Type0 opt (P::Option A) returns A value
+      unwrap-or-else A
+        (function ignored Unit returns A value
+          P::error A "unwrap on none"
+        end)
+        opt
+    end
+
+  define transparent or as
+    function A Type0 opt (P::Option A) fallback (P::Option A) returns (P::Option A) value
+      match opt of-type (P::Option A) as ignored returns (P::Option A)
+        case Option::none as fallback
+        case Option::some with x A as Option::some A x
+      end
+    end
+
+  define transparent or-else as
+    function A Type0 opt (P::Option A) fallback (for-all ignored as Unit to (P::Option A)) returns (P::Option A) value
+      match opt of-type (P::Option A) as ignored returns (P::Option A)
+        case Option::none as fallback tt
+        case Option::some with x A as Option::some A x
+      end
+    end
+
+  define transparent to-result as
+    function A Type0 E Type0 err E opt (P::Option A) returns (P::Result A E) value
+      match opt of-type (P::Option A) as ignored returns (P::Result A E)
+        case Option::none as Result::err A E err
+        case Option::some with x A as Result::ok A E x
+      end
+    end
+end

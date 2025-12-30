@@ -1,0 +1,12 @@
+# Test rollup for Result module
+# Runs all tests in test/result/
+
+import test::result::basics as basics
+
+module test::result contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

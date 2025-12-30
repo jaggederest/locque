@@ -1,0 +1,124 @@
+import prelude as P
+import list as L
+import string as S
+
+open S exposing Character end
+
+module tools::formatter_indent contains
+  define transparent indent-step as 2
+
+  define transparent leading-spaces as
+    function chars (List Character) returns Natural value
+      L::count-prefix Character
+        (function c Character returns Boolean value
+          S::char-is c " "
+        end)
+        chars
+    end
+
+  define transparent indent-width as
+    function levels Natural returns Natural value
+      P::add-nat levels levels
+    end
+
+  define transparent count-leading-ends as
+    function tokens (List String) returns Natural value
+      L::count-prefix String
+        (function token String returns Boolean value
+          S::eq token "end"
+        end)
+        tokens
+    end
+
+  define transparent is-opener as
+    function token String returns Boolean value
+      match (S::eq token "module") of-type Boolean as ignored returns Boolean
+        case Boolean::true as true
+        case Boolean::false as
+          match (S::eq token "open") of-type Boolean as ignored returns Boolean
+            case Boolean::true as true
+            case Boolean::false as
+              match (S::eq token "function") of-type Boolean as ignored returns Boolean
+                case Boolean::true as true
+                case Boolean::false as
+                  match (S::eq token "compute") of-type Boolean as ignored returns Boolean
+                    case Boolean::true as true
+                    case Boolean::false as
+                          match (S::eq token "let") of-type Boolean as ignored returns Boolean
+                            case Boolean::true as true
+                            case Boolean::false as
+                              match (S::eq token "bind") of-type Boolean as ignored returns Boolean
+                                case Boolean::true as true
+                                case Boolean::false as
+                                  match (S::eq token "match") of-type Boolean as ignored returns Boolean
+                                case Boolean::true as true
+                                case Boolean::false as
+                                  match (S::eq token "sequence") of-type Boolean as ignored returns Boolean
+                                    case Boolean::true as true
+                                    case Boolean::false as
+                                      match (S::eq token "pack") of-type Boolean as ignored returns Boolean
+                                        case Boolean::true as true
+                                        case Boolean::false as
+                                          match (S::eq token "unpack") of-type Boolean as ignored returns Boolean
+                                            case Boolean::true as true
+                                            case Boolean::false as
+                                              match (S::eq token "typeclass") of-type Boolean as ignored returns Boolean
+                                                case Boolean::true as true
+                                                case Boolean::false as
+                                                  match (S::eq token "instance") of-type Boolean as ignored returns Boolean
+                                                    case Boolean::true as true
+                                                    case Boolean::false as S::eq token "data"
+                                                  end
+                                              end
+                                          end
+                                      end
+                                  end
+                              end
+                          end
+                      end
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent count-openers as
+    function has-function Boolean tokens (List String) returns Natural value
+      match tokens of-type (List String) as ignored returns Natural
+        case List::empty as 0
+        case List::cons with h String t (List String) as
+          match (S::eq h "import") of-type Boolean as ignored returns Natural
+            case Boolean::true as 0
+            case Boolean::false as
+              let value rest be recur has-function t in
+                match (is-opener h) of-type Boolean as ignored returns Natural
+                  case Boolean::true as
+                    match (S::eq h "compute") of-type Boolean as ignored returns Natural
+                      case Boolean::true as
+                        match has-function of-type Boolean as ignored returns Natural
+                          case Boolean::true as rest
+                          case Boolean::false as P::add-nat 1 rest
+                        end
+                      case Boolean::false as P::add-nat 1 rest
+                    end
+                  case Boolean::false as rest
+                end
+              end
+          end
+      end
+    end
+
+  define transparent is-case-line as
+    function tokens (List String) returns Boolean value
+      match tokens of-type (List String) as ignored returns Boolean
+        case List::empty as false
+        case List::cons with h String t (List String) as
+          let value last be L::last String tokens in
+            match (S::eq h "case") of-type Boolean as ignored returns Boolean
+              case Boolean::true as S::eq last "as"
+              case Boolean::false as false
+            end
+          end
+      end
+    end
+end

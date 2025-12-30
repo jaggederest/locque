@@ -1,0 +1,17 @@
+# Benchmark entry point
+
+import test::bench::formatter as bench_formatter
+import test::bench::formatter_indent as bench_formatter_indent
+import test::bench::string as bench_string
+import test::bench::tokenizer as bench_tokenizer
+
+module test::bench contains
+  define transparent main as compute
+    sequence
+      bench_formatter::main
+      bench_formatter_indent::main
+      bench_tokenizer::main
+      bench_string::main
+    end
+  end
+end

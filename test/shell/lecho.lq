@@ -2,12 +2,16 @@
 
 import shell::lecho as Lecho
 import assert as A
+import test::helpers as TH
+import typeclass::equality as Eq
+import string as S
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::shell::lecho contains
   define transparent main as compute
-    bind out from perform (Lecho::lecho "hello") then
+    bind out from perform (TH::assert-single-output String "hello" (Lecho::lecho "hello")) then
       perform (assert-eq String out "hello")
     end
   end

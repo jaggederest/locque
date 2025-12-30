@@ -63,13 +63,24 @@ Locque is dependent and explicit:
 
 Values are total and normalize; computations are explicitly marked and only run via `perform`. This makes the value world suitable for proofs and types, while still supporting effectful programs in the computation world.
 
+## Formatting
+
+Locque uses a strict, simple indentation style:
+- 2 spaces per block level; tabs are not allowed.
+- `end` aligns with the block it closes.
+- `case ... as` with a multiline body puts the body on the next line, indented one level.
+- Multi-line applications may indent continuation lines one extra level.
+
+Check formatting with `smyth format [path]` (a file or directory; defaults to `lib/`, `test/`, and `Smythfile.lq` under the Smythfile.lq directory). `--edit`/`--in-place` are reserved but not implemented yet.
+
 ## Contributing
 
 - License: MIT. See `LICENSE`.
 - Repo: https://github.com/jaggederest/locque/
 - PRs: fork, create a branch, make focused changes, and open a PR.
 - Tooling: install GHC to build `locque-interpreter` and `smyth` (https://www.haskell.org/ghcup/).
-- Tests: run `smyth test` from the repo root to check the full suite and expected failures.
+- Tests: run `smyth test` from the repo root to check the full suite and expected failures (prints total time in microseconds).
+- Benchmarks: run `smyth bench` from the repo root to see benchmark timings and threshold checks.
 
 Reference grammar and canonical syntax live in `grammar.md`.
 

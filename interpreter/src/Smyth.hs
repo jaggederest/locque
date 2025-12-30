@@ -5,6 +5,9 @@ import System.Environment (getArgs)
 import System.Exit (exitFailure)
 
 import SmythConfig (findSmythfile, loadSmythConfig)
+import SmythBench (runBench)
+import SmythCount (runCount)
+import SmythFormat (runFormat)
 import SmythTest (runTests)
 import SmythRun (runFile)
 
@@ -14,6 +17,9 @@ main = do
   case args of
     ("test" : testArgs) -> runTestCommand testArgs
     ("run" : runArgs)   -> runRunCommand runArgs
+    ("bench" : benchArgs) -> runBenchCommand benchArgs
+    ("count" : countArgs) -> runCountCommand countArgs
+    ("format" : formatArgs) -> runFormatCommand formatArgs
     ("--help" : _)      -> printHelp
     []                  -> printHelp
     _                   -> do
@@ -31,7 +37,6 @@ runTestCommand args = do
     Just root -> do
       -- Load configuration
       config <- loadSmythConfig root
-      -- Run tests
       runTests config args
 
 runRunCommand :: [String] -> IO ()
@@ -54,6 +59,45 @@ runRunCommand args = do
       putStrLn "Usage: smyth run <file>"
       exitFailure
 
+runBenchCommand :: [String] -> IO ()
+runBenchCommand args = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Nothing -> do
+      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+      exitFailure
+    Just root -> do
+      config <- loadSmythConfig root
+      runBench config args
+
+runCountCommand :: [String] -> IO ()
+runCountCommand args = do
+  case args of
+    [] -> do
+      maybeRoot <- findSmythfile
+      case maybeRoot of
+        Nothing -> do
+          putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+          exitFailure
+        Just root -> do
+          config <- loadSmythConfig root
+          runCount config
+    _ -> do
+      putStrLn "Error: 'smyth count' does not take arguments"
+      putStrLn "Usage: smyth count"
+      exitFailure
+
+runFormatCommand :: [String] -> IO ()
+runFormatCommand args = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Nothing -> do
+      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+      exitFailure
+    Just root -> do
+      config <- loadSmythConfig root
+      runFormat config args
+
 printHelp :: IO ()
 printHelp = do
   putStrLn "smyth - Locque build tool"
@@ -62,8 +106,13 @@ printHelp = do
   putStrLn "  smyth run <file>    Type check and run a .lq/.lqs file"
   putStrLn "  smyth test          Run all tests (test/main.lq)"
   putStrLn "  smyth test <file>   Run specific test file"
+  putStrLn "  smyth bench         Run benchmarks (test/bench.lq)"
+  putStrLn "  smyth bench <file>  Run a specific benchmark file"
+  putStrLn "  smyth count         Count .lq lines in lib/ and test/"
+  putStrLn "  smyth format [path] Check .lq formatting in a file or directory"
   putStrLn "  smyth --help        Show this help"
   putStrLn ""
   putStrLn "Notes:"
   putStrLn "  All commands type-check before execution"
   putStrLn "  Project root found by searching for Smythfile.lq"
+  putStrLn "  'smyth format' defaults to lib/, test/, and Smythfile.lq under the Smythfile.lq directory"

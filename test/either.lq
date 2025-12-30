@@ -1,0 +1,12 @@
+# Test rollup for Either module
+# Runs all tests in test/either/
+
+import test::either::basics as basics
+
+module test::either contains
+  define transparent main as compute
+    sequence
+      basics::main
+    end
+  end
+end

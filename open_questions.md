@@ -31,4 +31,4 @@ The following decisions have been resolved and are documented in grammar.md and 
 4. **Namespaces**: One module per file, explicit imports, qualified names - see grammar.md Module Structure
 5. **Surface syntax mapping**: Complete 1:1 M-exp ↔ S-exp mapping - see grammar.md
 6. **Ergonomics for LLMs**: No implicit coercions, explicit casts/effects - see philosophy.md
-7. **Entrypoints**: `smyth run <file>` / `smyth test` CLI (see AGENTS.md for current implementation)
+7. **Entrypoints**: `smyth run <file>` / `smyth test` / `smyth bench` CLI (see AGENTS.md for current implementation)

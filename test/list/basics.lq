@@ -2,11 +2,13 @@
 
 import prelude as P
 import assert as A
-import comparison as C
 import list as L
 import typeclass::equality as Eq
+import typeclass::order as Order
+import string as S
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 
 module test::list::basics contains
   define transparent nums as
@@ -59,24 +61,38 @@ module test::list::basics contains
         (P::head Natural (L::drop Natural 1 nums))
         2)
       (assert-eq String
-        (P::head String (L::drop-until "b" strs))
+        (P::head String (L::drop-until String "b" strs))
         "b")
       (assert-eq Boolean (L::member String "b" strs) true)
       (assert-eq Boolean (L::member String "z" strs) false)
       (assert-eq Boolean
         (L::any Natural
           (function x Natural returns Boolean value
-            C::gt-nat x 2
+            Order::greater-than Natural x 2
           end)
           nums)
         true)
+      (assert-eq Natural
+        (L::count Natural
+          (function x Natural returns Boolean value
+            Order::greater-than Natural x 1
+          end)
+          nums)
+        2)
       (assert-eq Boolean
         (L::all Natural
           (function x Natural returns Boolean value
-            C::gt-nat x 0
+            Order::greater-than Natural x 0
           end)
           nums)
         true)
+      (assert-eq Natural
+        (L::count-prefix Natural
+          (function x Natural returns Boolean value
+            Order::less-than Natural x 3
+          end)
+          nums)
+        2)
       (assert-eq Natural
         (P::length-list Natural (L::slice Natural 1 2 nums))
         2)
@@ -115,7 +131,7 @@ module test::list::basics contains
         (P::head Natural
           (L::sort-by Natural
             (function a Natural b Natural returns Boolean value
-              C::lt-nat a b
+              Order::less-than Natural a b
             end)
             unsorted-nats))
         1)
@@ -123,7 +139,7 @@ module test::list::basics contains
         (L::nth Natural 1
           (L::sort-by Natural
             (function a Natural b Natural returns Boolean value
-              C::lt-nat a b
+              Order::less-than Natural a b
             end)
             unsorted-nats))
         2)
@@ -131,7 +147,7 @@ module test::list::basics contains
         (L::last Natural
           (L::sort-by Natural
             (function a Natural b Natural returns Boolean value
-              C::lt-nat a b
+              Order::less-than Natural a b
             end)
             unsorted-nats))
         3)

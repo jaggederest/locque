@@ -4,6 +4,7 @@
 # Block comments use /* */
 
 import assert as A
+import typeclass::equality as Eq
 
 module test::syntax::comments contains
   # This is a line comment

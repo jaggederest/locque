@@ -1,0 +1,24 @@
+# Time module basics
+
+import assert as A
+import time as Time
+import typeclass::order as Order
+
+open A exposing assert-eq end
+
+module test::time::basics contains
+  define transparent main as compute
+    bind measured from perform (Time::measure Natural (compute return 42 end)) then
+      perform
+        (match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
+          case Pair::pair with val Natural elapsed Natural as
+            compute
+              sequence
+                (assert-eq Natural val 42)
+                (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
+              end
+            end
+        end)
+    end
+  end
+end

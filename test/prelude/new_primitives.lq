@@ -4,6 +4,7 @@ import prelude as P
 import assert as A
 import string as S
 import list as L
+import typeclass::equality as Eq
 
 module test::prelude::new_primitives contains
   define transparent list-abc as

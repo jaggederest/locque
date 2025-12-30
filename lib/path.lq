@@ -1,7 +1,7 @@
-import comparison as C
 import list as L
 import prelude as P
 import string as S
+import typeclass::equality as Eq
 
 module path contains
   define transparent is-absolute as
@@ -14,7 +14,7 @@ module path contains
       match xs of-type (List String) as ignored returns (List String)
         case List::empty as P::nil String
         case List::cons with h String t (List String) as
-          match (S::eq h "") of-type Boolean as ignored returns (List String)
+          match (Eq::equals String h "") of-type Boolean as ignored returns (List String)
             case Boolean::true as recur t
             case Boolean::false as xs
           end
@@ -38,7 +38,7 @@ module path contains
           match has-root of-type Boolean as ignored returns String
             case Boolean::false as joined
             case Boolean::true as
-              match (S::eq joined "") of-type Boolean as ignored returns String
+              match (Eq::equals String joined "") of-type Boolean as ignored returns String
                 case Boolean::true as "/"
                 case Boolean::false as S::concat "/" joined
               end
@@ -49,10 +49,10 @@ module path contains
 
   define transparent join as
     function base String child String returns String value
-      match (S::eq base "") of-type Boolean as ignored returns String
+      match (Eq::equals String base "") of-type Boolean as ignored returns String
         case Boolean::true as child
         case Boolean::false as
-          match (S::eq child "") of-type Boolean as ignored returns String
+          match (Eq::equals String child "") of-type Boolean as ignored returns String
             case Boolean::true as base
             case Boolean::false as
               match (is-absolute child) of-type Boolean as ignored returns String
@@ -69,7 +69,7 @@ module path contains
 
   define transparent basename as
     function path String returns String value
-      match (S::eq path "/") of-type Boolean as ignored returns String
+      match (Eq::equals String path "/") of-type Boolean as ignored returns String
         case Boolean::true as "/"
         case Boolean::false as
           let value segs be segments path in
@@ -83,7 +83,7 @@ module path contains
 
   define transparent dirname as
     function path String returns String value
-      match (S::eq path "/") of-type Boolean as ignored returns String
+      match (Eq::equals String path "/") of-type Boolean as ignored returns String
         case Boolean::true as "/"
         case Boolean::false as
           let value segs be segments path in
@@ -100,17 +100,17 @@ module path contains
     function path String returns String value
       let value base be basename path in
         let value len be S::length base in
-          match (C::eq-nat len 0) of-type Boolean as ignored returns String
+          match (Eq::equals Natural len 0) of-type Boolean as ignored returns String
             case Boolean::true as ""
             case Boolean::false as
               let value rev be S::reverse base in
                 let value rev-index be S::string-index-of "." rev in
-                  match (C::eq-nat rev-index len) of-type Boolean as ignored returns String
+                  match (Eq::equals Natural rev-index len) of-type Boolean as ignored returns String
                     case Boolean::true as ""
                     case Boolean::false as
                       let value len-minus-one be P::sub-nat len 1 in
                         let value dot-index be P::sub-nat len-minus-one rev-index in
-                          match (C::eq-nat dot-index 0) of-type Boolean as ignored returns String
+                          match (Eq::equals Natural dot-index 0) of-type Boolean as ignored returns String
                             case Boolean::true as ""
                             case Boolean::false as
                               let value start be P::sub-nat len rev-index in

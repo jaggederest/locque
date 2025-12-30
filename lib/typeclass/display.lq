@@ -2,7 +2,8 @@
 #
 # Similar to Haskell's Show typeclass.
 
-import prelude as P
+import natural as N
+import string as S
 
 module typeclass::display contains
   # Display typeclass definition
@@ -13,14 +14,14 @@ module typeclass::display contains
   # Instance: Natural
   define transparent Display-Natural as instance Display Natural where
     display as function n Natural returns String value
-      nat-to-string-prim n
+      N::to-string n
     end
   end
 
   # Instance: String (wraps in quotes)
   define transparent Display-String as instance Display String where
     display as function s String returns String value
-      concat-string-prim "\"" (concat-string-prim s "\"")
+      S::concat "\"" (S::concat s "\"")
     end
   end
 

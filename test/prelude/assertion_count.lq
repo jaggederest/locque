@@ -3,6 +3,8 @@
 # Expected: 5 assertions
 
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::prelude::assertion_count contains
   define transparent test-five-assertions as compute

@@ -1,4 +1,6 @@
 import assert as A
+import tools::validator as V
+import typeclass::equality as Eq
 
 module test::tools::validator contains
   define transparent valid-source as
@@ -9,8 +11,8 @@ module test::tools::validator contains
 
   define transparent main as compute
     sequence
-      (A::assert-eq Boolean (validate-prim valid-source) true)
-      (A::assert-eq Boolean (validate-prim invalid-source) false)
+      (A::assert-eq Boolean (V::validate-string valid-source) true)
+      (A::assert-eq Boolean (V::validate-string invalid-source) false)
     end
   end
 end

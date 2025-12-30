@@ -1,63 +1,12 @@
 # Tests for Arithmetic typeclasses
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import assert as A
-import prelude as P
+import typeclass::arithmetic as Arith
+import typeclass::equality as Eq
+
+open Arith exposing Add Sub Mul Div Mod add sub mul div mod end
 
 module test::typeclass::arithmetic contains
-  # Addition typeclass
-  define transparent Add as typeclass A where
-    add of-type for-all x as A to for-all y as A to A
-  end
-
-  define transparent Add-Natural as instance Add Natural where
-    add as function x Natural y Natural returns Natural value
-      add-nat-prim x y
-    end
-  end
-
-  # Subtraction typeclass
-  define transparent Sub as typeclass A where
-    sub of-type for-all x as A to for-all y as A to A
-  end
-
-  define transparent Sub-Natural as instance Sub Natural where
-    sub as function x Natural y Natural returns Natural value
-      sub-nat-prim x y
-    end
-  end
-
-  # Multiplication typeclass
-  define transparent Mul as typeclass A where
-    mul of-type for-all x as A to for-all y as A to A
-  end
-
-  define transparent Mul-Natural as instance Mul Natural where
-    mul as function x Natural y Natural returns Natural value
-      mul-nat-prim x y
-    end
-  end
-
-  # Division typeclass
-  define transparent Div as typeclass A where
-    div of-type for-all x as A to for-all y as A to A
-  end
-
-  define transparent Div-Natural as instance Div Natural where
-    div as function x Natural y Natural returns Natural value
-      div-nat-prim x y
-    end
-  end
-
-  # Modulo typeclass
-  define transparent Mod as typeclass A where
-    mod of-type for-all x as A to for-all y as A to A
-  end
-
-  define transparent Mod-Natural as instance Mod Natural where
-    mod as function x Natural y Natural returns Natural value
-      mod-nat-prim x y
-    end
-  end
 
   # Generic helpers with constraints
   define transparent add-value as

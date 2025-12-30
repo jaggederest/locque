@@ -1,6 +1,7 @@
 import assert as A
 import file as File
 import string as S
+import typeclass::equality as Eq
 
 module test::file::io contains
   define transparent base-dir as "test/tmp/fs_io"

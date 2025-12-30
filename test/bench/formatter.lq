@@ -1,0 +1,24 @@
+# Formatter micro-benchmark (manual run)
+
+import prelude as P
+import tools::formatter as Formatter
+import test::bench::helpers as Bench
+
+module test::bench::formatter contains
+  define transparent lines as
+    P::cons String "module bench contains"
+      (P::cons String "  define transparent x as 1"
+        (P::cons String "end"
+          (P::nil String)))
+
+  define transparent main as compute
+    bind ignored from perform
+      (Bench::bench-value (List String)
+        "formatter check-lines"
+        500000
+        (Formatter::check-lines "bench.lq" lines))
+    then
+      return tt
+    end
+  end
+end

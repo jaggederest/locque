@@ -2,10 +2,11 @@
 
 import prelude as P
 import assert as A
-import comparison as C
 import arithmetic as Ar
 import list as L
 import string as S
+import typeclass::equality as Eq
+import typeclass::order as Order
 
 module test::prelude::primitives contains
   define transparent list-abc as
@@ -22,31 +23,31 @@ module test::prelude::primitives contains
   define transparent test-comparison as compute
     sequence
       (A::assert-eq String
-        (match (C::lt-nat 1 2) of-type Boolean as ignored returns String
+        (match (Order::less-than Natural 1 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq String
-        (match (C::gt-nat 2 1) of-type Boolean as ignored returns String
+        (match (Order::greater-than Natural 2 1) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq String
-        (match (C::le-nat 2 2) of-type Boolean as ignored returns String
+        (match (Order::less-or-equal Natural 2 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq String
-        (match (C::ge-nat 3 2) of-type Boolean as ignored returns String
+        (match (Order::greater-or-equal Natural 3 2) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)
         "yes")
       (A::assert-eq String
-        (match (C::eq-nat 5 5) of-type Boolean as ignored returns String
+        (match (Eq::equals Natural 5 5) of-type Boolean as ignored returns String
           case Boolean::false as "no"
           case Boolean::true as "yes"
         end)

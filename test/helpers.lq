@@ -1,0 +1,63 @@
+# Test helpers for reducing boilerplate in test suites
+
+import assert as A
+import io as IO
+import list as L
+import prelude as P
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::helpers contains
+  define transparent with-output as
+    function A Type0
+             action (computation A)
+             check (for-all output as (List String) to for-all result as A to computation Unit)
+    returns computation A value
+      compute
+        bind result from perform (IO::capture-output A action) then
+          bind output from perform (compute return (P::fst (List String) A result) end) then
+            bind captured from perform (compute return (P::snd (List String) A result) end) then
+              bind ignored from perform (check output captured) then
+                return captured
+              end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent output-string as
+    function output (List String) returns String value
+      S::join-with "\n" output
+    end
+
+  define transparent assert-no-output as
+    function A Type0 action (computation A) returns computation A value
+      with-output A action
+        (function output (List String) ignored A returns computation Unit compute
+          perform (assert-eq Natural (P::length-list String output) 0)
+        end)
+    end
+
+  define transparent assert-single-output as
+    function A Type0 expected String action (computation A) returns computation A value
+      with-output A action
+        (function output (List String) ignored A returns computation Unit compute
+          sequence
+            (assert-eq Natural (P::length-list String output) 1)
+            (assert-eq String (L::nth String 0 output) expected)
+          end
+        end)
+    end
+
+  define transparent assert-output-contains as
+    function A Type0 needle String action (computation A) returns computation A value
+      with-output A action
+        (function output (List String) ignored A returns computation Unit compute
+          perform (assert-eq Boolean (S::string-contains needle (output-string output)) true)
+        end)
+    end
+end

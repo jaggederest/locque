@@ -1,0 +1,93 @@
+import prelude as P
+
+open P exposing Result::ok Result::err Option::none Option::some end
+
+module result contains
+  define transparent is-ok as
+    function A Type0 E Type0 res (P::Result A E) returns Boolean value
+      match res of-type (P::Result A E) as ignored returns Boolean
+        case Result::ok with ignored A as true
+        case Result::err with ignored E as false
+      end
+    end
+
+  define transparent is-err as
+    function A Type0 E Type0 res (P::Result A E) returns Boolean value
+      P::not (is-ok A E res)
+    end
+
+  define transparent map as
+    function A Type0 B Type0 E Type0 f (for-all x as A to B) res (P::Result A E) returns (P::Result B E) value
+      match res of-type (P::Result A E) as ignored returns (P::Result B E)
+        case Result::ok with ok A as Result::ok B E (f ok)
+        case Result::err with err E as Result::err B E err
+      end
+    end
+
+  define transparent map-error as
+    function A Type0 E Type0 F Type0 f (for-all err as E to F) res (P::Result A E) returns (P::Result A F) value
+      match res of-type (P::Result A E) as ignored returns (P::Result A F)
+        case Result::ok with ok A as Result::ok A F ok
+        case Result::err with err E as Result::err A F (f err)
+      end
+    end
+
+  define transparent and-then as
+    function A Type0 B Type0 E Type0 f (for-all x as A to (P::Result B E)) res (P::Result A E) returns (P::Result B E) value
+      match res of-type (P::Result A E) as ignored returns (P::Result B E)
+        case Result::ok with ok A as f ok
+        case Result::err with err E as Result::err B E err
+      end
+    end
+
+  define transparent unwrap-or as
+    function A Type0 E Type0 fallback A res (P::Result A E) returns A value
+      match res of-type (P::Result A E) as ignored returns A
+        case Result::ok with ok A as ok
+        case Result::err with ignored E as fallback
+      end
+    end
+
+  define transparent unwrap-or-else as
+    function A Type0 E Type0 fallback (for-all err as E to A) res (P::Result A E) returns A value
+      match res of-type (P::Result A E) as ignored returns A
+        case Result::ok with ok A as ok
+        case Result::err with err E as fallback err
+      end
+    end
+
+  define transparent unwrap as
+    function A Type0 E Type0 res (P::Result A E) returns A value
+      unwrap-or-else A E
+        (function ignored E returns A value
+          P::error A "unwrap on err"
+        end)
+        res
+    end
+
+  define transparent or as
+    function A Type0 E Type0 res (P::Result A E) fallback (P::Result A E) returns (P::Result A E) value
+      match res of-type (P::Result A E) as ignored returns (P::Result A E)
+        case Result::ok with ok A as Result::ok A E ok
+        case Result::err with ignored E as fallback
+      end
+    end
+
+  define transparent or-else as
+    function A Type0 E Type0 res (P::Result A E)
+             fallback (for-all err as E to (P::Result A E))
+    returns (P::Result A E) value
+      match res of-type (P::Result A E) as ignored returns (P::Result A E)
+        case Result::ok with ok A as Result::ok A E ok
+        case Result::err with err E as fallback err
+      end
+    end
+
+  define transparent to-option as
+    function A Type0 E Type0 res (P::Result A E) returns (P::Option A) value
+      match res of-type (P::Result A E) as ignored returns (P::Option A)
+        case Result::ok with ok A as Option::some A ok
+        case Result::err with ignored E as Option::none A
+      end
+    end
+end

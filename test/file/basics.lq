@@ -1,5 +1,6 @@
 import assert as A
 import file as File
+import typeclass::equality as Eq
 
 module test::file::basics contains
   define transparent assert-path-exists as

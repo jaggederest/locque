@@ -1,0 +1,3 @@
+module tools::validator contains
+  define transparent validate-string as validate-prim
+end

@@ -6,6 +6,7 @@ import file as File
 import list as L
 import prelude as P
 import string as S
+import typeclass::equality as Eq
 
 module test::cli::basics contains
   define transparent check-args as compute

@@ -3,8 +3,10 @@
 import prelude as P
 import assert as A
 import string as S
+import typeclass::equality as Eq
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 open S exposing Character end
 
 module test::string::utils contains
@@ -40,6 +42,23 @@ module test::string::utils contains
           (P::cons Character (S::character "a")
             (P::cons Character (S::character "b") (P::nil Character))))
         "ab")
+      (assert-eq Boolean (S::char-is-digit (S::character "9")) true)
+      (assert-eq Boolean (S::char-is-digit (S::character "a")) false)
+      (assert-eq Boolean (S::char-is-letter (S::character "Z")) true)
+      (assert-eq Boolean (S::char-is-letter (S::character "7")) false)
+      (assert-eq Boolean (S::char-is-word (S::character "_")) true)
+      (assert-eq Boolean (S::char-is-word (S::character ":")) true)
+      (assert-eq Boolean (S::char-is-word (S::character " ")) false)
+      (assert-eq Boolean
+        (S::starts-with-any
+          (P::cons String "a" (P::cons String "b" (P::nil String)))
+          "apple")
+        true)
+      (assert-eq Boolean
+        (S::contains-any
+          (P::cons String "lo" (P::nil String))
+          "hello")
+        true)
       (assert-eq String (S::character-string (S::head "hi")) "h")
       (assert-eq String (S::tail "hi") "i")
       (assert-eq String (S::sort "dcba") "abcd")

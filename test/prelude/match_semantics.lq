@@ -2,6 +2,8 @@
 
 import prelude as P
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
 module test::prelude::match_semantics contains
   define transparent test-list-empty as compute

@@ -2,8 +2,11 @@
 
 import prelude as P
 import assert as A
+import typeclass::equality as Eq
+import string as S
 
-open A exposing assert-eq Equality end
+open A exposing assert-eq end
+open Eq exposing Equality end
 open P exposing
   Option::none Option::some
   Either::left Either::right
@@ -108,7 +111,7 @@ module test::prelude::data contains
   define transparent head-vec as
     function A Type0 n Peano xs (Vec A (Peano::succ n)) returns A value
       match xs of-type (Vec A (Peano::succ n)) as ignored returns A
-        case Vec::nil as error-prim A "unreachable"
+        case Vec::nil as P::error A "unreachable"
         case Vec::cons with n Peano h A t (Vec A n) as h
       end
     end

@@ -2,6 +2,8 @@
 
 import prelude as P
 import assert as A
+import string as S
+import typeclass::equality as Eq
 
 module test::prelude::fold contains
   define transparent list123 as
@@ -10,7 +12,7 @@ module test::prelude::fold contains
         (P::cons String "3" (P::nil String)))
 
   define transparent sum-total as
-    P::fold String String concat-string-prim "" list123
+    P::fold String String S::concat "" list123
 
   define transparent sum-list as compute
     sequence
@@ -21,12 +23,12 @@ module test::prelude::fold contains
   define transparent map-upper-list as
     P::map String String
       (function x String returns String value
-        concat-string-prim x "!"
+        S::concat x "!"
       end)
       list123
 
   define transparent map-upper-total as
-    P::fold String String concat-string-prim "" map-upper-list
+    P::fold String String S::concat "" map-upper-list
 
   define transparent map-upper as compute
     sequence
