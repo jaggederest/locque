@@ -1,0 +1,32 @@
+import assert as A
+import logic as L
+import pair::eq as PairEq
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::pair::eq contains
+  define transparent eq-true as
+    unpack
+      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 1 true))
+      as b ignored in b end
+
+  define transparent eq-false as
+    unpack
+      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 2 true))
+      as b ignored in b end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean eq-true true)
+      , (assert-eq Boolean eq-false false)
+      ])
+  end
+end

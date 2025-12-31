@@ -1,0 +1,14 @@
+import prelude as P
+# Test rollup for Pair module
+# Runs all tests in test/pair/
+
+import test::pair::eq as eq
+
+module test::pair contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        eq::main
+      ])
+  end
+end

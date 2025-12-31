@@ -1,6 +1,7 @@
 # Result helpers tests
 
 import assert as A
+import arithmetic as Ar
 import option as Opt
 import prelude as P
 import result as Res
@@ -14,7 +15,7 @@ open P exposing Result::ok Result::err Option::none Option::some end
 module test::result::basics contains
   define transparent inc as
     function x Natural returns Natural value
-      P::add-nat x 1
+      Ar::add x 1
     end
 
   define transparent ok1 as Result::ok Natural String 1
@@ -36,14 +37,14 @@ module test::result::basics contains
   define transparent bind-ok as
     Res::and-then Natural Natural String
       (function x Natural returns (P::Result Natural String) value
-        Result::ok Natural String (P::add-nat x 3)
+        Result::ok Natural String (Ar::add x 3)
       end)
       ok1
 
   define transparent bind-err as
     Res::and-then Natural Natural String
       (function x Natural returns (P::Result Natural String) value
-        Result::ok Natural String (P::add-nat x 3)
+        Result::ok Natural String (Ar::add x 3)
       end)
       err1
 
@@ -67,7 +68,7 @@ module test::result::basics contains
       , (assert-eq Natural
                                                                 (Res::unwrap-or-else Natural String
                                                                   (function msg String returns Natural value
-                                                                    P::add-nat (S::length msg) 1
+                                                                    Ar::add (S::length msg) 1
                                                                   end)
                                                                   err1)
                                                                 4)

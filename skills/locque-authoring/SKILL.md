@@ -33,9 +33,10 @@ Use this skill when writing or editing Locque source or tests.
 
 Function:
 ```locque
+# Assumes: import arithmetic as Ar
 define transparent inc as
   function x Natural returns Natural value
-    P::add-nat x 1
+    Ar::add x 1
   end
 ```
 

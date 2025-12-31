@@ -10,6 +10,9 @@ module typeclass::hash contains
     hash of-type (Types::Function A Natural)
   end
 
+  define transparent hash-kind as
+    Types::TypeFunction Type0
+
   define transparent hash-value as
     function A Type0 x A requires Hash A returns Natural value
       hash x
@@ -23,7 +26,7 @@ module typeclass::hash contains
         case List::empty as acc
         case List::cons with h Character t (List Character) as
           recur t
-            (Ar::add-nat (Ar::mul-nat acc hash-base) (S::char-code h))
+            (Ar::add (Ar::mul-nat acc hash-base) (S::char-code h))
       end
     end
 

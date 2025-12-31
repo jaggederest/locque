@@ -4,8 +4,8 @@ import list as L
 
 open S exposing Character end
 
-  module tools::tokenizer contains
-    define transparent string-token as "<string>"
+module tools::tokenizer contains
+  define transparent string-token as "<string>"
 
   define transparent flush-token as
     function current (List Character) tokens (List String) returns (List String) value
@@ -65,7 +65,7 @@ open S exposing Character end
                           match (S::char-is next "|") of-type Boolean as ignored returns (Pair (List String) Boolean)
                             case Boolean::true as
                               let value rest-str be S::from-list rest in
-                                let value closed be S::string-contains "|#" rest-str in
+                                let value closed be S::has-substring "|#" rest-str in
                                   P::pair (List String) Boolean (finalize-tokens current tokens) (P::not closed)
                                 end
                               end
@@ -89,7 +89,7 @@ open S exposing Character end
                                   match (S::char-is next "*") of-type Boolean as ignored returns (Pair (List String) Boolean)
                                     case Boolean::true as
                                       let value rest-str be S::from-list rest in
-                                        let value closed be S::string-contains "*/" rest-str in
+                                        let value closed be S::has-substring "*/" rest-str in
                                           P::pair (List String) Boolean (finalize-tokens current tokens) (P::not closed)
                                         end
                                       end
@@ -114,7 +114,7 @@ open S exposing Character end
               end
       end
     end
-    end
+  end
 
   define transparent scan-line as
     function line String returns (Pair (List String) Boolean) value

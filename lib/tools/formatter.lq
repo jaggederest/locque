@@ -1,4 +1,5 @@
 import prelude as P
+import arithmetic as Ar
 import string as S
 import list as L
 import file as File
@@ -16,12 +17,9 @@ module tools::formatter contains
 
   define transparent FormatState as data in Type0
     case FormatState::state of-type
-      Types::Function Natural
-        (Types::Function Natural
-          (Types::Function Natural
-            (Types::Function Boolean
-              (Types::Function Natural
-                (Types::Function (List String) FormatState)))))
+      Types::BinaryFunction Natural Natural
+        (Types::BinaryFunction Natural Boolean
+          (Types::BinaryFunction Natural (List String) FormatState))
   end
 
   define transparent line-comment-prefixes as
@@ -78,7 +76,7 @@ module tools::formatter contains
   define transparent next-state as
     function indent Natural pending Natural pending-line Natural in-block Boolean line-no Natural errors (List String)
     returns FormatState value
-      FormatState::state indent pending pending-line in-block (P::add-nat line-no 1) errors
+      FormatState::state indent pending pending-line in-block (Ar::add line-no 1) errors
     end
 
   define transparent add-tab-errors as
@@ -105,9 +103,9 @@ module tools::formatter contains
 
   define transparent block-comment-closed as
     function trimmed String returns Boolean value
-      match (S::string-starts-with "/*" trimmed) of-type Boolean as ignored returns Boolean
-        case Boolean::true as S::string-contains "*/" trimmed
-        case Boolean::false as S::string-contains "|#" trimmed
+      match (S::starts-with "/*" trimmed) of-type Boolean as ignored returns Boolean
+        case Boolean::true as S::has-substring "*/" trimmed
+        case Boolean::false as S::has-substring "|#" trimmed
       end
     end
 
@@ -156,9 +154,9 @@ module tools::formatter contains
         in
           let value openers be Indent::count-openers has-function tokens in
             let value total-dedent be Indent::indent-width total-ends in
-              let value indent-plus be P::add-nat indent (Indent::indent-width openers) in
+              let value indent-plus be Ar::add indent (Indent::indent-width openers) in
                 let value underflow-after be Order::less-than Natural indent-plus total-dedent in
-                  let value next-indent be P::sub-nat indent-plus total-dedent in
+                  let value next-indent be Ar::subtract indent-plus total-dedent in
                     P::pair Natural Boolean next-indent underflow-after
                   end
                 end
@@ -177,8 +175,8 @@ module tools::formatter contains
         let value leading-ends be Indent::count-leading-ends tokens in
           let value leading-dedent be Indent::indent-width leading-ends in
             let value underflow-before be Order::less-than Natural indent leading-dedent in
-              let value base-indent be P::sub-nat indent leading-dedent in
-                let value expected-indent be P::add-nat base-indent pending in
+              let value base-indent be Ar::subtract indent leading-dedent in
+                let value expected-indent be Ar::add base-indent pending in
                   let value errors1 be
                     add-error-when
                       underflow-before
@@ -240,7 +238,7 @@ module tools::formatter contains
                                             pending-next
                                             pending-line-next
                                             block-start
-                                            (P::add-nat line-no 1)
+                                            (Ar::add line-no 1)
                                             errors3
                                         end
                                       end
@@ -329,7 +327,7 @@ module tools::formatter contains
                 match (Order::greater-than Natural indent 0) of-type Boolean as ignored returns (List String)
                   case Boolean::true as
                     add-error
-                      (format-error path (P::sub-nat line-no 1) "missing end (indentation not closed)")
+                      (format-error path (Ar::subtract line-no 1) "missing end (indentation not closed)")
                       errors
                   case Boolean::false as errors
                 end
@@ -347,7 +345,7 @@ module tools::formatter contains
                     match in-block of-type Boolean as ignored returns (List String)
                       case Boolean::true as
                         add-error
-                          (format-error path (P::sub-nat line-no 1) "unterminated block comment")
+                          (format-error path (Ar::subtract line-no 1) "unterminated block comment")
                           errors2
                       case Boolean::false as errors2
                     end
@@ -393,7 +391,7 @@ module tools::formatter contains
     function path String returns Boolean value
       L::any String
         (function pat String returns Boolean value
-          S::string-contains pat path
+          S::has-substring pat path
         end)
         skip-patterns
     end

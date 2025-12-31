@@ -1,4 +1,5 @@
 import prelude as P
+import arithmetic as Ar
 import list as L
 import string as S
 
@@ -18,7 +19,7 @@ module tools::formatter_indent contains
 
   define transparent indent-width as
     function levels Natural returns Natural value
-      P::add-nat levels levels
+      Ar::add levels levels
     end
 
   define transparent count-leading-ends as
@@ -93,9 +94,9 @@ module tools::formatter_indent contains
                       case Boolean::true as
                         match has-function of-type Boolean as ignored returns Natural
                           case Boolean::true as rest
-                          case Boolean::false as P::add-nat 1 rest
+                          case Boolean::false as Ar::add 1 rest
                         end
-                      case Boolean::false as P::add-nat 1 rest
+                      case Boolean::false as Ar::add 1 rest
                     end
                   case Boolean::false as rest
                 end

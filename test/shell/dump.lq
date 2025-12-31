@@ -16,7 +16,7 @@ module test::shell::dump contains
     then
       perform
         (assert-eq Boolean
-          (Str::string-contains "(of-type not (for-all (x Boolean) Boolean))" output)
+          (Str::has-substring "(of-type not (for-all (x Boolean) Boolean))" output)
           true)
     end
   end
@@ -27,7 +27,7 @@ module test::shell::dump contains
     then
       perform
         (assert-eq Boolean
-          (Str::string-contains "(define transparent not" output)
+          (Str::has-substring "(define transparent not" output)
           true)
     end
   end
@@ -39,10 +39,10 @@ module test::shell::dump contains
       perform (P::sequence-unit
         [
           (assert-eq Boolean
-                                                              (Str::string-contains "(for-all (x A) B)" output)
+                                                              (Str::has-substring "(for-all (x A) B)" output)
                                                               true)
         , (assert-eq Boolean
-                                                                (Str::string-contains "Types::Function" output)
+                                                                (Str::has-substring "Types::Function" output)
                                                                 false)
         ])
     end
@@ -55,10 +55,10 @@ module test::shell::dump contains
       perform (P::sequence-unit
         [
           (assert-eq Boolean
-                                                              (Str::string-contains "(Types::Function B C)" output)
+                                                              (Str::has-substring "(Types::Function B C)" output)
                                                               false)
         , (assert-eq Boolean
-                                                                (Str::string-contains "(for-all (x B) C)" output)
+                                                                (Str::has-substring "(for-all (x B) C)" output)
                                                                 true)
         ])
     end
@@ -70,7 +70,7 @@ module test::shell::dump contains
     then
       perform
         (assert-eq Boolean
-          (Str::string-contains "__req__Eq_Equality__eq" output)
+          (Str::has-substring "__req__Eq_Equality__eq" output)
           true)
     end
   end

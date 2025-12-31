@@ -1,11 +1,12 @@
 # Expected type error: bind result is String, but used as Natural.
 
 import prelude as P
+import arithmetic as Ar
 
 module test::typecheck::perform_bind_result_mismatch contains
   define transparent bad-bind as compute
     bind x from perform (compute return "hi" end) then
-      return (P::add-nat x 1)
+      return (Ar::add x 1)
     end
   end
 

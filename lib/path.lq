@@ -1,12 +1,13 @@
 import list as L
 import prelude as P
+import arithmetic as Ar
 import string as S
 import typeclass::equality as Eq
 
 module path contains
   define transparent is-absolute as
     function path String returns Boolean value
-      S::string-starts-with "/" path
+      S::starts-with "/" path
     end
 
   define transparent drop-leading-empty as
@@ -58,7 +59,7 @@ module path contains
               match (is-absolute child) of-type Boolean as ignored returns String
                 case Boolean::true as child
                 case Boolean::false as
-                  match (S::string-ends-with "/" base) of-type Boolean as ignored returns String
+                  match (S::ends-with "/" base) of-type Boolean as ignored returns String
                     case Boolean::true as S::concat base child
                     case Boolean::false as S::concat base (S::concat "/" child)
                   end
@@ -104,16 +105,16 @@ module path contains
             case Boolean::true as ""
             case Boolean::false as
               let value rev be S::reverse base in
-                let value rev-index be S::string-index-of "." rev in
+                let value rev-index be S::index-of "." rev in
                   match (Eq::equals Natural rev-index len) of-type Boolean as ignored returns String
                     case Boolean::true as ""
                     case Boolean::false as
-                      let value len-minus-one be P::sub-nat len 1 in
-                        let value dot-index be P::sub-nat len-minus-one rev-index in
+                      let value len-minus-one be Ar::subtract len 1 in
+                        let value dot-index be Ar::subtract len-minus-one rev-index in
                           match (Eq::equals Natural dot-index 0) of-type Boolean as ignored returns String
                             case Boolean::true as ""
                             case Boolean::false as
-                              let value start be P::sub-nat len rev-index in
+                              let value start be Ar::subtract len rev-index in
                                 S::substring start rev-index base
                               end
                           end

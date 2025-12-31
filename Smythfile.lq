@@ -113,7 +113,7 @@ module SmythConfig contains
                                           (P::cons (Pair String String)
                                             (P::pair String String
                                               "test/errors/fuzzy_match_type.lq"
-                                              "Variable not in scope: P::add-natt")
+                                              "Variable not in scope: Ar::addt")
                                             (P::cons (Pair String String)
                                               (P::pair String String
                                                 "test/errors/fuzzy_match_unqualified.lq"

@@ -1,6 +1,7 @@
 # Minimal prelude tests using the current surface syntax
 
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import io as IO
 import string as S
@@ -136,7 +137,7 @@ module test::prelude::basics contains
       match xs of-type (List Natural) as ignored returns computation Natural
         case List::empty as compute return 0 end
         case List::cons with h Natural t (List Natural) as compute
-          bind h from perform (compute return (P::add-nat h 1) end) then
+          bind h from perform (compute return (Ar::add h 1) end) then
             return h
           end
         end
@@ -305,7 +306,7 @@ module test::prelude::basics contains
 
   define transparent add2 as
     function x Natural returns Natural value
-      P::add-nat x 2
+      Ar::add x 2
     end
 
   define transparent hello as compute
@@ -338,9 +339,9 @@ module test::prelude::basics contains
   define transparent check-prelude-nat as compute
     perform (P::sequence-unit
       [
-        (A::assert-eq Natural (P::add-nat 2 5) 7)
-      , (A::assert-eq Natural (P::sub-nat 5 2) 3)
-      , (A::assert-eq Natural (P::sub-nat 2 5) 0)
+        (A::assert-eq Natural (Ar::add 2 5) 7)
+      , (A::assert-eq Natural (Ar::subtract 5 2) 3)
+      , (A::assert-eq Natural (Ar::subtract 2 5) 0)
       ])
   end
 
@@ -452,7 +453,7 @@ module test::prelude::basics contains
                                                 (P::head Natural
                                                   (P::map Natural Natural
                                                     (function x Natural returns Natural value
-                                                      P::add-nat x x
+                                                      Ar::add x x
                                                     end)
                                                     nums))
                                                 2)
@@ -467,7 +468,7 @@ module test::prelude::basics contains
       , (A::assert-eq Natural
                                                     (P::fold Natural Natural
                                                       (function acc Natural x Natural returns Natural value
-                                                        P::add-nat acc x
+                                                        Ar::add acc x
                                                       end)
                                                       0
                                                       nums)
@@ -516,7 +517,7 @@ module test::prelude::basics contains
   define transparent check-let as compute
     perform (A::assert-eq Natural
       (let value x be 4 in
-        P::add-nat x 1
+        Ar::add x 1
       end)
       5)
   end

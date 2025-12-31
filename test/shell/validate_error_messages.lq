@@ -17,7 +17,7 @@ module test::shell::validate_error_messages contains
     then
       perform
         (assert-eq Boolean
-          (Str::string-contains "Did you mean: my-function?" output)
+          (Str::has-substring "Did you mean: my-function?" output)
           true)
     end
   end
@@ -28,7 +28,7 @@ module test::shell::validate_error_messages contains
     then
       perform
         (assert-eq Boolean
-          (Str::string-contains "Did you mean: P::add-nat?" output)
+          (Str::has-substring "Did you mean: Ar::add" output)
           true)
     end
   end

@@ -7,10 +7,10 @@ Value vs computation (CBPV-flavored)
     ```
     define transparent add as
       function x Natural y Natural returns Natural value
-        add-nat x y
+        Ar::add x y
       end
     ```
-  - S: `(define transparent add (function ((x Natural) (y Natural)) Natural (value (add-nat x y))))`
+  - S: `(define transparent add (function ((x Natural) (y Natural)) Natural (value (Ar::add x y))))`
 
 - Computation definition (can perform effects/diverge; does not unfold under value-only contexts):
   - M:
@@ -32,10 +32,10 @@ Opacity and unfolding
     ```
     define opaque secret-step as
       function x Natural returns Natural value
-        add-nat x 1
+        Ar::add x 1
       end
     ```
-  - S: `(define opaque secret-step (function ((x Natural)) Natural (value (add-nat x 1))))`
+  - S: `(define opaque secret-step (function ((x Natural)) Natural (value (Ar::add x 1))))`
   - Equality: `secret-step 2` is not definitionally equal to `3` without a lemma or explicit rewrite.
 
 - Transparent counterpart (will unfold during conversion):
@@ -43,10 +43,10 @@ Opacity and unfolding
     ```
     define transparent step as
       function x Natural returns Natural value
-        add-nat x 1
+        Ar::add x 1
       end
     ```
-  - S: `(define transparent step (function ((x Natural)) Natural (value (add-nat x 1))))`
+  - S: `(define transparent step (function ((x Natural)) Natural (value (Ar::add x 1))))`
   - Equality: `step 2` is definitionally equal to `3` under βδι conversion.
 
 Extensionality posture (propositional, not definitional)
@@ -119,6 +119,7 @@ Inductives and recursors (current + planned)
 - Current: `data ... in TypeN ... end` introduces user-defined inductives; constructors are `Type::Ctor`; pattern matching is the eliminator.
 - Planned: explicit recursors (and/or syntax sugar) and strict positivity checks; match remains deterministic sugar over recursors.
 - Candidate core: Natural, Boolean, Unit, Empty, equal, List, Pair, Either/Option, Vec/Fin.
+- Deferred (type-level structure): a `Types::List`/telescope in `Type1` to encode dependent N-ary function types; unsweetened and not yet in stdlib.
 - Termination: structural recursion is enforced for `recur`; effects stay out of eliminators.
 
 Total values vs. effectful computations
@@ -128,10 +129,10 @@ Total values vs. effectful computations
     ```
     define transparent add2 as
       function x Natural returns Natural value
-        add-nat x 2
+        Ar::add x 2
       end
     ```
-  - S: `(define transparent add2 (function ((x Natural)) Natural (value (add-nat x 2))))`
+  - S: `(define transparent add2 (function ((x Natural)) Natural (value (Ar::add x 2))))`
   - This lives in the value world, normalizes, and can appear in types.
 
 - Effectful computation:
@@ -151,8 +152,8 @@ Total values vs. effectful computations
 Operators as ordinary identifiers (no infix)
 
 - Addition as prefix application:
-  - M: `define transparent add4 as add-nat 2 2`
-  - S: `(define transparent add4 (add-nat 2 2))`
+  - M: `define transparent add4 as Ar::add 2 2`
+  - S: `(define transparent add4 (Ar::add 2 2))`
   - Meaning: left-associated application; no precedence rules beyond application.
 
 Termination and coverage illustrations
@@ -164,7 +165,7 @@ Termination and coverage illustrations
       function xs (List Natural) returns Natural value
         match xs of-type List Natural as ignored returns Natural
           case List::empty as 0
-          case List::cons with h Natural t (List Natural) as add-nat h (sum-list t)
+          case List::cons with h Natural t (List Natural) as Ar::add h (sum-list t)
         end
       end
     ```
@@ -224,11 +225,11 @@ Namespaces and modules (current)
     module My::Module contains
       define transparent add2 as
         function x Natural returns Natural value
-          add-nat x 2
+          Ar::add x 2
         end
     end
     ```
-  - S: `(module My::Module (define transparent add2 (function ((x Natural)) Natural (value (add-nat x 2)))))`
+  - S: `(module My::Module (define transparent add2 (function ((x Natural)) Natural (value (Ar::add x 2)))))`
 
 Entrypoints and tooling (current)
 

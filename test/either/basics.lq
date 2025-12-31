@@ -1,6 +1,7 @@
 # Either helpers tests
 
 import assert as A
+import arithmetic as Ar
 import either as E
 import prelude as P
 import typeclass::equality as Eq
@@ -12,7 +13,7 @@ open P exposing Either::left Either::right end
 module test::either::basics contains
   define transparent inc as
     function x Natural returns Natural value
-      P::add-nat x 1
+      Ar::add x 1
     end
 
   define transparent left1 as Either::left Natural Natural 1
@@ -33,14 +34,14 @@ module test::either::basics contains
   define transparent bind-right-right as
     E::bind-right Natural Natural Natural
       (function x Natural returns (P::Either Natural Natural) value
-        Either::right Natural Natural (P::add-nat x 3)
+        Either::right Natural Natural (Ar::add x 3)
       end)
       right5
 
   define transparent bind-right-left as
     E::bind-right Natural Natural Natural
       (function x Natural returns (P::Either Natural Natural) value
-        Either::right Natural Natural (P::add-nat x 3)
+        Either::right Natural Natural (Ar::add x 3)
       end)
       left1
 

@@ -9,7 +9,7 @@ import test::helpers as TH
 module test::typecheck::mono contains
   define transparent five as 5
 
-  define transparent ten as Arith::add-nat 5 5
+  define transparent ten as Arith::add 5 5
 
   define transparent hello as "hello world"
 

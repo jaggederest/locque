@@ -1,0 +1,32 @@
+import assert as A
+import list::eq as ListEq
+import logic as L
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::list::eq contains
+  define transparent eq-true as
+    unpack
+      (ListEq::decide-eq Natural L::decide-eq-nat
+        [1, 2]
+        [1, 2])
+      as b ignored in b end
+
+  define transparent eq-false as
+    unpack
+      (ListEq::decide-eq Natural L::decide-eq-nat
+        [1, 2]
+        [1, 3])
+      as b ignored in b end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean eq-true true)
+      , (assert-eq Boolean eq-false false)
+      ])
+  end
+end

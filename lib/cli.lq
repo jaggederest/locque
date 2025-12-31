@@ -1,4 +1,5 @@
 import prelude as P
+import arithmetic as Ar
 import string as S
 import typeclass::equality as Eq
 
@@ -52,17 +53,17 @@ module cli contains
     function prefix String s String returns String value
       let value prefix-len be S::length prefix in
         let value s-len be S::length s in
-          S::substring prefix-len (P::sub-nat s-len prefix-len) s
+          S::substring prefix-len (Ar::subtract s-len prefix-len) s
         end
       end
     end
 
   define transparent split-on-equals as
     function s String returns (Pair String String) value
-      let value idx be S::string-index-of "=" s in
+      let value idx be S::index-of "=" s in
         let value len be S::length s in
-          let value after-start be P::add-nat idx 1 in
-            let value after-len be P::sub-nat len after-start in
+          let value after-start be Ar::add idx 1 in
+            let value after-len be Ar::subtract len after-start in
               P::pair String String
                 (S::substring 0 idx s)
                 (S::substring after-start after-len s)
@@ -80,16 +81,16 @@ module cli contains
           match (Eq::equals String h "--") of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
             case Boolean::true as P::pair (List String) (List (Pair String String)) t (P::nil (Pair String String))
             case Boolean::false as
-              match (S::string-starts-with "--" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+              match (S::starts-with "--" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
                 case Boolean::true as
                   let value without-prefix be drop-prefix "--" h in
-                    match (S::string-contains "=" without-prefix) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                    match (S::has-substring "=" without-prefix) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
                       case Boolean::true as add-option (split-on-equals without-prefix) (recur t)
                       case Boolean::false as
                         match t of-type (List String) as ignored returns (Pair (List String) (List (Pair String String)))
                           case List::empty as add-option (P::pair String String without-prefix "true") empty-options
                           case List::cons with v String rest (List String) as
-                            match (S::string-starts-with "-" v) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                            match (S::starts-with "-" v) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
                               case Boolean::true as add-option (P::pair String String without-prefix "true") (recur t)
                               case Boolean::false as add-option (P::pair String String without-prefix v) (recur rest)
                             end
@@ -97,7 +98,7 @@ module cli contains
                     end
                   end
                 case Boolean::false as
-                  match (S::string-starts-with "-" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+                  match (S::starts-with "-" h) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
                     case Boolean::true as
                       let value name be drop-prefix "-" h in
                         add-option (P::pair String String name "true") (recur t)

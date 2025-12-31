@@ -10,6 +10,9 @@ module typeclass::equality contains
     eq of-type (Types::Comparator A)
   end
 
+  define transparent equality-kind as
+    Types::TypeFunction Type0
+
   define transparent equals as
     function A Type0 x A y A requires Equality A returns Boolean value
       eq x y

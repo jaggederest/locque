@@ -1,6 +1,7 @@
 # Option helpers tests
 
 import assert as A
+import arithmetic as Ar
 import option as Opt
 import prelude as P
 import result as Res
@@ -13,7 +14,7 @@ open P exposing Option::none Option::some Result::ok Result::err end
 module test::option::basics contains
   define transparent inc as
     function x Natural returns Natural value
-      P::add-nat x 1
+      Ar::add x 1
     end
 
   define transparent some1 as Option::some Natural 1
@@ -28,14 +29,14 @@ module test::option::basics contains
   define transparent bind-some as
     Opt::and-then Natural Natural
       (function x Natural returns (P::Option Natural) value
-        Option::some Natural (P::add-nat x 3)
+        Option::some Natural (Ar::add x 3)
       end)
       some1
 
   define transparent bind-none as
     Opt::and-then Natural Natural
       (function x Natural returns (P::Option Natural) value
-        Option::some Natural (P::add-nat x 3)
+        Option::some Natural (Ar::add x 3)
       end)
       none-nat
 

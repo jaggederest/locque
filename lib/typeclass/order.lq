@@ -15,6 +15,9 @@ module typeclass::order contains
     lt of-type (Types::Comparator A)
   end
 
+  define transparent less-than-kind as
+    Types::TypeFunction Type0
+
   define transparent less-than as
     function A Type0 x A y A requires LessThan A returns Boolean value
       lt x y
@@ -39,6 +42,9 @@ module typeclass::order contains
   define transparent LessOrEqual as typeclass A of-kind Types::BaseType where
     le of-type (Types::Comparator A)
   end
+
+  define transparent less-or-equal-kind as
+    Types::TypeFunction Type0
 
   define transparent less-or-equal as
     function A Type0 x A y A requires LessOrEqual A returns Boolean value
@@ -65,6 +71,9 @@ module typeclass::order contains
     gt of-type (Types::Comparator A)
   end
 
+  define transparent greater-than-kind as
+    Types::TypeFunction Type0
+
   define transparent greater-than as
     function A Type0 x A y A requires GreaterThan A returns Boolean value
       gt x y
@@ -90,6 +99,9 @@ module typeclass::order contains
     ge of-type (Types::Comparator A)
   end
 
+  define transparent greater-or-equal-kind as
+    Types::TypeFunction Type0
+
   define transparent greater-or-equal as
     function A Type0 x A y A requires GreaterOrEqual A returns Boolean value
       ge x y
@@ -110,9 +122,7 @@ module typeclass::order contains
     end
   end
 
-  # STUB: String ordering
-  # Would require lexicographic comparison primitives
-  # When available, add instances for String
+  # String ordering instances live in string module to avoid import cycles.
 
   # STUB: List/Pair ordering
   # Requires instance constraints (not yet implemented in Locque)

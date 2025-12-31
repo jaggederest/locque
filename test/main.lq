@@ -15,6 +15,7 @@ import test::project as test_project
 import test::prelude as test_prelude
 import test::arithmetic as test_arithmetic
 import test::list as test_list
+import test::pair as test_pair
 import test::natural as test_natural
 import test::assert as test_assert
 import test::string as test_string
@@ -43,6 +44,7 @@ module test::main contains
     , (P::pair String (computation Unit) "test_prelude" test_prelude::main)
     , (P::pair String (computation Unit) "test_arithmetic" test_arithmetic::main)
     , (P::pair String (computation Unit) "test_list" test_list::main)
+    , (P::pair String (computation Unit) "test_pair" test_pair::main)
     , (P::pair String (computation Unit) "test_natural" test_natural::main)
     , (P::pair String (computation Unit) "test_assert" test_assert::main)
     , (P::pair String (computation Unit) "test_string" test_string::main)
@@ -154,7 +156,7 @@ module test::main contains
 
   define transparent slow-enabled as
     function args (List String) returns Boolean value
-      L::contains-string "--slow" args
+      L::member String "--slow" args
     end
 
   define transparent main as compute

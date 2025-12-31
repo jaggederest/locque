@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/list/
 
 import test::list::basics as basics
+import test::list::eq as eq
 
 module test::list contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , eq::main
       ])
   end
 end

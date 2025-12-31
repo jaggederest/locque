@@ -1,0 +1,5 @@
+import prelude as P
+
+module pair::eq contains
+  define transparent decide-eq as P::decide-eq-pair
+end

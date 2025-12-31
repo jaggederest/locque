@@ -16,7 +16,7 @@ module test::shell::lls contains
       bind files from perform (TH::assert-output-contains (List String) "lls_check.txt" (Lls::lls "test/tmp")) then
         perform
           (assert-eq Boolean
-            (Str::string-contains "lls_check.txt" (Str::join-with "\n" files))
+            (Str::has-substring "lls_check.txt" (Str::join-with "\n" files))
             true)
       end
     end

@@ -1,6 +1,7 @@
 # Type alias basics
 
 import prelude as P
+import arithmetic as Ar
 import type_aliases as Types
 
 open P exposing Either::left end
@@ -37,14 +38,14 @@ module test::type_aliases::basics contains
   define transparent add as
     of-type
       (function x Natural y Natural returns Natural value
-        P::add-nat x y
+        Ar::add x y
       end)
       (Types::BinaryOperator Natural)
 
   define transparent sum-step as
     of-type
       (function acc Natural x Natural returns Natural value
-        P::add-nat acc x
+        Ar::add acc x
       end)
       (Types::FoldStep Natural Natural)
 

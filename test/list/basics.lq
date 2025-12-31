@@ -1,6 +1,7 @@
 # List module basics
 
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import list as L
 import typeclass::equality as Eq
@@ -31,7 +32,7 @@ module test::list::basics contains
       match xs of-type (List Natural) as ignored returns Natural
         case List::empty as 0
         case List::cons with h Natural t (List Natural) as
-          P::add-nat h (recur t)
+          Ar::add h (recur t)
       end
     end
 
@@ -116,13 +117,13 @@ module test::list::basics contains
                                                                                                     (L::last Natural (L::concat Natural list-of-lists))
                                                                                                     3)
       , (assert-eq String
-                                                                                                      (P::head String (L::sort-strings-by-length unsorted-strings))
+                                                                                                      (P::head String (S::sort-by-length unsorted-strings))
                                                                                                       "a")
       , (assert-eq String
-                                                                                                        (L::nth String 1 (L::sort-strings-by-length unsorted-strings))
+                                                                                                        (L::nth String 1 (S::sort-by-length unsorted-strings))
                                                                                                         "cc")
       , (assert-eq String
-                                                                                                          (L::last String (L::sort-strings-by-length unsorted-strings))
+                                                                                                          (L::last String (S::sort-by-length unsorted-strings))
                                                                                                           "bbb")
       , (assert-eq Natural
                                                                                                             (P::head Natural

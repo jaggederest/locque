@@ -11,6 +11,9 @@ module typeclass::default contains
     default-value of-type (Types::Thunk A)
   end
 
+  define transparent default-kind as
+    Types::TypeFunction Type0
+
   # Instance: Natural (default is 0)
   define transparent Default-Natural as instance Default Natural where
     default-value as function u Unit returns Natural value

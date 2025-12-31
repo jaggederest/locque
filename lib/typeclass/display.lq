@@ -12,6 +12,9 @@ module typeclass::display contains
     display of-type (Types::Function A String)
   end
 
+  define transparent display-kind as
+    Types::TypeFunction Type0
+
   # Instance: Natural
   define transparent Display-Natural as instance Display Natural where
     display as function n Natural returns String value

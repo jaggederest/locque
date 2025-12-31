@@ -1,6 +1,7 @@
 # Prelude tests for iota reductions
 
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import typeclass::equality as Eq
 import string as S
@@ -61,7 +62,7 @@ module test::prelude::iota contains
   define transparent unreachable-flag as
     function x (Flagged true) returns Natural value
       match x of-type (Flagged true) as ignored returns Natural
-        case Flagged::false as P::add-nat "bad" 1
+        case Flagged::false as Ar::add "bad" 1
         case Flagged::true as 0
       end
     end

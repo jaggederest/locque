@@ -7,6 +7,9 @@ module typeclass::monoid contains
     empty of-type A
   end
 
+  define transparent monoid-kind as
+    Types::TypeFunction Type0
+
   define transparent combine as
     function A Type0 x A y A requires Monoid A returns A value
       append x y

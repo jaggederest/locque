@@ -26,10 +26,10 @@ echo ""
 # Test 2: Qualified name fuzzy matching
 echo "Test 2: Qualified name fuzzy matching"
 OUTPUT=$(smyth run test/errors/fuzzy_match_type.lq 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Did you mean: P.add-nat?"; then
-    echo "  ✓ PASS: Suggests 'P.add-nat' for typo 'P.add-natt'"
+if echo "$OUTPUT" | grep -q "Did you mean: Ar::add"; then
+    echo "  ✓ PASS: Suggests 'Ar::add' for typo 'Ar::addt'"
 else
-    echo "  ✗ FAIL: Expected suggestion 'P.add-nat' not found"
+    echo "  ✗ FAIL: Expected suggestion 'Ar::add' not found"
     echo "  Actual output:"
     echo "$OUTPUT" | sed 's/^/    /'
     exit 1

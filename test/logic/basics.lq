@@ -1,7 +1,9 @@
 # Logic module basics
 
 import assert as A
+import list::eq as ListEq
 import logic as L
+import pair::eq as PairEq
 import prelude as P
 import typeclass::equality as Eq
 
@@ -29,28 +31,28 @@ module test::logic::basics contains
 
   define transparent decide-pair-true as
     unpack
-      (P::decide-eq-pair Natural Boolean P::decide-eq-nat P::decide-eq-bool
+      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
         (P::pair Natural Boolean 1 true)
         (P::pair Natural Boolean 1 true))
       as b ignored in b end
 
   define transparent decide-pair-false as
     unpack
-      (P::decide-eq-pair Natural Boolean P::decide-eq-nat P::decide-eq-bool
+      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
         (P::pair Natural Boolean 1 true)
         (P::pair Natural Boolean 2 true))
       as b ignored in b end
 
   define transparent decide-list-true as
     unpack
-      (P::decide-eq-list Natural P::decide-eq-nat
+      (ListEq::decide-eq Natural L::decide-eq-nat
         [1, 2]
         [1, 2])
       as b ignored in b end
 
   define transparent decide-list-false as
     unpack
-      (P::decide-eq-list Natural P::decide-eq-nat
+      (ListEq::decide-eq Natural L::decide-eq-nat
         [1, 2]
         [1, 3])
       as b ignored in b end

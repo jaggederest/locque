@@ -1,26 +1,39 @@
 import type_aliases as Types
 
 module prelude contains
-  define transparent add-nat as add-nat-prim
-  define transparent sub-nat as sub-nat-prim
   define transparent nil as List::empty
   define transparent cons as List::cons
   define transparent error as error-prim
+
+  define transparent List-kind as
+    Types::TypeFunction Type0
+
+  define transparent Pair-kind as
+    Types::BinaryTypeFunction Type0 Type0
 
   define transparent Option as data A Type0 in Type0
     case Option::none of-type Option A
     case Option::some of-type Types::Function A (Option A)
   end
 
+  define transparent Option-kind as
+    Types::TypeFunction Type0
+
   define transparent Either as data A Type0 B Type0 in Type0
     case Either::left of-type Types::Function A (Either A B)
     case Either::right of-type Types::Function B (Either A B)
   end
 
+  define transparent Either-kind as
+    Types::BinaryTypeFunction Type0 Type0
+
   define transparent Result as data A Type0 E Type0 in Type0
     case Result::ok of-type Types::Function A (Result A E)
     case Result::err of-type Types::Function E (Result A E)
   end
+
+  define transparent Result-kind as
+    Types::BinaryTypeFunction Type0 Type0
   define transparent head as
     function A Type0 xs (List A) returns A value
       match xs of-type (List A) as ignored returns A
@@ -46,7 +59,7 @@ module prelude contains
     function A Type0 xs (List A) returns Natural value
       match xs of-type (List A) as ignored returns Natural
         case List::empty as 0
-        case List::cons with h A t (List A) as add-nat 1 (recur A t)
+        case List::cons with h A t (List A) as add-nat-prim 1 (recur A t)
       end
     end
   define transparent append as
@@ -79,7 +92,7 @@ module prelude contains
 
   define transparent fold-compute as
     function A Type0 B Type0
-             f (Types::Function (computation B) (Types::Function A (computation B)))
+             f (Types::BinaryFunction (computation B) A (computation B))
              acc (computation B)
              xs (List A)
     returns computation B value

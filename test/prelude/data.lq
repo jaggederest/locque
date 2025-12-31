@@ -1,6 +1,7 @@
 # Data definition and match tests
 
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import typeclass::equality as Eq
 import string as S
@@ -66,8 +67,8 @@ module test::prelude::data contains
   define transparent either-sum as
     function e (P::Either Natural Natural) returns Natural value
       match e of-type (P::Either Natural Natural) as ignored returns Natural
-        case Either::left with x Natural as P::add-nat x 1
-        case Either::right with y Natural as P::add-nat y 10
+        case Either::left with x Natural as Ar::add x 1
+        case Either::right with y Natural as Ar::add y 10
       end
     end
 
@@ -141,7 +142,7 @@ module test::prelude::data contains
 
   define transparent inc as
     function x Natural returns Natural value
-      P::add-nat x 1
+      Ar::add x 1
     end
 
   define transparent main as compute

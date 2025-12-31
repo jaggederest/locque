@@ -1,4 +1,5 @@
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import typeclass::equality as Eq
 
@@ -10,13 +11,13 @@ module test::new_syntax_test contains
 
   define transparent add-wrapper as
     function x Natural y Natural returns Natural value
-      P::add-nat x y
+      Ar::add x y
     end
 
   define transparent test-let as
     function x Natural returns Natural value
-      let value y be (P::add-nat x 10) in
-        let value z be (P::add-nat y 5) in
+      let value y be (Ar::add x 10) in
+        let value z be (Ar::add y 5) in
           z
         end
       end

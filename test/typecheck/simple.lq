@@ -7,7 +7,7 @@ module test::typecheck::simple contains
 
   define transparent add-five as
     function x Natural returns Natural value
-      Arith::add-nat x five
+      Arith::add x five
     end
 
   define transparent main as compute

@@ -6,6 +6,9 @@ module typeclass::semigroup contains
     append of-type (Types::BinaryOperator A)
   end
 
+  define transparent semigroup-kind as
+    Types::TypeFunction Type0
+
   define transparent combine as
     function A Type0 x A y A requires Semigroup A returns A value
       append x y

@@ -1,12 +1,12 @@
 module type_aliases contains
   define transparent BaseType as Type0
   define transparent TypeFunction as
-    function A Type0 returns Type1 value
+    function A Type1 returns Type1 value
       for-all x as A to Type0
     end
 
   define transparent BinaryTypeFunction as
-    function A Type0 B Type0 returns Type1 value
+    function A Type1 B Type1 returns Type1 value
       for-all x as A to for-all y as B to Type0
     end
 
@@ -17,32 +17,32 @@ module type_aliases contains
 
   define transparent Predicate as
     function A Type0 returns Type0 value
-      for-all x as A to Boolean
+      Function A Boolean
     end
 
   define transparent BinaryFunction as
     function A Type0 B Type0 C Type0 returns Type0 value
-      for-all x as A to for-all y as B to C
+      Function A (Function B C)
     end
 
   define transparent Comparator as
     function A Type0 returns Type0 value
-      for-all x as A to for-all y as A to Boolean
+      BinaryFunction A A Boolean
     end
 
   define transparent BinaryOperator as
     function A Type0 returns Type0 value
-      for-all x as A to for-all y as A to A
+      BinaryFunction A A A
     end
 
   define transparent FoldStep as
     function A Type0 B Type0 returns Type0 value
-      for-all acc as B to for-all x as A to B
+      BinaryFunction B A B
     end
 
   define transparent Thunk as
     function A Type0 returns Type0 value
-      for-all ignored as Unit to A
+      Function Unit A
     end
 
   define transparent Exists as

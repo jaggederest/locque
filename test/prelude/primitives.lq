@@ -61,8 +61,8 @@ module test::prelude::primitives contains
       , (A::assert-eq Natural (Ar::mul-nat (Ar::mul-nat 2 5) 3) 30)
       , (A::assert-eq Natural (Ar::div-nat 10 3) 3)
       , (A::assert-eq Natural (Ar::mod-nat 10 3) 1)
-      , (A::assert-eq Natural (Ar::add-nat 5 10) 15)
-      , (A::assert-eq Natural (Ar::sub-nat 10 3) 7)
+      , (A::assert-eq Natural (Ar::add 5 10) 15)
+      , (A::assert-eq Natural (Ar::subtract 10 3) 7)
       ])
   end
 
@@ -86,25 +86,25 @@ module test::prelude::primitives contains
       , (A::assert-eq String (S::character-string (S::char-at 1 "hello")) "e")
       , (A::assert-eq String (S::character-string (S::char-at 0 "hello")) "h")
       , (A::assert-eq String
-                                                        (match (S::string-contains "ell" "hello") of-type Boolean as ignored returns String
+                                                        (match (S::has-substring "ell" "hello") of-type Boolean as ignored returns String
                                                           case Boolean::false as "no"
                                                           case Boolean::true as "yes"
                                                         end)
                                                         "yes")
       , (A::assert-eq String
-                                                          (match (S::string-contains "xyz" "hello") of-type Boolean as ignored returns String
+                                                          (match (S::has-substring "xyz" "hello") of-type Boolean as ignored returns String
                                                             case Boolean::false as "no"
                                                             case Boolean::true as "yes"
                                                           end)
                                                           "no")
       , (A::assert-eq String
-                                                            (match (S::string-starts-with "hel" "hello") of-type Boolean as ignored returns String
+                                                            (match (S::starts-with "hel" "hello") of-type Boolean as ignored returns String
                                                               case Boolean::false as "no"
                                                               case Boolean::true as "yes"
                                                             end)
                                                             "yes")
       , (A::assert-eq String
-                                                              (match (S::string-starts-with "llo" "hello") of-type Boolean as ignored returns String
+                                                              (match (S::starts-with "llo" "hello") of-type Boolean as ignored returns String
                                                                 case Boolean::false as "no"
                                                                 case Boolean::true as "yes"
                                                               end)

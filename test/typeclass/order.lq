@@ -2,6 +2,7 @@
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
 import prelude as P
 import assert as A
+import string as S
 import typeclass::order as Order
 import typeclass::equality as Eq
 
@@ -61,6 +62,19 @@ module test::typeclass::order contains
   define transparent test-bool-le-tf as less-or-equal-value Boolean true false
   define transparent test-bool-le-tt as less-or-equal-value Boolean true true
 
+  # Test String ordering (lexicographic)
+  define transparent test-string-lt-yes as less-than-value String "a" "b"
+  define transparent test-string-lt-prefix as less-than-value String "a" "aa"
+  define transparent test-string-lt-no as less-than-value String "b" "a"
+  define transparent test-string-lt-eq as less-than-value String "a" "a"
+
+  define transparent test-string-le-yes as less-or-equal-value String "a" "b"
+  define transparent test-string-le-eq as less-or-equal-value String "a" "a"
+  define transparent test-string-le-no as less-or-equal-value String "b" "a"
+
+  define transparent test-string-gt-yes as greater-than-value String "b" "a"
+  define transparent test-string-ge-eq as greater-or-equal-value String "a" "a"
+
   # Test with variables (ETyped)
   define transparent test-nat-lt-var as
     function x Natural y Natural returns Boolean value
@@ -90,6 +104,15 @@ module test::typeclass::order contains
       , (A::assert-eq Boolean test-bool-le-ft true)
       , (A::assert-eq Boolean test-bool-le-tf false)
       , (A::assert-eq Boolean test-bool-le-tt true)
+      , (A::assert-eq Boolean test-string-lt-yes true)
+      , (A::assert-eq Boolean test-string-lt-prefix true)
+      , (A::assert-eq Boolean test-string-lt-no false)
+      , (A::assert-eq Boolean test-string-lt-eq false)
+      , (A::assert-eq Boolean test-string-le-yes true)
+      , (A::assert-eq Boolean test-string-le-eq true)
+      , (A::assert-eq Boolean test-string-le-no false)
+      , (A::assert-eq Boolean test-string-gt-yes true)
+      , (A::assert-eq Boolean test-string-ge-eq true)
       , (A::assert-eq Boolean (test-nat-lt-var 3 7) true)
       , (A::assert-eq Boolean (test-nat-lt-var 7 3) false)
       ])

@@ -1,6 +1,7 @@
 # Migrated from ../05_let.lq
 
 import prelude as P
+import arithmetic as Ar
 import assert as A
 import typeclass::equality as Eq
 
@@ -8,14 +9,14 @@ module test::prelude::let_binding contains
   define transparent simple-let as
     let value x be 2 in
       let value y be 3 in
-        P::add-nat x y
+        Ar::add x y
       end
     end
 
   define transparent multi-let as
     let value a be 1 in
       let value b be 2 in
-        P::add-nat a b
+        Ar::add a b
       end
     end
 

@@ -59,7 +59,7 @@ module test::helpers contains
     function A Type0 needle String action (computation A) returns computation A value
       with-output A action
         (function output (List String) ignored A returns computation Unit compute
-          perform (assert-eq Boolean (S::string-contains needle (output-string output)) true)
+          perform (assert-eq Boolean (S::has-substring needle (output-string output)) true)
         end)
     end
 end

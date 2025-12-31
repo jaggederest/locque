@@ -1,4 +1,5 @@
 import prelude as P
+import arithmetic as Ar
 import typeclass::order as Order
 
 module time contains
@@ -14,26 +15,13 @@ module time contains
                 (let value elapsed be
                   match (Order::less-than Natural stop start) of-type Boolean as ignored returns Natural
                     case Boolean::true as 0
-                    case Boolean::false as P::sub-nat stop start
+                    case Boolean::false as Ar::subtract stop start
                   end
                 in
                   P::pair A Natural result elapsed
                 end)
             end
           end
-        end
-      end
-    end
-
-  define transparent measure-unit as
-    function comp (computation Unit) returns computation Natural value
-      compute
-        bind measured from perform (measure Unit comp) then
-          perform
-            (match measured of-type (Pair Unit Natural) as ignored returns (computation Natural)
-              case Pair::pair with ignored Unit elapsed Natural as
-                compute return elapsed end
-            end)
         end
       end
     end

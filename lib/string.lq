@@ -1,9 +1,12 @@
 import prelude as P
+import arithmetic as Ar
+import list as L
 import typeclass::equality as Eq
 import typeclass::order as Order
 import type_aliases as Types
 
 open Eq exposing Equality end
+open Order exposing LessThan LessOrEqual GreaterThan GreaterOrEqual end
 
 module string contains
   define transparent concat as concat-string-prim
@@ -45,6 +48,30 @@ module string contains
       char-code-prim (character-string c)
     end
 
+  define transparent LessThan-Character as instance LessThan Character where
+    lt as function x Character y Character returns Boolean value
+      Order::less-than Natural (char-code x) (char-code y)
+    end
+  end
+
+  define transparent LessOrEqual-Character as instance LessOrEqual Character where
+    le as function x Character y Character returns Boolean value
+      Order::less-or-equal Natural (char-code x) (char-code y)
+    end
+  end
+
+  define transparent GreaterThan-Character as instance GreaterThan Character where
+    gt as function x Character y Character returns Boolean value
+      Order::greater-than Natural (char-code x) (char-code y)
+    end
+  end
+
+  define transparent GreaterOrEqual-Character as instance GreaterOrEqual Character where
+    ge as function x Character y Character returns Boolean value
+      Order::greater-or-equal Natural (char-code x) (char-code y)
+    end
+  end
+
   define transparent char-eq as
     function a Character b Character returns Boolean value
       eq (character-string a) (character-string b)
@@ -76,50 +103,6 @@ module string contains
   define transparent from-list as
     function xs (List Character) returns String value
       join-with "" (P::map Character String character-string xs)
-    end
-
-  define transparent list-take as
-    function n Natural xs (List Character) returns (List Character) value
-      match xs of-type (List Character) as ignored returns (List Character)
-        case List::empty as P::nil Character
-        case List::cons with h Character t (List Character) as
-          match (Eq::equals Natural n 0) of-type Boolean as ignored returns (List Character)
-            case Boolean::false as P::cons Character h (recur (P::sub-nat n 1) t)
-            case Boolean::true as P::nil Character
-          end
-      end
-    end
-
-  define transparent list-drop as
-    function n Natural xs (List Character) returns (List Character) value
-      match xs of-type (List Character) as ignored returns (List Character)
-        case List::empty as P::nil Character
-        case List::cons with h Character t (List Character) as
-          match (Eq::equals Natural n 0) of-type Boolean as ignored returns (List Character)
-            case Boolean::false as recur (P::sub-nat n 1) t
-            case Boolean::true as P::cons Character h t
-          end
-      end
-    end
-
-  define transparent list-reverse as
-    function xs (List Character) returns (List Character) value
-      P::fold Character (List Character)
-        (function acc (List Character) x Character returns (List Character) value
-          P::cons Character x acc
-        end)
-        (P::nil Character)
-        xs
-    end
-
-  define transparent reverse-segments as
-    function xs (List (List Character)) returns (List (List Character)) value
-      P::fold (List Character) (List (List Character))
-        (function acc (List (List Character)) x (List Character) returns (List (List Character)) value
-          P::cons (List Character) x acc
-        end)
-        (P::nil (List Character))
-        xs
     end
 
   define transparent drop-while-char as
@@ -178,17 +161,17 @@ module string contains
           match haystack of-type (List Character) as ignored returns Natural
             case List::empty as offset
             case List::cons with ignored Character t (List Character) as
-              recur t needle (P::add-nat offset 1)
+              recur t needle (Ar::add offset 1)
           end
       end
     end
 
-  define transparent string-index-of as
+  define transparent index-of as
     function needle String haystack String returns Natural value
       index-of-chars (to-list haystack) (to-list needle) 0
     end
 
-  define transparent string-starts-with as
+  define transparent starts-with as
     function prefix String s String returns Boolean value
       starts-with-chars (to-list prefix) (to-list s)
     end
@@ -199,14 +182,14 @@ module string contains
         (function acc Boolean prefix String returns Boolean value
           match acc of-type Boolean as ignored returns Boolean
             case Boolean::true as true
-            case Boolean::false as string-starts-with prefix s
+            case Boolean::false as starts-with prefix s
           end
         end)
         false
         prefixes
     end
 
-  define transparent string-ends-with as
+  define transparent ends-with as
     function suffix String s String returns Boolean value
       let value suffix-chars be to-list suffix in
         let value s-chars be to-list s in
@@ -215,7 +198,7 @@ module string contains
               match (Order::less-than Natural s-length suffix-length) of-type Boolean as ignored returns Boolean
                 case Boolean::true as false
                 case Boolean::false as
-                  list-eq-chars (list-drop (P::sub-nat s-length suffix-length) s-chars) suffix-chars
+                  list-eq-chars (L::drop Character (Ar::subtract s-length suffix-length) s-chars) suffix-chars
               end
             end
           end
@@ -223,11 +206,11 @@ module string contains
       end
     end
 
-  define transparent string-contains as
+  define transparent has-substring as
     function needle String haystack String returns Boolean value
       match (Eq::equals Natural (length needle) 0) of-type Boolean as ignored returns Boolean
         case Boolean::true as true
-        case Boolean::false as Order::less-than Natural (string-index-of needle haystack) (length haystack)
+        case Boolean::false as Order::less-than Natural (index-of needle haystack) (length haystack)
       end
     end
 
@@ -237,16 +220,94 @@ module string contains
         (function acc Boolean needle String returns Boolean value
           match acc of-type Boolean as ignored returns Boolean
             case Boolean::true as true
-            case Boolean::false as string-contains needle haystack
+            case Boolean::false as has-substring needle haystack
           end
         end)
         false
         needles
     end
 
+  define transparent chars-less-than as
+    function xs (List Character) ys (List Character) returns Boolean value
+      match xs of-type (List Character) as ignored returns Boolean
+        case List::empty as
+          match ys of-type (List Character) as ignored returns Boolean
+            case List::empty as false
+            case List::cons with ignored Character ignored-tail (List Character) as true
+          end
+        case List::cons with x Character xt (List Character) as
+          match ys of-type (List Character) as ignored returns Boolean
+            case List::empty as false
+            case List::cons with y Character yt (List Character) as
+              let value x-code be char-code x in
+                let value y-code be char-code y in
+                  match (Order::less-than Natural x-code y-code) of-type Boolean as ignored returns Boolean
+                    case Boolean::true as true
+                    case Boolean::false as
+                      match (Eq::equals Natural x-code y-code) of-type Boolean as ignored returns Boolean
+                        case Boolean::true as recur xt yt
+                        case Boolean::false as false
+                      end
+                  end
+                end
+              end
+          end
+      end
+    end
+
+  define transparent string-less-than as
+    function a String b String returns Boolean value
+      chars-less-than (to-list a) (to-list b)
+    end
+
+  define transparent string-less-or-equal as
+    function a String b String returns Boolean value
+      match (string-less-than a b) of-type Boolean as ignored returns Boolean
+        case Boolean::true as true
+        case Boolean::false as eq a b
+      end
+    end
+
+  define transparent string-greater-than as
+    function a String b String returns Boolean value
+      string-less-than b a
+    end
+
+  define transparent string-greater-or-equal as
+    function a String b String returns Boolean value
+      match (string-greater-than a b) of-type Boolean as ignored returns Boolean
+        case Boolean::true as true
+        case Boolean::false as eq a b
+      end
+    end
+
+  define transparent LessThan-String as instance LessThan String where
+    lt as function x String y String returns Boolean value
+      string-less-than x y
+    end
+  end
+
+  define transparent LessOrEqual-String as instance LessOrEqual String where
+    le as function x String y String returns Boolean value
+      string-less-or-equal x y
+    end
+  end
+
+  define transparent GreaterThan-String as instance GreaterThan String where
+    gt as function x String y String returns Boolean value
+      string-greater-than x y
+    end
+  end
+
+  define transparent GreaterOrEqual-String as instance GreaterOrEqual String where
+    ge as function x String y String returns Boolean value
+      string-greater-or-equal x y
+    end
+  end
+
   define transparent substring as
     function start Natural len Natural s String returns String value
-      from-list (list-take len (list-drop start (to-list s)))
+      from-list (L::take Character len (L::drop Character start (to-list s)))
     end
 
   define transparent split-on-chars as
@@ -258,14 +319,14 @@ module string contains
              segments (List (List Character))
     returns (List (List Character)) value
       match chars of-type (List Character) as ignored returns (List (List Character))
-        case List::empty as P::cons (List Character) (list-reverse current) segments
+        case List::empty as P::cons (List Character) (L::reverse Character current) segments
         case List::cons with h Character t (List Character) as
           match (Eq::equals Natural skip 0) of-type Boolean as ignored returns (List (List Character))
             case Boolean::true as
               match (starts-with-chars delim chars) of-type Boolean as ignored returns (List (List Character))
                 case Boolean::true as
-                  let value next-segments be P::cons (List Character) (list-reverse current) segments in
-                    let value new-skip be P::sub-nat delim-length 1 in
+                  let value next-segments be P::cons (List Character) (L::reverse Character current) segments in
+                    let value new-skip be Ar::subtract delim-length 1 in
                       recur t delim delim-length new-skip (P::nil Character) next-segments
                     end
                   end
@@ -273,7 +334,7 @@ module string contains
                   recur t delim delim-length 0 (P::cons Character h current) segments
               end
             case Boolean::false as
-              recur t delim delim-length (P::sub-nat skip 1) current segments
+              recur t delim delim-length (Ar::subtract skip 1) current segments
           end
       end
     end
@@ -289,7 +350,7 @@ module string contains
                 split-on-chars (to-list s) delim-chars delim-length 0
                   (P::nil Character) (P::nil (List Character))
               in
-                let value segments be reverse-segments segments-rev in
+                let value segments be L::reverse (List Character) segments-rev in
                   P::map (List Character) String from-list segments
                 end
               end
@@ -331,9 +392,9 @@ module string contains
     function s String returns String value
       let value chars be to-list s in
         let value trimmed-front be drop-while-char char-is-space chars in
-          let value reversed be list-reverse trimmed-front in
+          let value reversed be L::reverse Character trimmed-front in
             let value trimmed-back be drop-while-char char-is-space reversed in
-              from-list (list-reverse trimmed-back)
+              from-list (L::reverse Character trimmed-back)
             end
           end
         end
@@ -346,7 +407,7 @@ module string contains
         case List::empty as P::error Character "char-at expects index in bounds"
         case List::cons with h Character t (List Character) as
           match (Eq::equals Natural index 0) of-type Boolean as ignored returns Character
-            case Boolean::false as recur (P::sub-nat index 1) t
+            case Boolean::false as recur (Ar::subtract index 1) t
             case Boolean::true as h
           end
       end
@@ -367,20 +428,29 @@ module string contains
       from-list (P::tail Character (to-list s))
     end
 
-  define transparent ascii-order as
-    " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
-
-  define transparent char-order-index as
-    function c Character returns Natural value
-      string-index-of (character-string c) ascii-order
-    end
-
   define transparent code-in-range as
     function index Natural start Natural stop Natural returns Boolean value
       match (Order::less-or-equal Natural start index) of-type Boolean as ignored returns Boolean
         case Boolean::false as false
         case Boolean::true as Order::less-or-equal Natural index stop
       end
+    end
+
+  define transparent CharacterClass as data in Type0
+    case CharacterClass::range of-type Types::BinaryFunction Natural Natural CharacterClass
+  end
+
+  define transparent class-contains-code as
+    function cls CharacterClass code Natural returns Boolean value
+      match cls of-type CharacterClass as ignored returns Boolean
+        case CharacterClass::range with start Natural stop Natural as
+          code-in-range code start stop
+      end
+    end
+
+  define transparent class-contains as
+    function cls CharacterClass c Character returns Boolean value
+      class-contains-code cls (char-code c)
     end
 
   define transparent char-in-range as
@@ -406,28 +476,37 @@ module string contains
   define transparent lower-end-code as
     char-code-prim "z"
 
+  define transparent digit-class as
+    CharacterClass::range digit-start-code digit-end-code
+
+  define transparent upper-class as
+    CharacterClass::range upper-start-code upper-end-code
+
+  define transparent lower-class as
+    CharacterClass::range lower-start-code lower-end-code
+
   define transparent char-is-digit as
     function c Character returns Boolean value
-      code-in-range (char-code c) digit-start-code digit-end-code
+      class-contains digit-class c
     end
 
   define transparent char-is-upper as
     function c Character returns Boolean value
-      code-in-range (char-code c) upper-start-code upper-end-code
+      class-contains upper-class c
     end
 
   define transparent char-is-lower as
     function c Character returns Boolean value
-      code-in-range (char-code c) lower-start-code lower-end-code
+      class-contains lower-class c
     end
 
   define transparent char-is-letter as
     function c Character returns Boolean value
       let value code be char-code c in
-        match (code-in-range code upper-start-code upper-end-code)
+        match (class-contains-code upper-class code)
         of-type Boolean as ignored returns Boolean
           case Boolean::true as true
-          case Boolean::false as code-in-range code lower-start-code lower-end-code
+          case Boolean::false as class-contains-code lower-class code
         end
       end
     end
@@ -435,14 +514,14 @@ module string contains
   define transparent char-is-alnum as
     function c Character returns Boolean value
       let value code be char-code c in
-        match (code-in-range code upper-start-code upper-end-code)
+        match (class-contains-code upper-class code)
         of-type Boolean as ignored returns Boolean
           case Boolean::true as true
           case Boolean::false as
-            match (code-in-range code lower-start-code lower-end-code)
+            match (class-contains-code lower-class code)
             of-type Boolean as ignored returns Boolean
               case Boolean::true as true
-              case Boolean::false as code-in-range code digit-start-code digit-end-code
+              case Boolean::false as class-contains-code digit-class code
             end
         end
       end
@@ -466,7 +545,7 @@ module string contains
 
   define transparent char-lt as
     function a Character b Character returns Boolean value
-      Order::less-than Natural (char-order-index a) (char-order-index b)
+      Order::less-than Natural (char-code a) (char-code b)
     end
 
   define transparent insert-char-by as
@@ -501,6 +580,17 @@ module string contains
       from-list (sort-chars-by char-lt (to-list s))
     end
 
+  define transparent sort-by-length as
+    function xs (List String) returns List String value
+      let value cmp be
+        function a String b String returns Boolean value
+          Order::less-than Natural (length a) (length b)
+        end
+      in
+        L::sort-by String cmp xs
+      end
+    end
+
   define transparent is-empty as
     function s String returns Boolean value
       Eq::equals Natural (length s) 0
@@ -511,19 +601,9 @@ module string contains
       eq (trim s) ""
     end
 
-  define transparent ends-with as
-    function suffix String s String returns Boolean value
-      string-ends-with suffix s
-    end
-
-  define transparent index-of as
-    function needle String haystack String returns Natural value
-      string-index-of needle haystack
-    end
-
   define transparent reverse as
     function s String returns String value
-      from-list (list-reverse (to-list s))
+      from-list (L::reverse Character (to-list s))
     end
 
   define transparent lines as

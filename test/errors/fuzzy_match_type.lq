@@ -1,15 +1,16 @@
 # Test: Fuzzy matching in type errors
 # This file intentionally has a typo to test "did you mean?" suggestions
-# Expected error: "Variable not in scope: add-natt"
-# Expected suggestion: "Did you mean: add-nat?"
+# Expected error: "Variable not in scope: Ar::addt"
+# Expected suggestion: "Did you mean: Ar::add"
 
 import prelude as P
+import arithmetic as Ar
 
 module test::errors::fuzzy_match_type contains
-  # Deliberately misspell add-nat as add-natt
+  # Deliberately misspell add as addt
   define transparent test-typo as
     function x Natural y Natural returns Natural value
-      P::add-natt x y
+      Ar::addt x y
     end
 
   define transparent main as compute

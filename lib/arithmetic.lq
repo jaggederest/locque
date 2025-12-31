@@ -3,8 +3,8 @@ import typeclass::order as Order
 import typeclass::equality as Eq
 
 module arithmetic contains
-  define transparent add-nat as add-nat-prim
-  define transparent sub-nat as sub-nat-prim
+  define transparent add as add-nat-prim
+  define transparent subtract as sub-nat-prim
   define transparent mul-nat as mul-nat-prim
   define transparent div-nat as div-nat-prim
   define transparent mod-nat as mod-nat-prim
@@ -28,8 +28,8 @@ module arithmetic contains
   define transparent abs-diff as
     function a Natural b Natural returns Natural value
       match (Order::greater-than Natural a b) of-type Boolean as ignored returns Natural
-        case Boolean::false as sub-nat b a
-        case Boolean::true as sub-nat a b
+        case Boolean::false as subtract b a
+        case Boolean::true as subtract a b
       end
     end
 

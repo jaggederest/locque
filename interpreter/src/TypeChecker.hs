@@ -1029,7 +1029,7 @@ whnf env expr = case expr of
     f' <- whnf env f
     case f' of
       EFunction params constraints ret (FunctionValue body) ->
-        applyParams params constraints ret body args
+        applyParams params constraints ret body args >>= whnf env
       _ -> pure (mkApp f' args)
   _ -> pure expr
 
@@ -2097,7 +2097,8 @@ loadTypeImport projectRoot (Import modName alias) = do
           localClassNames = [defName d | d@(Definition _ _ body) <- defs, isClass body]
           localInstanceNames = [defName d | d@(Definition _ _ body) <- defs, isInstance body]
           localClassSet = Set.fromList localClassNames
-          envValues = foldl (insertQualified alias envSelf) envWithOpens defNames
+          localNames = Set.fromList defNames
+          envValues = foldl (insertQualified alias envSelf localNames) envWithOpens defNames
           envData = foldl (insertQualifiedData alias envSelf) envValues localDataNames
           envClasses = foldl (insertQualifiedClass alias envSelf) envData localClassNames
           envFinal = foldl (insertQualifiedInstance alias envSelf localClassSet) envClasses localInstanceNames
@@ -2116,15 +2117,16 @@ loadTypeImport projectRoot (Import modName alias) = do
       EData _ _ _ -> True
       _ -> False
 
-insertQualified :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
-insertQualified alias envSelf env name =
+insertQualified :: Text -> TCEnv -> Set.Set Text -> TCEnv -> Text -> TCEnv
+insertQualified alias envSelf localNames env name =
   case Map.lookup name (tcTypes envSelf) of
     Just scheme ->
       let qualified = qualifyName alias name
           envWithType = env { tcTypes = Map.insert qualified scheme (tcTypes env) }
       in case Map.lookup name (tcDefs envSelf) of
           Just (tr, body) ->
-            envWithType { tcDefs = Map.insert qualified (tr, body) (tcDefs envWithType) }
+            let body' = qualifyDefBody alias localNames body
+            in envWithType { tcDefs = Map.insert qualified (tr, body') (tcDefs envWithType) }
           Nothing -> envWithType
     Nothing -> env
 
@@ -2156,6 +2158,15 @@ qualifyDataInfo alias info =
       let ctorTy' = renameExpr (ctorType ctor)
           ctorName' = qualifyName alias (ctorName ctor)
       in mkCtorInfo qualifiedName ctorName' ctorTy'
+
+qualifyDefBody :: Text -> Set.Set Text -> Expr -> Expr
+qualifyDefBody alias localNames body =
+  foldl qualifyOne body (Set.toList localNames)
+  where
+    qualifyOne expr name =
+      case runTypeCheck (subst name (EVar (qualifyName alias name)) expr) of
+        Left err -> error ("Failed to qualify definition body: " ++ show err)
+        Right e -> e
 
 insertQualifiedClass :: Text -> TCEnv -> TCEnv -> Text -> TCEnv
 insertQualifiedClass alias envSelf env name =
