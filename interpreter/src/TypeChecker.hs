@@ -206,6 +206,12 @@ tUnit = ETypeConst TCUnit
 tType :: Int -> Expr
 tType = ETypeUniverse
 
+tListener :: Expr
+tListener = ETypeConst TCListener
+
+tSocket :: Expr
+tSocket = ETypeConst TCSocket
+
 tList :: Expr -> Expr
 tList a = EApp (ETypeConst TCList) [a]
 
@@ -877,7 +883,7 @@ normalize env expr = do
         EUp ty2 from2 to2 inner
           | fromLevel == from2
               && toLevel == to2
-              && alphaEq Map.empty ty' ty2 -> normalize env inner
+              && alphaEq env Map.empty ty' ty2 -> normalize env inner
         _ ->
           if fromLevel == toLevel
             then pure body'
@@ -1134,7 +1140,7 @@ conv :: TCEnv -> Expr -> Expr -> TypeCheckM Bool
 conv env a b = do
   a' <- normalize env a
   b' <- normalize env b
-  pure (alphaEq Map.empty a' b')
+  pure (alphaEq env Map.empty a' b')
 
 type UnifySubst = Map.Map Text Expr
 
@@ -1195,129 +1201,141 @@ unifyIndices env solvables left right = go Map.empty left right
                 sub' <- applyUnifySubstMap v expr' sub
                 pure (Just (Map.insert v expr' sub'))
 
-alphaEq :: Map.Map Text Text -> Expr -> Expr -> Bool
-alphaEq env a b = case (a, b) of
+alphaEq :: TCEnv -> Map.Map Text Text -> Expr -> Expr -> Bool
+alphaEq tcEnv env a b = case (a, b) of
   (EVar v1, EVar v2) ->
     case Map.lookup v1 env of
       Just v2' -> v2 == v2'
-      Nothing -> v1 == v2
+      Nothing -> canonicalGlobal tcEnv v1 == canonicalGlobal tcEnv v2
   (ELit l1, ELit l2) -> l1 == l2
   (EListLiteral xs, EListLiteral ys) ->
-    length xs == length ys && and (zipWith (alphaEq env) xs ys)
+    length xs == length ys && and (zipWith (alphaEq tcEnv env) xs ys)
   (ETypeConst c1, ETypeConst c2) -> c1 == c2
   (ETypeUniverse i, ETypeUniverse j) -> i == j
   (EForAll v1 d1 c1, EForAll v2 d2 c2) ->
-    alphaEq env d1 d2 && alphaEq (Map.insert v1 v2 env) c1 c2
+    alphaEq tcEnv env d1 d2 && alphaEq tcEnv (Map.insert v1 v2 env) c1 c2
   (EThereExists v1 d1 c1, EThereExists v2 d2 c2) ->
-    alphaEq env d1 d2 && alphaEq (Map.insert v1 v2 env) c1 c2
-  (ECompType t1, ECompType t2) -> alphaEq env t1 t2
+    alphaEq tcEnv env d1 d2 && alphaEq tcEnv (Map.insert v1 v2 env) c1 c2
+  (ECompType t1, ECompType t2) -> alphaEq tcEnv env t1 t2
   (EEqual ty1 l1 r1, EEqual ty2 l2 r2) ->
-    alphaEq env ty1 ty2 && alphaEq env l1 l2 && alphaEq env r1 r2
+    alphaEq tcEnv env ty1 ty2 && alphaEq tcEnv env l1 l2 && alphaEq tcEnv env r1 r2
   (EReflexive ty1 t1, EReflexive ty2 t2) ->
-    alphaEq env ty1 ty2 && alphaEq env t1 t2
+    alphaEq tcEnv env ty1 ty2 && alphaEq tcEnv env t1 t2
   (ERewrite f1 p1 b1, ERewrite f2 p2 b2) ->
-    alphaEq env f1 f2 && alphaEq env p1 p2 && alphaEq env b1 b2
+    alphaEq tcEnv env f1 f2 && alphaEq tcEnv env p1 p2 && alphaEq tcEnv env b1 b2
   (EPack v1 d1 c1 w1 b1, EPack v2 d2 c2 w2 b2) ->
-    alphaEq env d1 d2
-      && alphaEq (Map.insert v1 v2 env) c1 c2
-      && alphaEq env w1 w2
-      && alphaEq env b1 b2
+    alphaEq tcEnv env d1 d2
+      && alphaEq tcEnv (Map.insert v1 v2 env) c1 c2
+      && alphaEq tcEnv env w1 w2
+      && alphaEq tcEnv env b1 b2
   (EUnpack p1 x1 y1 b1, EUnpack p2 x2 y2 b2) ->
-    alphaEq env p1 p2
-      && alphaEq (Map.insert y1 y2 (Map.insert x1 x2 env)) b1 b2
+    alphaEq tcEnv env p1 p2
+      && alphaEq tcEnv (Map.insert y1 y2 (Map.insert x1 x2 env)) b1 b2
   (ELift ty1 from1 to1, ELift ty2 from2 to2) ->
-    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2
+    from1 == from2 && to1 == to2 && alphaEq tcEnv env ty1 ty2
   (EUp ty1 from1 to1 body1, EUp ty2 from2 to2 body2) ->
-    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2 && alphaEq env body1 body2
+    from1 == from2 && to1 == to2 && alphaEq tcEnv env ty1 ty2 && alphaEq tcEnv env body1 body2
   (EDown ty1 from1 to1 body1, EDown ty2 from2 to2 body2) ->
-    from1 == from2 && to1 == to2 && alphaEq env ty1 ty2 && alphaEq env body1 body2
+    from1 == from2 && to1 == to2 && alphaEq tcEnv env ty1 ty2 && alphaEq tcEnv env body1 body2
   (EApp f1 a1, EApp f2 a2) ->
-    length a1 == length a2 && alphaEq env f1 f2 && and (zipWith (alphaEq env) a1 a2)
+    length a1 == length a2 && alphaEq tcEnv env f1 f2 && and (zipWith (alphaEq tcEnv env) a1 a2)
   (EFunction ps1 cs1 r1 b1, EFunction ps2 cs2 r2 b2) ->
     length ps1 == length ps2
       && length cs1 == length cs2
       && let (env', paramsOk) = foldl step (env, True) (zip ps1 ps2)
              step (e, ok) (Param n1 t1, Param n2 t2) =
-               (Map.insert n1 n2 e, ok && alphaEq e t1 t2)
-             constraintsOk = and (zipWith (alphaEqConstraint env') cs1 cs2)
-         in paramsOk && constraintsOk && alphaEq env' r1 r2 && alphaEqBody env' b1 b2
+               (Map.insert n1 n2 e, ok && alphaEq tcEnv e t1 t2)
+             constraintsOk = and (zipWith (alphaEqConstraint tcEnv env') cs1 cs2)
+         in paramsOk && constraintsOk && alphaEq tcEnv env' r1 r2 && alphaEqBody tcEnv env' b1 b2
   (ELet v1 val1 body1, ELet v2 val2 body2) ->
-    alphaEq env val1 val2 && alphaEq (Map.insert v1 v2 env) body1 body2
+    alphaEq tcEnv env val1 val2 && alphaEq tcEnv (Map.insert v1 v2 env) body1 body2
   (EMatch s1 ty1 n1 r1 c1, EMatch s2 ty2 n2 r2 c2) ->
-    alphaEq env s1 s2
-      && alphaEq env ty1 ty2
-      && alphaEq (Map.insert n1 n2 env) r1 r2
-      && alphaEqCases (Map.insert n1 n2 env) c1 c2
+    alphaEq tcEnv env s1 s2
+      && alphaEq tcEnv env ty1 ty2
+      && alphaEq tcEnv (Map.insert n1 n2 env) r1 r2
+      && alphaEqCases tcEnv (Map.insert n1 n2 env) c1 c2
   (EData ps1 u1 cs1, EData ps2 u2 cs2) ->
     length ps1 == length ps2
-      && alphaEq env u1 u2
+      && alphaEq tcEnv env u1 u2
       && let (env', ok) =
                foldl
                  (\(e, acc) (Param n1 t1, Param n2 t2) ->
-                     (Map.insert n1 n2 e, acc && alphaEq e t1 t2))
+                     (Map.insert n1 n2 e, acc && alphaEq tcEnv e t1 t2))
                  (env, True)
                  (zip ps1 ps2)
-         in ok && alphaEqDataCases env' cs1 cs2
+         in ok && alphaEqDataCases tcEnv env' cs1 cs2
   (EAnnot e1 t1, EAnnot e2 t2) ->
-    alphaEq env e1 e2 && alphaEq env t1 t2
+    alphaEq tcEnv env e1 e2 && alphaEq tcEnv env t1 t2
   (ETyped e1 t1, ETyped e2 t2) ->
-    alphaEq env e1 e2 && alphaEq env t1 t2
+    alphaEq tcEnv env e1 e2 && alphaEq tcEnv env t1 t2
   (EDict n1 i1, EDict n2 i2) ->
-    n1 == n2 && and (zipWith (\(a1, e1) (a2, e2) -> a1 == a2 && alphaEq env e1 e2) i1 i2)
+    n1 == n2 && and (zipWith (\(a1, e1) (a2, e2) -> a1 == a2 && alphaEq tcEnv env e1 e2) i1 i2)
   (EDictAccess d1 m1, EDictAccess d2 m2) ->
-    m1 == m2 && alphaEq env d1 d2
+    m1 == m2 && alphaEq tcEnv env d1 d2
   (ETypeClass p1 k1 ms1, ETypeClass p2 k2 ms2) ->
     length ms1 == length ms2
-      && alphaEq env k1 k2
+      && alphaEq tcEnv env k1 k2
       && let env' = Map.insert p1 p2 env
-         in and (zipWith (\(n1, t1) (n2, t2) -> n1 == n2 && alphaEq env' t1 t2) ms1 ms2)
+         in and (zipWith (\(n1, t1) (n2, t2) -> n1 == n2 && alphaEq tcEnv env' t1 t2) ms1 ms2)
   (EInstance c1 t1 ms1, EInstance c2 t2 ms2) ->
-    c1 == c2 && alphaEq env t1 t2
+    c1 == c2 && alphaEq tcEnv env t1 t2
       && length ms1 == length ms2
-      && and (zipWith (\(n1, e1) (n2, e2) -> n1 == n2 && alphaEq env e1 e2) ms1 ms2)
+      && and (zipWith (\(n1, e1) (n2, e2) -> n1 == n2 && alphaEq tcEnv env e1 e2) ms1 ms2)
   _ -> False
 
-alphaEqConstraint :: Map.Map Text Text -> Constraint -> Constraint -> Bool
-alphaEqConstraint env (Constraint c1 t1) (Constraint c2 t2) =
-  c1 == c2 && alphaEq env t1 t2
+alphaEqConstraint :: TCEnv -> Map.Map Text Text -> Constraint -> Constraint -> Bool
+alphaEqConstraint tcEnv env (Constraint c1 t1) (Constraint c2 t2) =
+  c1 == c2 && alphaEq tcEnv env t1 t2
 
-alphaEqBody :: Map.Map Text Text -> FunctionBody -> FunctionBody -> Bool
-alphaEqBody env b1 b2 = case (b1, b2) of
-  (FunctionValue e1, FunctionValue e2) -> alphaEq env e1 e2
-  (FunctionCompute c1, FunctionCompute c2) -> alphaEqComp env c1 c2
+alphaEqBody :: TCEnv -> Map.Map Text Text -> FunctionBody -> FunctionBody -> Bool
+alphaEqBody tcEnv env b1 b2 = case (b1, b2) of
+  (FunctionValue e1, FunctionValue e2) -> alphaEq tcEnv env e1 e2
+  (FunctionCompute c1, FunctionCompute c2) -> alphaEqComp tcEnv env c1 c2
   _ -> False
 
-alphaEqComp :: Map.Map Text Text -> Comp -> Comp -> Bool
-alphaEqComp env c1 c2 = case (c1, c2) of
-  (CReturn e1, CReturn e2) -> alphaEq env e1 e2
-  (CPerform e1, CPerform e2) -> alphaEq env e1 e2
+alphaEqComp :: TCEnv -> Map.Map Text Text -> Comp -> Comp -> Bool
+alphaEqComp tcEnv env c1 c2 = case (c1, c2) of
+  (CReturn e1, CReturn e2) -> alphaEq tcEnv env e1 e2
+  (CPerform e1, CPerform e2) -> alphaEq tcEnv env e1 e2
   (CBind v1 a1 b1, CBind v2 a2 b2) ->
-    alphaEqComp env a1 a2 && alphaEqComp (Map.insert v1 v2 env) b1 b2
+    alphaEqComp tcEnv env a1 a2 && alphaEqComp tcEnv (Map.insert v1 v2 env) b1 b2
   _ -> False
 
-alphaEqCases :: Map.Map Text Text -> [MatchCase] -> [MatchCase] -> Bool
-alphaEqCases env xs ys =
-  length xs == length ys && and (zipWith (alphaEqCase env) xs ys)
+alphaEqCases :: TCEnv -> Map.Map Text Text -> [MatchCase] -> [MatchCase] -> Bool
+alphaEqCases tcEnv env xs ys =
+  length xs == length ys && and (zipWith (alphaEqCase tcEnv env) xs ys)
 
-alphaEqCase :: Map.Map Text Text -> MatchCase -> MatchCase -> Bool
-alphaEqCase env (MatchCase c1 bs1 b1) (MatchCase c2 bs2 b2) =
+alphaEqCase :: TCEnv -> Map.Map Text Text -> MatchCase -> MatchCase -> Bool
+alphaEqCase tcEnv env (MatchCase c1 bs1 b1) (MatchCase c2 bs2 b2) =
   c1 == c2
     && length bs1 == length bs2
     && let (env', ok) =
              foldl
                (\(e, acc) (Param n1 t1, Param n2 t2) ->
-                   (Map.insert n1 n2 e, acc && alphaEq e t1 t2))
+                   (Map.insert n1 n2 e, acc && alphaEq tcEnv e t1 t2))
                (env, True)
                (zip bs1 bs2)
-       in ok && alphaEq env' b1 b2
+        in ok && alphaEq tcEnv env' b1 b2
 
-alphaEqDataCases :: Map.Map Text Text -> [DataCase] -> [DataCase] -> Bool
-alphaEqDataCases env xs ys =
-  length xs == length ys && and (zipWith (alphaEqDataCase env) xs ys)
+canonicalGlobal :: TCEnv -> Text -> Text
+canonicalGlobal env name =
+  case Map.lookup name (tcData env) of
+    Just info -> dataName info
+    Nothing ->
+      case Map.lookup name (tcCtors env) of
+        Just info -> ctorName info
+        Nothing ->
+          case Map.lookup name (tcClasses env) of
+            Just info -> className info
+            Nothing -> name
 
-alphaEqDataCase :: Map.Map Text Text -> DataCase -> DataCase -> Bool
-alphaEqDataCase env (DataCase n1 t1) (DataCase n2 t2) =
-  n1 == n2 && alphaEq env t1 t2
+alphaEqDataCases :: TCEnv -> Map.Map Text Text -> [DataCase] -> [DataCase] -> Bool
+alphaEqDataCases tcEnv env xs ys =
+  length xs == length ys && and (zipWith (alphaEqDataCase tcEnv env) xs ys)
+
+alphaEqDataCase :: TCEnv -> Map.Map Text Text -> DataCase -> DataCase -> Bool
+alphaEqDataCase tcEnv env (DataCase n1 t1) (DataCase n2 t2) =
+  n1 == n2 && alphaEq tcEnv env t1 t2
 
 ensureConv :: TCEnv -> Expr -> Expr -> TypeCheckM ()
 ensureConv env actual expected =
@@ -1849,6 +1867,8 @@ typeOfTypeConst tc = case tc of
   TCDictionary ->
     EForAll "K" (tType 0)
       (EForAll "V" (tType 0) (tType 0))
+  TCListener -> tType 0
+  TCSocket -> tType 0
 
 --------------------------------------------------------------------------------
 -- Primitive environment
@@ -1948,11 +1968,27 @@ buildPrimitiveEnv = Map.fromList
   , ("Boolean::true", tBool)
   , ("Unit::tt", tUnit)
 
+  , ("tcp-listen-prim", tFun tNat (tComp tListener))
+  , ("tcp-accept-prim", tFun tListener (tComp tSocket))
+  , ("tcp-recv-prim", tFun tSocket (tComp tString))
+  , ("tcp-send-prim", tFun tSocket (tFun tString (tComp tUnit)))
+  , ("tcp-close-prim", tFun tSocket (tComp tUnit))
+  , ("tcp-close-listener-prim", tFun tListener (tComp tUnit))
+  , ("tcp-select-listener-prim", tFun tListener (tFun tNat (tComp tBool)))
+  , ("tcp-select-socket-prim", tFun tSocket (tFun tNat (tComp tBool)))
+  , ("sleep-prim", tFun tNat (tComp tUnit))
+  , ("timeout-prim",
+      EForAll "A" (tType 0)
+        (tFun tNat (tFun (tComp (EVar "A")) (tComp (tOption (EVar "A"))))))
+  , ("panic-prim", tFun tString (tComp tUnit))
+
   , ("print-prim", tFun tString (tComp tUnit))
   , ("capture-output-prim",
       EForAll "A" (tType 0)
         (tFun (tComp (EVar "A"))
           (tComp (tPair (tList tString) (EVar "A")))))
+  , ("forever-prim", tFun (tComp tUnit) (tComp tUnit))
+  , ("on-signal-prim", tFun tString (tFun (tComp tUnit) (tComp tUnit)))
   , ("assert-hit-prim", tComp tUnit)
   , ("get-line-prim", tComp tString)
   , ("cli-args-prim", tComp (tList tString))

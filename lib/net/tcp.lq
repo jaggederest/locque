@@ -1,0 +1,10 @@
+module net::tcp contains
+  define opaque listen as tcp-listen-prim
+  define opaque accept as tcp-accept-prim
+  define opaque recv as tcp-recv-prim
+  define opaque send as tcp-send-prim
+  define opaque close as tcp-close-prim
+  define opaque close-listener as tcp-close-listener-prim
+  define opaque select-listener as tcp-select-listener-prim
+  define opaque select-socket as tcp-select-socket-prim
+end

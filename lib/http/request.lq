@@ -52,4 +52,15 @@ module http::request contains
         end
       end
     end
+
+  define transparent parse-request as
+    function raw String returns (P::Option Request) value
+      let value lines be S::lines raw in
+        match lines of-type (List String) as ignored returns (P::Option Request)
+          case List::empty as Option::none Request
+          case List::cons with line String ignored (List String) as
+            parse-request-line line
+        end
+      end
+    end
 end

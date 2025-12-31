@@ -1,0 +1,13 @@
+import prelude as P
+# Test rollup for net modules
+
+import test::net::tcp as test_tcp
+
+module test::net contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test_tcp::main
+      ])
+  end
+end

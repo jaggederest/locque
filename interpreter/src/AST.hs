@@ -19,6 +19,8 @@ data TypeConst
   | TCList
   | TCPair
   | TCDictionary
+  | TCListener
+  | TCSocket
   deriving (Show, Eq)
 
 data Param = Param

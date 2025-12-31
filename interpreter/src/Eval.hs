@@ -6,15 +6,21 @@ module Eval
   ) where
 
 import           AST
-import           Control.Exception (catch, IOException, SomeException, throwIO, try)
-import           Control.Monad (when)
+import           Control.Exception (catch, IOException, SomeException, throwIO, try, fromException)
+import           Control.Monad (when, void)
+import           Control.Concurrent (ThreadId, forkIO, myThreadId, throwTo, threadDelay)
+import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import           GHC.Conc (getNumCapabilities, setNumCapabilities)
+import           Control.Concurrent.STM (atomically)
 import           Data.IORef
 import           Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import           Data.Char (ord)
+import qualified Data.ByteString as BS
 import           System.FilePath ((</>), (<.>), takeExtension)
 import           System.Directory
   ( copyFile
@@ -34,8 +40,15 @@ import           System.Directory
 import           Data.Time.Clock.POSIX (getPOSIXTime, utcTimeToPOSIXSeconds)
 import qualified Data.Text.IO as TIO
 import           System.Environment (getArgs)
+import           System.Exit (die, ExitCode(..))
+import           System.Posix.Process (exitImmediately)
 import           System.IO.Unsafe (unsafePerformIO)
+import           System.IO (hPutStrLn, hFlush, stderr)
 import           System.Process (readCreateProcessWithExitCode, shell)
+import qualified System.Posix.Signals as Signals
+import           System.Timeout (timeout)
+import qualified Network.Socket as NS
+import qualified Network.Socket.ByteString as NSB
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
@@ -45,14 +58,15 @@ import qualified Type as Type
 import qualified TypeChecker as TC
 
 -- Global assertion counter (reset at the start of each test run)
-{-# NOINLINE assertionCounter #-}
 assertionCounter :: IORef Int
 assertionCounter = unsafePerformIO (newIORef 0)
+{-# NOINLINE assertionCounter #-}
 
 -- Captured output stack (top of stack is current capture, reversed order).
-{-# NOINLINE outputCapture #-}
 outputCapture :: IORef [[Text]]
 outputCapture = unsafePerformIO (newIORef [])
+{-# NOINLINE outputCapture #-}
+
 
 -- Runtime values
 
@@ -64,6 +78,8 @@ data Value
   | VBoolean Bool
   | VPair Value Value
   | VDictionary (Map.Map Integer [(Value, Value)]) Int
+  | VListener NS.Socket
+  | VSocket NS.Socket
   | VTypeConst TypeConst
   | VTypeData Text
   | VTypeUniverse Int
@@ -89,6 +105,8 @@ instance Show Value where
   show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
   show (VDictionary _ size) = "<dictionary:" ++ show size ++ ">"
+  show (VListener _) = "<listener>"
+  show (VSocket _) = "<socket>"
   show (VTypeConst tc) = T.unpack (Type.typeConstName tc)
   show (VTypeData name) = T.unpack name
   show (VTypeUniverse n) = "Type" ++ show n
@@ -127,6 +145,19 @@ primEnv = Map.fromList
   , (T.pack "char-code-prim", BVal (VPrim primCharCode))
   , (T.pack "print-prim", BVal (VPrim primPrint))
   , (T.pack "capture-output-prim", BVal (VPrim primCaptureOutput))
+  , (T.pack "forever-prim", BVal (VPrim primForever))
+  , (T.pack "on-signal-prim", BVal (VPrim primOnSignal))
+  , (T.pack "tcp-listen-prim", BVal (VPrim primTcpListen))
+  , (T.pack "tcp-accept-prim", BVal (VPrim primTcpAccept))
+  , (T.pack "tcp-recv-prim", BVal (VPrim primTcpRecv))
+  , (T.pack "tcp-send-prim", BVal (VPrim primTcpSend))
+  , (T.pack "tcp-close-prim", BVal (VPrim primTcpClose))
+  , (T.pack "tcp-close-listener-prim", BVal (VPrim primTcpCloseListener))
+  , (T.pack "tcp-select-listener-prim", BVal (VPrim primTcpSelectListener))
+  , (T.pack "tcp-select-socket-prim", BVal (VPrim primTcpSelectSocket))
+  , (T.pack "sleep-prim", BVal (VPrim primSleep))
+  , (T.pack "timeout-prim", BVal (VPrim primTimeout))
+  , (T.pack "panic-prim", BVal (VPrim primPanic))
   , (T.pack "assert-hit-prim", BVal (VComp primAssertHit))
   , (T.pack "get-line-prim", BVal (VComp primGetLine))
   , (T.pack "cli-args-prim", BVal (VComp primCliArgs))
@@ -443,10 +474,185 @@ primCaptureOutput [ty, VComp action] = do
             pure (VPair (VList (map VString (reverse buf))) result)
 primCaptureOutput _ = error "capture-output-prim expects (Type, computation)"
 
+primForever :: [Value] -> IO Value
+primForever [VComp action] =
+  pure $ VComp $ let loop = action >> loop in loop
+primForever _ = error "forever-prim expects (computation Unit)"
+
+signalFromName :: Text -> Maybe Signals.Signal
+signalFromName name =
+  case T.toUpper (T.strip name) of
+    "INT" -> Just Signals.sigINT
+    "SIGINT" -> Just Signals.sigINT
+    "TERM" -> Just Signals.sigTERM
+    "SIGTERM" -> Just Signals.sigTERM
+    "HUP" -> Just Signals.sigHUP
+    "SIGHUP" -> Just Signals.sigHUP
+    "QUIT" -> Just Signals.sigQUIT
+    "SIGQUIT" -> Just Signals.sigQUIT
+    "PIPE" -> Just Signals.sigPIPE
+    "SIGPIPE" -> Just Signals.sigPIPE
+    "USR1" -> Just Signals.sigUSR1
+    "SIGUSR1" -> Just Signals.sigUSR1
+    "USR2" -> Just Signals.sigUSR2
+    "SIGUSR2" -> Just Signals.sigUSR2
+    _ -> Nothing
+
+primOnSignal :: [Value] -> IO Value
+primOnSignal [VString name, VComp handler] =
+  case signalFromName name of
+    Nothing -> error "on-signal-prim expects a known signal name"
+    Just sig -> pure $ VComp $ do
+      caller <- myThreadId
+      hPutStrLn stderr ("[signal] installing handler for " ++ T.unpack name)
+      hFlush stderr
+      _ <- Signals.installHandler sig (Signals.Catch (runHandler caller sig handler)) Nothing
+      pure VUnit
+  where
+    runHandler caller sig action = do
+      hPutStrLn stderr ("[signal] caught " ++ show sig)
+      hFlush stderr
+      result <- try action
+      case result of
+        Left (ex :: SomeException) -> do
+          throwTo caller ex
+          case fromException ex of
+            Just code -> exitImmediately code
+            Nothing -> exitImmediately (ExitFailure 1)
+        Right _ -> pure ()
+primOnSignal _ = error "on-signal-prim expects (signal-name, computation Unit)"
+
 primAssertHit :: IO Value
 primAssertHit = do
   modifyIORef' assertionCounter (+1)
   pure VUnit
+
+expectListener :: Value -> IO NS.Socket
+expectListener v = case v of
+  VListener sock -> pure sock
+  _ -> error $ "expected Listener, got " ++ show v
+
+expectSocket :: Value -> IO NS.Socket
+expectSocket v = case v of
+  VSocket sock -> pure sock
+  _ -> error $ "expected Socket, got " ++ show v
+
+microsToInt :: Integer -> Int
+microsToInt micros =
+  let maxInt = toInteger (maxBound :: Int)
+  in fromInteger (min micros maxInt)
+
+runBlocking :: IO a -> IO a
+runBlocking action = do
+  resultVar <- newEmptyMVar
+  _ <- forkIO $ do
+    result <- try action
+    putMVar resultVar result
+  result <- takeMVar resultVar
+  case result of
+    Left (ex :: SomeException) -> throwIO ex
+    Right val -> pure val
+
+primTcpListen :: [Value] -> IO Value
+primTcpListen [VNatural port] = do
+  pure $ VComp $ NS.withSocketsDo $ do
+    let hints =
+          NS.defaultHints
+            { NS.addrFlags = [NS.AI_PASSIVE]
+            , NS.addrSocketType = NS.Stream
+            }
+        service = Just (show port)
+    addrInfos <- NS.getAddrInfo (Just hints) Nothing service
+    case addrInfos of
+      [] -> error "tcp-listen-prim: no addr info"
+      (addr:_) -> do
+        sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr) (NS.addrProtocol addr)
+        NS.setSocketOption sock NS.ReuseAddr 1
+        NS.bind sock (NS.addrAddress addr)
+        NS.listen sock 128
+        pure (VListener sock)
+primTcpListen _ = error "tcp-listen-prim expects (port)"
+
+primTcpAccept :: [Value] -> IO Value
+primTcpAccept [listenerVal] = do
+  pure $ VComp $ NS.withSocketsDo $ do
+    listener <- expectListener listenerVal
+    (conn, _peer) <- runBlocking (NS.accept listener)
+    pure (VSocket conn)
+primTcpAccept _ = error "tcp-accept-prim expects (listener)"
+
+primTcpRecv :: [Value] -> IO Value
+primTcpRecv [socketVal] = do
+  pure $ VComp $ do
+    sock <- expectSocket socketVal
+    chunk <- runBlocking (NSB.recv sock 4096)
+    pure (VString (TE.decodeUtf8 chunk))
+primTcpRecv _ = error "tcp-recv-prim expects (socket)"
+
+primTcpSend :: [Value] -> IO Value
+primTcpSend [socketVal, VString payload] = do
+  pure $ VComp $ do
+    sock <- expectSocket socketVal
+    runBlocking (NSB.sendAll sock (TE.encodeUtf8 payload))
+    pure VUnit
+primTcpSend _ = error "tcp-send-prim expects (socket, string)"
+
+primTcpClose :: [Value] -> IO Value
+primTcpClose [socketVal] = do
+  pure $ VComp $ do
+    sock <- expectSocket socketVal
+    NS.close sock
+    pure VUnit
+primTcpClose _ = error "tcp-close-prim expects (socket)"
+
+primTcpCloseListener :: [Value] -> IO Value
+primTcpCloseListener [listenerVal] = do
+  pure $ VComp $ do
+    listener <- expectListener listenerVal
+    NS.close listener
+    pure VUnit
+primTcpCloseListener _ = error "tcp-close-listener-prim expects (listener)"
+
+primTcpSelectListener :: [Value] -> IO Value
+primTcpSelectListener [listenerVal, VNatural micros] = do
+  pure $ VComp $ do
+    listener <- expectListener listenerVal
+    let waitMicros = microsToInt micros
+    waitStm <- NS.waitReadSocketSTM listener
+    ready <- timeout waitMicros (atomically waitStm)
+    pure (VBoolean (maybe False (const True) ready))
+primTcpSelectListener _ = error "tcp-select-listener-prim expects (listener, micros)"
+
+primTcpSelectSocket :: [Value] -> IO Value
+primTcpSelectSocket [socketVal, VNatural micros] = do
+  pure $ VComp $ do
+    sock <- expectSocket socketVal
+    let waitMicros = microsToInt micros
+    waitStm <- NS.waitReadSocketSTM sock
+    ready <- timeout waitMicros (atomically waitStm)
+    pure (VBoolean (maybe False (const True) ready))
+primTcpSelectSocket _ = error "tcp-select-socket-prim expects (socket, micros)"
+
+primSleep :: [Value] -> IO Value
+primSleep [VNatural micros] =
+  pure $ VComp $ do
+    threadDelay (microsToInt micros)
+    pure VUnit
+primSleep _ = error "sleep-prim expects (micros)"
+
+primTimeout :: [Value] -> IO Value
+primTimeout [ty, VNatural micros, VComp action] = do
+  expectTypeArg ty
+  pure $ VComp $ do
+    let waitMicros = microsToInt micros
+    result <- timeout waitMicros action
+    pure (maybe optionNone optionSome result)
+primTimeout _ = error "timeout-prim expects (Type, micros, computation)"
+
+primPanic :: [Value] -> IO Value
+primPanic [VString msg] =
+  pure $ VComp $ die (T.unpack msg)
+primPanic _ = error "panic-prim expects (string)"
 
 primGetLine :: IO Value
 primGetLine = do
@@ -785,6 +991,8 @@ countFreeDataParams params ctorTy =
 
 runModuleMain :: FilePath -> CtorArityMap -> Module -> IO Int
 runModuleMain projectRoot ctorArity m@(Module _modName _ _ _) = do
+  caps <- getNumCapabilities
+  when (caps < 2) (setNumCapabilities 2)
   -- Reset assertion counter
   writeIORef assertionCounter 0
 

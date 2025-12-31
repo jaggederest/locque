@@ -1,0 +1,18 @@
+import prelude as P
+
+module signal contains
+  define opaque on as on-signal-prim
+
+  define transparent default-names as
+    ["INT", "TERM", "HUP", "QUIT", "PIPE", "USR1", "USR2"]
+
+  define transparent on-any as
+    function handler (computation Unit) returns computation Unit value
+      P::sequence-unit
+        (P::map String (computation Unit)
+          (function name String returns (computation Unit) value
+            on name handler
+          end)
+          default-names)
+    end
+end

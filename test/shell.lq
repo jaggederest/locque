@@ -7,6 +7,7 @@ import test::shell::dump as dump
 import test::shell::lecho as lecho
 import test::shell::lcat as lcat
 import test::shell::lls as lls
+import test::shell::lhttp as lhttp
 import test::shell::validate_error_messages as validate_error_messages
 
 module test::shell contains
@@ -18,6 +19,7 @@ module test::shell contains
       , lecho::main
       , lcat::main
       , lls::main
+      , lhttp::main
       , validate_error_messages::main
       ])
   end

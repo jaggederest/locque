@@ -13,6 +13,12 @@ module test::http::request contains
   define transparent bad-req as
     Req::parse-request-line "GET /"
 
+  define transparent good-raw as
+    Req::parse-request "GET / HTTP/1.1\nHost: example.com\n\n"
+
+  define transparent bad-raw as
+    Req::parse-request ""
+
   define transparent good-method as
     match good-req of-type (P::Option Request) as ignored returns String
       case Option::none as ""
@@ -37,6 +43,30 @@ module test::http::request contains
       case Option::some with ignored Request as false
     end
 
+  define transparent raw-method as
+    match good-raw of-type (P::Option Request) as ignored returns String
+      case Option::none as ""
+      case Option::some with req Request as Req::method req
+    end
+
+  define transparent raw-path as
+    match good-raw of-type (P::Option Request) as ignored returns String
+      case Option::none as ""
+      case Option::some with req Request as Req::path req
+    end
+
+  define transparent raw-version as
+    match good-raw of-type (P::Option Request) as ignored returns String
+      case Option::none as ""
+      case Option::some with req Request as Req::version req
+    end
+
+  define transparent raw-bad-is-none as
+    match bad-raw of-type (P::Option Request) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored Request as false
+    end
+
   define transparent main as compute
     perform (P::sequence-unit
       [
@@ -44,6 +74,10 @@ module test::http::request contains
       , (assert-eq String good-path "/")
       , (assert-eq String good-version "HTTP/1.1")
       , (assert-eq Boolean bad-is-none true)
+      , (assert-eq String raw-method "GET")
+      , (assert-eq String raw-path "/")
+      , (assert-eq String raw-version "HTTP/1.1")
+      , (assert-eq Boolean raw-bad-is-none true)
       ])
   end
 end

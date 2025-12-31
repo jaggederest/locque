@@ -1,0 +1,47 @@
+import net::tcp as TCP
+
+module test::net::tcp contains
+  define transparent typecheck-listen as
+    function port Natural returns computation Listener value
+      TCP::listen port
+    end
+
+  define transparent typecheck-accept as
+    function listener Listener returns computation Socket value
+      TCP::accept listener
+    end
+
+  define transparent typecheck-recv as
+    function sock Socket returns computation String value
+      TCP::recv sock
+    end
+
+  define transparent typecheck-send as
+    function sock Socket msg String returns computation Unit value
+      TCP::send sock msg
+    end
+
+  define transparent typecheck-close as
+    function sock Socket returns computation Unit value
+      TCP::close sock
+    end
+
+  define transparent typecheck-close-listener as
+    function listener Listener returns computation Unit value
+      TCP::close-listener listener
+    end
+
+  define transparent typecheck-select-listener as
+    function listener Listener micros Natural returns computation Boolean value
+      TCP::select-listener listener micros
+    end
+
+  define transparent typecheck-select-socket as
+    function sock Socket micros Natural returns computation Boolean value
+      TCP::select-socket sock micros
+    end
+
+  define transparent main as compute
+    return Unit::tt
+  end
+end

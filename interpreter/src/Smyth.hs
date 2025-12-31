@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
-import System.Environment (getArgs)
+import System.Environment (getArgs, withArgs)
 import System.Exit (exitFailure)
 
 import SmythConfig (findSmythfile, loadSmythConfig)
@@ -44,7 +44,7 @@ runTestCommand args = do
 runRunCommand :: [String] -> IO ()
 runRunCommand args = do
   case args of
-    [file] -> do
+    (file : rest) -> do
       -- Find project root
       maybeRoot <- findSmythfile
       case maybeRoot of
@@ -54,11 +54,16 @@ runRunCommand args = do
         Just root -> do
           -- Load configuration
           config <- loadSmythConfig root
-          -- Run file
-          runFile config file
+          case rest of
+            [] -> runFile config file
+            ("--" : runArgs) -> withArgs runArgs (runFile config file)
+            _ -> do
+              putStrLn "Error: extra arguments for 'smyth run' must follow '--'"
+              putStrLn "Usage: smyth run <file> -- <args>"
+              exitFailure
     _ -> do
-      putStrLn "Error: 'smyth run' requires exactly one file argument"
-      putStrLn "Usage: smyth run <file>"
+      putStrLn "Error: 'smyth run' requires a file argument"
+      putStrLn "Usage: smyth run <file> -- <args>"
       exitFailure
 
 runBenchCommand :: [String] -> IO ()
@@ -116,7 +121,7 @@ printHelp = do
   putStrLn "smyth - Locque build tool"
   putStrLn ""
   putStrLn "Usage:"
-  putStrLn "  smyth run <file>    Type check and run a .lq/.lqs file"
+  putStrLn "  smyth run <file> -- <args>    Type check and run a .lq/.lqs file"
   putStrLn "  smyth test [--slow] Run all tests (test/main.lq)"
   putStrLn "  smyth test <file>   Run specific test file"
   putStrLn "  smyth bench         Run benchmarks (test/bench.lq)"

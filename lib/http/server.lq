@@ -1,14 +1,39 @@
 import prelude as P
 import string as S
 import io as IO
+import file as File
 import http::request as Req
 import http::response as Resp
+import net::tcp as TCP
+import natural as N
 
 open P exposing Option::none Option::some end
 open Req exposing Request end
 open Resp exposing Response end
 
 module http::server contains
+  define transparent poll-micros as 100000
+
+  define transparent log-line as
+    function msg String returns computation Unit value
+      IO::print (S::concat "[http] " msg)
+    end
+
+  define transparent request-summary as
+    function parsed (P::Option Request) returns String value
+      match parsed of-type (P::Option Request) as ignored returns String
+        case Option::none as "invalid request"
+        case Option::some with req Request as
+          S::concat (Req::method req)
+            (S::concat " " (S::concat (Req::path req) (S::concat " " (Req::version req))))
+      end
+    end
+
+  define transparent response-summary as
+    function resp Response returns String value
+      S::concat "status " (N::to-string (Resp::status resp))
+    end
+
   define transparent is-get-root as
     function req Request returns Boolean value
       match (S::eq (Req::method req) "GET") of-type Boolean as ignored returns Boolean
@@ -17,9 +42,9 @@ module http::server contains
       end
     end
 
-  define transparent handle-request-line as
-    function line String returns Response value
-      match (Req::parse-request-line line) of-type (P::Option Request) as ignored returns Response
+  define transparent handle-request-option as
+    function parsed (P::Option Request) returns Response value
+      match parsed of-type (P::Option Request) as ignored returns Response
         case Option::none as Resp::bad-request ["bad request"]
         case Option::some with req Request as
           match (is-get-root req) of-type Boolean as ignored returns Response
@@ -29,6 +54,16 @@ module http::server contains
       end
     end
 
+  define transparent handle-request-line as
+    function line String returns Response value
+      handle-request-option (Req::parse-request-line line)
+    end
+
+  define transparent handle-request as
+    function raw String returns Response value
+      handle-request-option (Req::parse-request raw)
+    end
+
   define transparent serve-once as compute
     bind line from perform P::get-line then
       bind ignored from perform (IO::print (Resp::render (handle-request-line line))) then
@@ -36,4 +71,127 @@ module http::server contains
       end
     end
   end
+
+  define transparent serve-stdin as compute
+    bind raw from perform (File::read-file "/dev/stdin") then
+      bind ignored from perform (IO::print (Resp::render (handle-request raw))) then
+        return Unit::tt
+      end
+    end
+  end
+
+  define transparent serve-forever as compute
+    perform (P::forever serve-once)
+  end
+
+  define transparent serve-connection as
+    function listener Listener returns computation Unit value
+      compute
+        bind conn from perform (TCP::accept listener) then
+          bind ready from perform (TCP::select-socket conn poll-micros) then
+            perform
+              match ready of-type Boolean as ignored returns (computation Unit)
+                case Boolean::true as
+                  compute
+                    bind raw from perform (TCP::recv conn) then
+                      bind ignored from perform (TCP::send conn (Resp::render (handle-request raw))) then
+                        perform (TCP::close conn)
+                      end
+                    end
+                  end
+                case Boolean::false as
+                  compute
+                    bind ignored from perform (TCP::close conn) then
+                      return Unit::tt
+                    end
+                  end
+              end
+          end
+        end
+      end
+    end
+
+  define transparent serve-step as
+    function listener Listener returns computation Unit value
+      compute
+        bind ready from perform (TCP::select-listener listener poll-micros) then
+          perform
+            match ready of-type Boolean as ignored returns (computation Unit)
+              case Boolean::true as serve-connection listener
+              case Boolean::false as compute return Unit::tt end
+            end
+        end
+      end
+    end
+
+  define transparent serve-connection-logged as
+    function listener Listener returns computation Unit value
+      compute
+        bind conn from perform (TCP::accept listener) then
+          bind ignored from perform (log-line "accepted connection") then
+            bind ready from perform (TCP::select-socket conn poll-micros) then
+              perform
+                match ready of-type Boolean as ignored returns (computation Unit)
+                  case Boolean::true as
+                    compute
+                      bind raw from perform (TCP::recv conn) then
+                        perform
+                          (P::sequence-unit
+                            [
+                              (log-line (S::concat "raw: " raw))
+                            , (log-line (S::concat "parsed: " (request-summary (Req::parse-request raw))))
+                            , (log-line (response-summary (handle-request raw)))
+                            , (TCP::send conn (Resp::render (handle-request raw)))
+                            , (TCP::close conn)
+                            ])
+                      end
+                    end
+                  case Boolean::false as
+                    compute
+                      bind ignored from perform (log-line "no data, closing") then
+                        bind ignored from perform (TCP::close conn) then
+                          return Unit::tt
+                        end
+                      end
+                    end
+                end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent serve-step-logged as
+    function listener Listener returns computation Unit value
+      compute
+        bind ready from perform (TCP::select-listener listener poll-micros) then
+          perform
+            match ready of-type Boolean as ignored returns (computation Unit)
+              case Boolean::true as serve-connection-logged listener
+              case Boolean::false as compute return Unit::tt end
+            end
+        end
+      end
+    end
+
+  define transparent serve-tcp as
+    function port Natural returns computation Unit value
+      compute
+        bind listener from perform (TCP::listen port) then
+          perform (P::forever (serve-step listener))
+        end
+      end
+    end
+
+  define transparent serve-tcp-logged as
+    function port Natural returns computation Unit value
+      compute
+        bind listener from perform (TCP::listen port) then
+          bind ignored from perform
+            (log-line (S::concat "listening on port " (N::to-string port))) then
+              perform (P::forever (serve-step-logged listener))
+          end
+        end
+      end
+    end
 end

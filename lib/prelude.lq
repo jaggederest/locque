@@ -128,6 +128,8 @@ module prelude contains
       end
     end
 
+  define transparent forever as forever-prim
+
   define transparent discard as
     function A Type0 comp (computation A) returns computation Unit value
       compute

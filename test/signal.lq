@@ -1,0 +1,14 @@
+import prelude as P
+# Test rollup for Signal module
+# Runs all tests in test/signal/
+
+import test::signal::basics as basics
+
+module test::signal contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
+  end
+end

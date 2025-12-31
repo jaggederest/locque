@@ -2,8 +2,11 @@ import prelude as P
 import arithmetic as Ar
 import typeclass::order as Order
 
+open P exposing Option end
+
 module time contains
   define opaque now as time-now-prim
+  define opaque sleep as sleep-prim
 
   define transparent measure as
     function A Type0 comp (computation A) returns computation (Pair A Natural) value
@@ -24,5 +27,10 @@ module time contains
           end
         end
       end
+    end
+
+  define transparent timeout as
+    function A Type0 micros Natural comp (computation A) returns computation (Option A) value
+      timeout-prim A micros comp
     end
 end

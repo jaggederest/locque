@@ -7,6 +7,7 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
+open P exposing Option::none Option::some end
 
 module test::natural::basics contains
   define transparent main as compute
@@ -18,6 +19,24 @@ module test::natural::basics contains
       , (assert-eq Natural
                                                   (P::length-list Unit (N::to-peano 3))
                                                   3)
+      , (assert-eq Natural
+                                                    (match (N::from-string "42") of-type (P::Option Natural) as ignored returns Natural
+                                                      case Option::none as 0
+                                                      case Option::some with v Natural as v
+                                                    end)
+                                                    42)
+      , (assert-eq Boolean
+                                                      (match (N::from-string "") of-type (P::Option Natural) as ignored returns Boolean
+                                                        case Option::none as true
+                                                        case Option::some with ignored Natural as false
+                                                      end)
+                                                      true)
+      , (assert-eq Boolean
+                                                        (match (N::from-string "4x") of-type (P::Option Natural) as ignored returns Boolean
+                                                          case Option::none as true
+                                                          case Option::some with ignored Natural as false
+                                                        end)
+                                                        true)
       ])
   end
 end

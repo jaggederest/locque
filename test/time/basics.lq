@@ -6,21 +6,32 @@ import time as Time
 import typeclass::order as Order
 
 open A exposing assert-eq end
+open P exposing Option Option::none Option::some end
 
 module test::time::basics contains
   define transparent main as compute
-    bind measured from perform (Time::measure Natural (compute return 42 end)) then
-      perform
-        (match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
-          case Pair::pair with val Natural elapsed Natural as
-            compute
-              perform (P::sequence-unit
-                [
-                  (assert-eq Natural val 42)
-                , (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
-                ])
-            end
-        end)
+    bind ignored from perform (Time::sleep 0) then
+      bind measured from perform (Time::measure Natural (compute return 42 end)) then
+        bind timed-out from perform (Time::timeout Unit 0 (Time::sleep 1000)) then
+          perform
+            (match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
+              case Pair::pair with val Natural elapsed Natural as
+                compute
+                  perform (P::sequence-unit
+                    [
+                      (assert-eq Natural val 42)
+                    , (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
+                    , (assert-eq Boolean
+                        (match timed-out of-type (Option Unit) as ignored returns Boolean
+                          case Option::none as true
+                          case Option::some with ignored Unit as false
+                        end)
+                        true)
+                    ])
+                end
+            end)
+        end
+      end
     end
   end
 end

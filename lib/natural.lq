@@ -1,3 +1,10 @@
+import arithmetic as Ar
+import prelude as P
+import string as S
+import typeclass::order as Order
+open P exposing Option::none Option::some end
+open S exposing Character end
+
 module natural contains
   define transparent to-peano as
     function n Natural returns List Unit value
@@ -7,5 +14,43 @@ module natural contains
   define transparent to-string as
     function n Natural returns String value
       nat-to-string-prim n
+    end
+
+  define transparent digit-value as
+    function c Character returns (P::Option Natural) value
+      let value code be S::char-code c in
+        match (Order::less-than Natural code 48) of-type Boolean as ignored returns (P::Option Natural)
+          case Boolean::true as Option::none Natural
+          case Boolean::false as
+            match (Order::greater-than Natural code 57) of-type Boolean as ignored returns (P::Option Natural)
+              case Boolean::true as Option::none Natural
+              case Boolean::false as Option::some Natural (Ar::subtract code 48)
+            end
+        end
+      end
+    end
+
+  define transparent from-string-chars as
+    function chars (List Character) acc Natural returns (P::Option Natural) value
+      match chars of-type (List Character) as ignored returns (P::Option Natural)
+        case List::empty as Option::some Natural acc
+        case List::cons with h Character t (List Character) as
+          match (digit-value h) of-type (P::Option Natural) as ignored returns (P::Option Natural)
+            case Option::none as Option::none Natural
+            case Option::some with d Natural as
+              recur t (Ar::add (Ar::mul-nat acc 10) d)
+          end
+      end
+    end
+
+  define transparent from-string as
+    function s String returns (P::Option Natural) value
+      let value chars be S::to-list s in
+        match chars of-type (List Character) as ignored returns (P::Option Natural)
+          case List::empty as Option::none Natural
+          case List::cons with ignored Character ignored (List Character) as
+            from-string-chars chars 0
+        end
+      end
     end
 end

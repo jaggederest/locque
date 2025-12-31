@@ -1,0 +1,60 @@
+import cli as CLI
+import http::server as Server
+import io as IO
+import natural as N
+import prelude as P
+import signal as Signal
+import string as S
+open P exposing Option::none Option::some end
+
+module shell::lhttp contains
+  define transparent default-port as 3000
+
+  define transparent shutdown as
+    IO::panic "signal received"
+
+  define transparent install-signals as
+    Signal::on-any shutdown
+
+  define transparent find-flag as
+    function name String flags (List (Pair String String)) returns (P::Option String) value
+      match flags of-type (List (Pair String String)) as ignored returns (P::Option String)
+        case List::empty as Option::none String
+        case List::cons with h (Pair String String) t (List (Pair String String)) as
+          match h of-type (Pair String String) as ignored returns (P::Option String)
+            case Pair::pair with key String val String as
+              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+                case Boolean::true as Option::some String val
+                case Boolean::false as recur name t
+              end
+          end
+      end
+    end
+
+  define transparent port-from-flags as
+    function flags (List (Pair String String)) returns Natural value
+      match (find-flag "port" flags) of-type (P::Option String) as ignored returns Natural
+        case Option::none as default-port
+        case Option::some with raw String as
+          match (N::from-string raw) of-type (P::Option Natural) as ignored returns Natural
+            case Option::none as P::error Natural "invalid --port"
+            case Option::some with port Natural as port
+          end
+      end
+    end
+
+  define transparent port-from-args as
+    function args (List String) returns Natural value
+      let value opts be CLI::parse-options args in
+        port-from-flags (CLI::options-flags opts)
+      end
+    end
+
+  define transparent main as compute
+    bind args from perform CLI::args then
+      bind ignored from perform install-signals then
+        perform (Server::serve-tcp-logged (port-from-args args))
+      end
+    end
+  end
+end

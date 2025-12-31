@@ -14,7 +14,7 @@ executable locque-interpreter
   hs-source-dirs:      src
   other-modules:       SourceLoc, ErrorMsg, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils
   default-language:    GHC2021
-  ghc-options:         -Wall -Wcompat -Wincomplete-patterns
+  ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
       base >=4.14 && <5,
       megaparsec >=9.3,
@@ -25,14 +25,18 @@ executable locque-interpreter
       time >=1.9,
       mtl >=2.2,
       array >=0.5,
-      process >=1.6
+      process >=1.6,
+      unix >=2.7,
+      network >=3.1,
+      bytestring >=0.10,
+      stm >=2.5
 
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
   other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDump, SmythFormat, AST, Eval, Parser, Validator, Type, TypeChecker, DictPass, Utils
   default-language:    GHC2021
-  ghc-options:         -Wall -Wcompat -Wincomplete-patterns
+  ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
       base >=4.14 && <5,
       megaparsec >=9.3,
@@ -43,14 +47,18 @@ executable smyth
       time >=1.9,
       mtl >=2.2,
       array >=0.5,
-      process >=1.6
+      process >=1.6,
+      unix >=2.7,
+      network >=3.1,
+      bytestring >=0.10,
+      stm >=2.5
 
 executable locque-lsp
   main-is:             LocqueLsp.hs
   hs-source-dirs:      src
   other-modules:       SourceLoc, ErrorMsg, AST, Parser, Type, TypeChecker, Utils, SmythConfig
   default-language:    GHC2021
-  ghc-options:         -Wall -Wcompat -Wincomplete-patterns
+  ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
       base >=4.14 && <5,
       aeson >=2.0,

@@ -220,6 +220,7 @@ end
 
 Primitive type constructors (no constructors):
 - `Dictionary K V` (hash-based key/value store; operations are via `dictionary-*-prim` and stdlib wrappers).
+- `Listener`, `Socket` (network handles; operations are via `tcp-*-prim` and stdlib wrappers).
 
 ## Types
 
@@ -237,6 +238,7 @@ TypeParam ::= TypeSimple | ( Type )    -- M-expr binders only
 TypeAtom ::=
     Type0 | Type1 | Type2 | ...        -- universes (explicit levels)
   | Natural | String | Boolean | Unit
+  | Listener | Socket
   | List Type
   | Pair Type Type                     -- non-dependent pair sugar
   | Dictionary Type Type

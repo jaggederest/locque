@@ -1,0 +1,15 @@
+import prelude as P
+import signal as Signal
+
+module test::signal::basics contains
+  define transparent handler as compute
+    return Unit::tt
+  end
+
+  define transparent setup as
+    Signal::on "INT" handler
+
+  define transparent main as compute
+    return Unit::tt
+  end
+end

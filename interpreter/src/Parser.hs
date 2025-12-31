@@ -191,6 +191,8 @@ fromExpr _ (SAtom "Unit") = Right (ETypeConst TCUnit)
 fromExpr _ (SAtom "List") = Right (ETypeConst TCList)
 fromExpr _ (SAtom "Pair") = Right (ETypeConst TCPair)
 fromExpr _ (SAtom "Dictionary") = Right (ETypeConst TCDictionary)
+fromExpr _ (SAtom "Listener") = Right (ETypeConst TCListener)
+fromExpr _ (SAtom "Socket") = Right (ETypeConst TCSocket)
 fromExpr _ (SAtom t)
   | Just n <- parseUniverseAtom t = Right (ETypeUniverse n)
   | otherwise = Right (EVar t)
@@ -415,6 +417,8 @@ fromType path se = case se of
   SAtom "List" -> Right (ETypeConst TCList)
   SAtom "Pair" -> Right (ETypeConst TCPair)
   SAtom "Dictionary" -> Right (ETypeConst TCDictionary)
+  SAtom "Listener" -> Right (ETypeConst TCListener)
+  SAtom "Socket" -> Right (ETypeConst TCSocket)
   SAtom "true" -> Right (ELit (LBoolean True))
   SAtom "false" -> Right (ELit (LBoolean False))
   SAtom "tt" -> Right (ELit LUnit)
@@ -914,6 +918,8 @@ pTypeConst =
   <|> (ETypeConst TCList <$ keyword "List")
   <|> (ETypeConst TCPair <$ keyword "Pair")
   <|> (ETypeConst TCDictionary <$ keyword "Dictionary")
+  <|> (ETypeConst TCListener <$ keyword "Listener")
+  <|> (ETypeConst TCSocket <$ keyword "Socket")
 
 -- Identifiers and symbols
 
@@ -942,7 +948,7 @@ reservedWords =
   , "typeclass", "of-kind", "instance", "where", "requires", "and"
   , "recur"
   , "true", "false", "tt"
-  , "Natural", "String", "Boolean", "Unit", "List", "Pair", "Dictionary"
+  , "Natural", "String", "Boolean", "Unit", "List", "Pair", "Dictionary", "Listener", "Socket"
   ]
 
 pModuleName :: Parser Text

@@ -15,12 +15,30 @@ module test::http::server contains
   define transparent bad-response as
     Server::handle-request-line "GET /"
 
+  define transparent ok-response-raw as
+    Server::handle-request "GET / HTTP/1.1\nHost: example.com\n\n"
+
+  define transparent bad-response-raw as
+    Server::handle-request ""
+
+  define transparent typecheck-serve-tcp as
+    function port Natural returns computation Unit value
+      Server::serve-tcp port
+    end
+
+  define transparent typecheck-serve-tcp-logged as
+    function port Natural returns computation Unit value
+      Server::serve-tcp-logged port
+    end
+
   define transparent main as compute
     perform (P::sequence-unit
       [
         (assert-eq Natural (Resp::status ok-response) 200)
       , (assert-eq Natural (Resp::status not-found-response) 404)
       , (assert-eq Natural (Resp::status bad-response) 400)
+      , (assert-eq Natural (Resp::status ok-response-raw) 200)
+      , (assert-eq Natural (Resp::status bad-response-raw) 400)
       ])
   end
 end

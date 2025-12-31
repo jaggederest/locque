@@ -28,6 +28,8 @@ import test::option as test_option
 import test::result as test_result
 import test::either as test_either
 import test::dictionary as test_dictionary
+import test::signal as test_signal
+import test::net as test_net
 import test::http as test_http
 import test::shell as test_shell
 import test::testimport as test_testimport
@@ -59,6 +61,8 @@ module test::main contains
     , (P::pair String (computation Unit) "test_result" test_result::main)
     , (P::pair String (computation Unit) "test_either" test_either::main)
     , (P::pair String (computation Unit) "test_dictionary" test_dictionary::main)
+    , (P::pair String (computation Unit) "test_signal" test_signal::main)
+    , (P::pair String (computation Unit) "test_net" test_net::main)
     , (P::pair String (computation Unit) "test_http" test_http::main)
     , (P::pair String (computation Unit) "test_shell" test_shell::main)
     , (P::pair String (computation Unit) "test_testimport" test_testimport::main)
