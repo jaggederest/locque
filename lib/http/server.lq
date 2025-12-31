@@ -6,6 +6,7 @@ import http::request as Req
 import http::response as Resp
 import net::tcp as TCP
 import natural as N
+import type_aliases as Types
 
 open P exposing Option::none Option::some end
 open Req exposing Request end
@@ -64,6 +65,13 @@ module http::server contains
       handle-request-option (Req::parse-request raw)
     end
 
+  define transparent handle-request-compute as
+    function raw String returns computation Response value
+      compute
+        return (handle-request raw)
+      end
+    end
+
   define transparent serve-once as compute
     bind line from perform P::get-line then
       bind ignored from perform (IO::print (Resp::render (handle-request-line line))) then
@@ -84,8 +92,8 @@ module http::server contains
     perform (P::forever serve-once)
   end
 
-  define transparent serve-connection as
-    function listener Listener returns computation Unit value
+  define transparent serve-connection-with as
+    function handler (Types::Function String (computation Response)) listener Listener returns computation Unit value
       compute
         bind conn from perform (TCP::accept listener) then
           bind ready from perform (TCP::select-socket conn poll-micros) then
@@ -94,8 +102,10 @@ module http::server contains
                 case Boolean::true as
                   compute
                     bind raw from perform (TCP::recv conn) then
-                      bind ignored from perform (TCP::send conn (Resp::render (handle-request raw))) then
-                        perform (TCP::close conn)
+                      bind resp from perform (handler raw) then
+                        bind ignored from perform (TCP::send conn (Resp::render resp)) then
+                          perform (TCP::close conn)
+                        end
                       end
                     end
                   end
@@ -111,17 +121,27 @@ module http::server contains
       end
     end
 
-  define transparent serve-step as
+  define transparent serve-connection as
     function listener Listener returns computation Unit value
+      serve-connection-with handle-request-compute listener
+    end
+
+  define transparent serve-step-with as
+    function handler (Types::Function String (computation Response)) listener Listener returns computation Unit value
       compute
         bind ready from perform (TCP::select-listener listener poll-micros) then
           perform
             match ready of-type Boolean as ignored returns (computation Unit)
-              case Boolean::true as serve-connection listener
+              case Boolean::true as serve-connection-with handler listener
               case Boolean::false as compute return Unit::tt end
             end
         end
       end
+    end
+
+  define transparent serve-step as
+    function listener Listener returns computation Unit value
+      serve-step-with handle-request-compute listener
     end
 
   define transparent serve-connection-logged as
@@ -174,13 +194,18 @@ module http::server contains
       end
     end
 
-  define transparent serve-tcp as
-    function port Natural returns computation Unit value
+  define transparent serve-tcp-with as
+    function handler (Types::Function String (computation Response)) port Natural returns computation Unit value
       compute
         bind listener from perform (TCP::listen port) then
-          perform (P::forever (serve-step listener))
+          perform (P::forever (serve-step-with handler listener))
         end
       end
+    end
+
+  define transparent serve-tcp as
+    function port Natural returns computation Unit value
+      serve-tcp-with handle-request-compute port
     end
 
   define transparent serve-tcp-logged as

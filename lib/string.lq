@@ -1,12 +1,14 @@
 import prelude as P
 import arithmetic as Ar
 import list as L
+import dictionary as Dict
 import typeclass::equality as Eq
 import typeclass::order as Order
 import type_aliases as Types
 
 open Eq exposing Equality end
 open Order exposing LessThan LessOrEqual GreaterThan GreaterOrEqual end
+open P exposing Option::none Option::some end
 
 module string contains
   define transparent concat as concat-string-prim
@@ -103,6 +105,111 @@ module string contains
   define transparent from-list as
     function xs (List Character) returns String value
       join-with "" (P::map Character String character-string xs)
+    end
+
+  define transparent url-decode-table as
+    Dict::from-list String String
+      [
+        (P::pair String String "20" " ")
+      , (P::pair String String "21" "!")
+      , (P::pair String String "22" "\"")
+      , (P::pair String String "23" "#")
+      , (P::pair String String "24" "$")
+      , (P::pair String String "25" "%")
+      , (P::pair String String "26" "&")
+      , (P::pair String String "27" "'")
+      , (P::pair String String "28" "(")
+      , (P::pair String String "29" ")")
+      , (P::pair String String "2A" "*")
+      , (P::pair String String "2B" "+")
+      , (P::pair String String "2C" ",")
+      , (P::pair String String "2D" "-")
+      , (P::pair String String "2E" ".")
+      , (P::pair String String "2F" "/")
+      , (P::pair String String "2a" "*")
+      , (P::pair String String "2b" "+")
+      , (P::pair String String "2c" ",")
+      , (P::pair String String "2d" "-")
+      , (P::pair String String "2e" ".")
+      , (P::pair String String "2f" "/")
+      , (P::pair String String "3A" ":")
+      , (P::pair String String "3B" ";")
+      , (P::pair String String "3C" "<")
+      , (P::pair String String "3D" "=")
+      , (P::pair String String "3E" ">")
+      , (P::pair String String "3F" "?")
+      , (P::pair String String "3a" ":")
+      , (P::pair String String "3b" ";")
+      , (P::pair String String "3c" "<")
+      , (P::pair String String "3d" "=")
+      , (P::pair String String "3e" ">")
+      , (P::pair String String "3f" "?")
+      , (P::pair String String "40" "@")
+      , (P::pair String String "5B" "[")
+      , (P::pair String String "5C" "\\")
+      , (P::pair String String "5D" "]")
+      , (P::pair String String "5E" "^")
+      , (P::pair String String "5F" "_")
+      , (P::pair String String "5b" "[")
+      , (P::pair String String "5c" "\\")
+      , (P::pair String String "5d" "]")
+      , (P::pair String String "5e" "^")
+      , (P::pair String String "5f" "_")
+      , (P::pair String String "60" "`")
+      , (P::pair String String "7B" "{")
+      , (P::pair String String "7C" "|")
+      , (P::pair String String "7D" "}")
+      , (P::pair String String "7E" "~")
+      , (P::pair String String "7b" "{")
+      , (P::pair String String "7c" "|")
+      , (P::pair String String "7d" "}")
+      , (P::pair String String "7e" "~")
+      ]
+
+  define transparent url-decode-lookup as
+    function key String returns (P::Option String) value
+      Dict::lookup String String key url-decode-table
+    end
+
+  define transparent decode-percent-pair as
+    function pair String returns String value
+      match (url-decode-lookup pair) of-type (P::Option String) as ignored returns String
+        case Option::some with decoded String as decoded
+        case Option::none as concat "%" pair
+      end
+    end
+
+  define transparent url-decode-chunks as
+    function chars (List Character) returns (List String) value
+      match chars of-type (List Character) as ignored returns (List String)
+        case List::empty as P::nil String
+        case List::cons with h Character t (List Character) as
+          match (char-is h "%") of-type Boolean as ignored returns (List String)
+            case Boolean::true as
+              match t of-type (List Character) as ignored returns (List String)
+                case List::empty as P::cons String "%" (P::nil String)
+                case List::cons with first Character rest1 (List Character) as
+                  match rest1 of-type (List Character) as ignored returns (List String)
+                    case List::empty as
+                      P::cons String "%" (P::cons String (character-string first) (P::nil String))
+                    case List::cons with second Character rest2 (List Character) as
+                      P::cons String
+                        (decode-percent-pair (concat (character-string first) (character-string second)))
+                        (recur rest2)
+                  end
+              end
+            case Boolean::false as
+              match (char-is h "+") of-type Boolean as ignored returns (List String)
+                case Boolean::true as P::cons String " " (recur t)
+                case Boolean::false as P::cons String (character-string h) (recur t)
+              end
+          end
+      end
+    end
+
+  define transparent url-decode as
+    function s String returns String value
+      join-with "" (url-decode-chunks (to-list s))
     end
 
   define transparent drop-while-char as

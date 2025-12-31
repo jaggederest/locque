@@ -62,6 +62,9 @@ module test::string::utils contains
       , (assert-eq String (S::character-string (S::head "hi")) "h")
       , (assert-eq String (S::tail "hi") "i")
       , (assert-eq String (S::sort "dcba") "abcd")
+      , (assert-eq String (S::url-decode "hello%20world") "hello world")
+      , (assert-eq String (S::url-decode "a+b") "a b")
+      , (assert-eq String (S::url-decode "x%3Dy%26z") "x=y&z")
       ])
   end
 end

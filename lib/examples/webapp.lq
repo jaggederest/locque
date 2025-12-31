@@ -1,0 +1,506 @@
+import arithmetic as Ar
+import cli as CLI
+import file as File
+import http::request as Req
+import http::response as Resp
+import http::server as Server
+import natural as N
+import path as Path
+import prelude as P
+import string as S
+import type_aliases as Types
+import typeclass::equality as Eq
+import typeclass::order as Order
+
+open P exposing Option::none Option::some end
+
+module examples::webapp contains
+  define transparent todo-file as "/tmp/locque_todos.txt"
+
+  define transparent Todo as data in Type0
+    case Todo::todo of-type
+      Types::BinaryFunction Natural Boolean (Types::Function String Todo)
+  end
+
+  define transparent todo-id as
+    function todo Todo returns Natural value
+      match todo of-type Todo as ignored returns Natural
+        case Todo::todo with id Natural ignored-done Boolean ignored-text String as id
+      end
+    end
+
+  define transparent todo-done as
+    function todo Todo returns Boolean value
+      match todo of-type Todo as ignored returns Boolean
+        case Todo::todo with ignored-id Natural done Boolean ignored-text String as done
+      end
+    end
+
+  define transparent todo-text as
+    function todo Todo returns String value
+      match todo of-type Todo as ignored returns String
+        case Todo::todo with ignored-id Natural ignored-done Boolean text String as text
+      end
+    end
+
+  define transparent bool-string as
+    function b Boolean returns String value
+      match b of-type Boolean as ignored returns String
+        case Boolean::true as "true"
+        case Boolean::false as "false"
+      end
+    end
+
+  define transparent parse-bool as
+    function s String returns (P::Option Boolean) value
+      match (S::eq s "true") of-type Boolean as ignored returns (P::Option Boolean)
+        case Boolean::true as Option::some Boolean true
+        case Boolean::false as
+          match (S::eq s "false") of-type Boolean as ignored returns (P::Option Boolean)
+            case Boolean::true as Option::some Boolean false
+            case Boolean::false as Option::none Boolean
+          end
+      end
+    end
+
+  define transparent parse-todo-line as
+    function line String returns (P::Option Todo) value
+      let value parts be S::split-on "|" line in
+        match parts of-type (List String) as ignored returns (P::Option Todo)
+          case List::empty as Option::none Todo
+          case List::cons with id-str String rest1 (List String) as
+            match rest1 of-type (List String) as ignored returns (P::Option Todo)
+              case List::empty as Option::none Todo
+              case List::cons with done-str String rest2 (List String) as
+                match rest2 of-type (List String) as ignored returns (P::Option Todo)
+                  case List::empty as Option::none Todo
+                  case List::cons with text String rest3 (List String) as
+                    match rest3 of-type (List String) as ignored returns (P::Option Todo)
+                      case List::empty as
+                        match (N::from-string id-str) of-type (P::Option Natural) as ignored returns (P::Option Todo)
+                          case Option::none as Option::none Todo
+                          case Option::some with id Natural as
+                            match (parse-bool done-str) of-type (P::Option Boolean) as ignored returns (P::Option Todo)
+                              case Option::none as Option::none Todo
+                              case Option::some with done Boolean as
+                                Option::some Todo (Todo::todo id done text)
+                            end
+                        end
+                      case List::cons with extra String extra-tail (List String) as Option::none Todo
+                    end
+                end
+            end
+        end
+      end
+    end
+
+  define transparent parse-todos as
+    function lines (List String) returns (List Todo) value
+      match lines of-type (List String) as ignored returns (List Todo)
+        case List::empty as P::nil Todo
+        case List::cons with h String t (List String) as
+          let value rest be recur t in
+            match (parse-todo-line h) of-type (P::Option Todo) as ignored returns (List Todo)
+              case Option::none as rest
+              case Option::some with todo Todo as P::cons Todo todo rest
+            end
+          end
+      end
+    end
+
+  define transparent todo-line as
+    function todo Todo returns String value
+      let value id-str be N::to-string (todo-id todo) in
+        let value status be
+          match (todo-done todo) of-type Boolean as ignored returns String
+            case Boolean::true as "[done]"
+            case Boolean::false as "[todo]"
+          end
+        in
+          S::join-with ""
+            [
+              "<li>"
+            , status
+            , " "
+            , todo-text todo
+            , " "
+            , "<button type=\"button\" onclick=\"fetch('/todo/"
+            , id-str
+            , "',{method:'PUT'}).then(()=>location.reload())\">done</button>"
+            , " "
+            , "<button type=\"button\" onclick=\"fetch('/todo/"
+            , id-str
+            , "',{method:'DELETE'}).then(()=>location.reload())\">delete</button>"
+            , "</li>"
+            ]
+        end
+      end
+    end
+
+  define transparent page-lines as
+    function todos (List Todo) returns (List String) value
+      let value items be P::map Todo String todo-line todos in
+        P::append String
+          [
+            "<!doctype html>"
+          , "<html>"
+          , "<head>"
+          , "<meta charset=\"utf-8\">"
+          , "<title>Locque Todos</title>"
+          , "</head>"
+          , "<body>"
+          , "<h1>Todos</h1>"
+          , "<ul>"
+          ]
+          (P::append String
+            items
+            [
+              "</ul>"
+            , "<form id=\"add-form\" method=\"POST\" action=\"/todo\">"
+            , "<input id=\"todo-text\" name=\"text\" placeholder=\"New todo\"/>"
+            , "<button type=\"submit\">add</button>"
+            , "</form>"
+            , "<script>"
+            , "const form = document.getElementById('add-form');"
+            , "form.addEventListener('submit', () => {"
+            , "  const input = document.getElementById('todo-text');"
+            , "  form.action = '/todo?text=' + encodeURIComponent(input.value);"
+            , "});"
+            , "</script>"
+            , "</body>"
+            , "</html>"
+            ])
+      end
+    end
+
+  define transparent html-response as
+    function body (List String) returns Response value
+      Resp::with-headers
+        (Resp::ok body)
+        [P::pair String String "Content-Type" "text/html; charset=utf-8"]
+    end
+
+  define transparent read-todos as
+    compute
+      bind exists from perform (File::path-exists todo-file) then
+        perform
+          match exists of-type Boolean as ignored returns (computation (List Todo))
+            case Boolean::false as compute return (P::nil Todo) end
+            case Boolean::true as
+              compute
+                bind lines from perform (File::read-lines todo-file) then
+                  return (parse-todos lines)
+                end
+              end
+          end
+      end
+    end
+
+  define transparent write-todos as
+    function todos (List Todo) returns computation Unit value
+      File::write-lines todo-file
+        (P::map Todo String
+          (function todo Todo returns String value
+            S::join-with "|"
+              [
+                (N::to-string (todo-id todo))
+              , (bool-string (todo-done todo))
+              , (todo-text todo)
+              ]
+          end)
+          todos)
+    end
+
+  define transparent max-id as
+    function todos (List Todo) returns Natural value
+      P::fold Todo Natural
+        (function acc Natural todo Todo returns Natural value
+          match (Order::greater-than Natural (todo-id todo) acc) of-type Boolean as ignored returns Natural
+            case Boolean::true as todo-id todo
+            case Boolean::false as acc
+          end
+        end)
+        0
+        todos
+    end
+
+  define transparent add-todo as
+    function text String returns computation Response value
+      compute
+        bind todos from perform read-todos then
+          let value next-id be Ar::add (max-id todos) 1 in
+            let value new-todo be Todo::todo next-id false text in
+              let value updated be P::append Todo todos [new-todo] in
+                bind ignored from perform (write-todos updated) then
+                  return (html-response (page-lines updated))
+                end
+              end
+          end
+      end
+    end
+
+  define transparent mark-done as
+    function target Natural todos (List Todo) returns (List Todo) value
+      P::map Todo Todo
+        (function todo Todo returns Todo value
+          match (Eq::equals Natural (todo-id todo) target) of-type Boolean as ignored returns Todo
+            case Boolean::true as Todo::todo (todo-id todo) true (todo-text todo)
+            case Boolean::false as todo
+          end
+        end)
+        todos
+    end
+
+  define transparent remove-todo as
+    function target Natural todos (List Todo) returns (List Todo) value
+      P::filter Todo
+        (function todo Todo returns Boolean value
+          P::not (Eq::equals Natural (todo-id todo) target)
+        end)
+        todos
+    end
+
+  define transparent parse-param as
+    function part String returns (P::Option (Pair String String)) value
+      let value pieces be S::split-on "=" part in
+        match pieces of-type (List String) as ignored returns (P::Option (Pair String String))
+          case List::empty as Option::none (Pair String String)
+          case List::cons with key String rest1 (List String) as
+            match rest1 of-type (List String) as ignored returns (P::Option (Pair String String))
+              case List::empty as Option::none (Pair String String)
+              case List::cons with val String rest2 (List String) as
+                match rest2 of-type (List String) as ignored returns (P::Option (Pair String String))
+                  case List::empty as
+                    Option::some (Pair String String)
+                      (P::pair String String (S::url-decode key) (S::url-decode val))
+                  case List::cons with extra String extra-tail (List String) as Option::none (Pair String String)
+                end
+            end
+        end
+      end
+    end
+
+  define transparent parse-query as
+    function query String returns (List (Pair String String)) value
+      let value parts be S::split-on "&" query in
+        match parts of-type (List String) as ignored returns (List (Pair String String))
+          case List::empty as P::nil (Pair String String)
+          case List::cons with h String t (List String) as
+            let value rest be recur t in
+              match (parse-param h) of-type (P::Option (Pair String String)) as ignored returns (List (Pair String String))
+                case Option::none as rest
+                case Option::some with pair (Pair String String) as P::cons (Pair String String) pair rest
+              end
+            end
+        end
+      end
+    end
+
+  define transparent find-param as
+    function name String params (List (Pair String String)) returns (P::Option String) value
+      match params of-type (List (Pair String String)) as ignored returns (P::Option String)
+        case List::empty as Option::none String
+        case List::cons with h (Pair String String) t (List (Pair String String)) as
+          match h of-type (Pair String String) as ignored returns (P::Option String)
+            case Pair::pair with key String val String as
+              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+                case Boolean::true as Option::some String val
+                case Boolean::false as recur name t
+              end
+          end
+      end
+    end
+
+  define transparent split-path-query as
+    function raw String returns (Pair String (List (Pair String String))) value
+      let value parts be S::split-on "?" raw in
+        match parts of-type (List String) as ignored returns (Pair String (List (Pair String String)))
+          case List::empty as P::pair String (List (Pair String String)) raw (P::nil (Pair String String))
+          case List::cons with path String rest (List String) as
+            match rest of-type (List String) as ignored returns (Pair String (List (Pair String String)))
+              case List::empty as P::pair String (List (Pair String String)) path (P::nil (Pair String String))
+              case List::cons with query String rest2 (List String) as
+                match rest2 of-type (List String) as ignored returns (Pair String (List (Pair String String)))
+                  case List::empty as P::pair String (List (Pair String String)) path (parse-query query)
+                  case List::cons with extra String extra-tail (List String) as
+                    P::pair String (List (Pair String String)) path (parse-query query)
+                end
+            end
+        end
+      end
+    end
+
+  define transparent effective-method as
+    function method String params (List (Pair String String)) returns String value
+      match (find-param "_method" params) of-type (P::Option String) as ignored returns String
+        case Option::some with override String as override
+        case Option::none as
+          match (find-param "method" params) of-type (P::Option String) as ignored returns String
+            case Option::some with override String as override
+            case Option::none as method
+          end
+      end
+    end
+
+  define transparent todo-id-from-path as
+    function path String returns (P::Option Natural) value
+      let value segs be Path::segments path in
+        match segs of-type (List String) as ignored returns (P::Option Natural)
+          case List::empty as Option::none Natural
+          case List::cons with first String rest (List String) as
+            match (S::eq first "todo") of-type Boolean as ignored returns (P::Option Natural)
+              case Boolean::false as Option::none Natural
+              case Boolean::true as
+                match rest of-type (List String) as ignored returns (P::Option Natural)
+                  case List::empty as Option::none Natural
+                  case List::cons with id-str String rest2 (List String) as
+                    match rest2 of-type (List String) as ignored returns (P::Option Natural)
+                      case List::empty as N::from-string id-str
+                      case List::cons with extra String extra-tail (List String) as Option::none Natural
+                    end
+                end
+            end
+        end
+      end
+    end
+
+  define transparent render-index as
+    compute
+      bind todos from perform read-todos then
+        return (html-response (page-lines todos))
+      end
+    end
+
+  define transparent handle-get as
+    function path String returns computation Response value
+      match (S::eq path "/") of-type Boolean as ignored returns (computation Response)
+        case Boolean::true as render-index
+        case Boolean::false as compute return (Resp::not-found ["not found"]) end
+      end
+    end
+
+  define transparent handle-post as
+    function path String params (List (Pair String String)) returns computation Response value
+      match (S::eq path "/todo") of-type Boolean as ignored returns (computation Response)
+        case Boolean::false as compute return (Resp::not-found ["not found"]) end
+        case Boolean::true as
+          match (find-param "text" params) of-type (P::Option String) as ignored returns (computation Response)
+            case Option::none as compute return (Resp::bad-request ["missing text"]) end
+            case Option::some with text String as
+              let value trimmed be S::trim text in
+                match (S::is-empty trimmed) of-type Boolean as ignored returns (computation Response)
+                  case Boolean::true as compute return (Resp::bad-request ["missing text"]) end
+                  case Boolean::false as add-todo trimmed
+                end
+          end
+      end
+    end
+
+  define transparent handle-put as
+    function path String returns computation Response value
+      match (todo-id-from-path path) of-type (P::Option Natural) as ignored returns (computation Response)
+        case Option::none as compute return (Resp::bad-request ["invalid todo id"]) end
+        case Option::some with target Natural as
+          compute
+            bind todos from perform read-todos then
+              let value updated be mark-done target todos in
+                bind ignored from perform (write-todos updated) then
+                  return (html-response (page-lines updated))
+                end
+              end
+          end
+      end
+    end
+
+  define transparent handle-delete as
+    function path String returns computation Response value
+      match (todo-id-from-path path) of-type (P::Option Natural) as ignored returns (computation Response)
+        case Option::none as compute return (Resp::bad-request ["invalid todo id"]) end
+        case Option::some with target Natural as
+          compute
+            bind todos from perform read-todos then
+              let value updated be remove-todo target todos in
+                bind ignored from perform (write-todos updated) then
+                  return (html-response (page-lines updated))
+                end
+              end
+          end
+      end
+    end
+
+  define transparent handle-request-parsed as
+    function req Request returns computation Response value
+      let value parsed be split-path-query (Req::path req) in
+        let value path be P::fst String (List (Pair String String)) parsed in
+          let value params be P::snd String (List (Pair String String)) parsed in
+            let value method be effective-method (Req::method req) params in
+              match (S::eq method "GET") of-type Boolean as ignored returns (computation Response)
+                case Boolean::true as handle-get path
+                case Boolean::false as
+                  match (S::eq method "POST") of-type Boolean as ignored returns (computation Response)
+                    case Boolean::true as handle-post path params
+                    case Boolean::false as
+                      match (S::eq method "PUT") of-type Boolean as ignored returns (computation Response)
+                        case Boolean::true as handle-put path
+                        case Boolean::false as
+                          match (S::eq method "DELETE") of-type Boolean as ignored returns (computation Response)
+                            case Boolean::true as handle-delete path
+                            case Boolean::false as compute return (Resp::not-found ["not found"]) end
+                          end
+                      end
+                  end
+              end
+      end
+    end
+
+  define transparent handle-request as
+    function raw String returns computation Response value
+      compute
+        perform
+          match (Req::parse-request raw) of-type (P::Option Request) as ignored returns (computation Response)
+            case Option::none as compute return (Resp::bad-request ["bad request"]) end
+            case Option::some with req Request as handle-request-parsed req
+          end
+      end
+    end
+
+  define transparent find-flag as
+    function name String flags (List (Pair String String)) returns (P::Option String) value
+      match flags of-type (List (Pair String String)) as ignored returns (P::Option String)
+        case List::empty as Option::none String
+        case List::cons with h (Pair String String) t (List (Pair String String)) as
+          match h of-type (Pair String String) as ignored returns (P::Option String)
+            case Pair::pair with key String val String as
+              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+                case Boolean::true as Option::some String val
+                case Boolean::false as recur name t
+              end
+          end
+      end
+    end
+
+  define transparent port-from-flags as
+    function flags (List (Pair String String)) returns Natural value
+      match (find-flag "port" flags) of-type (P::Option String) as ignored returns Natural
+        case Option::none as 3000
+        case Option::some with raw String as
+          match (N::from-string raw) of-type (P::Option Natural) as ignored returns Natural
+            case Option::none as P::error Natural "invalid --port"
+            case Option::some with port Natural as port
+          end
+      end
+    end
+
+  define transparent port-from-args as
+    function args (List String) returns Natural value
+      let value opts be CLI::parse-options args in
+        port-from-flags (CLI::options-flags opts)
+      end
+    end
+
+  define transparent main as compute
+    bind args from perform CLI::args then
+      perform (Server::serve-tcp-with handle-request (port-from-args args))
+    end
+  end
+end
