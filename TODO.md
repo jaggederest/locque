@@ -1,8 +1,7 @@
 # Locque TODO
 
 ## Priority (next up)
-- Refactor stdlib/tests to use type classes more broadly (e.g., unified `match` sugar).
-- Add tests for logic primitives (`logic::False`, `logic::Not`, `logic::Decidable`).
+- Refactor stdlib/tests to use type classes more broadly.
 
 ## Diagnostics
 - Show code context once parser locations updated.

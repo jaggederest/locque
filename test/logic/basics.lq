@@ -11,6 +11,20 @@ open A exposing assert-eq end
 open Eq exposing Equality end
 
 module test::logic::basics contains
+  define transparent false-type as
+    of-type L::False Type0
+
+  define transparent not-false as
+    of-type
+      (function x L::False returns L::False value x end)
+      (L::Not L::False)
+
+  define transparent decidable-nat-true-type as
+    of-type (L::decide-eq-nat 5 5) (L::Decidable (equal Natural 5 5))
+
+  define transparent decidable-nat-false-type as
+    of-type (L::decide-eq-nat 5 6) (L::Decidable (equal Natural 5 6))
+
   define transparent decide-nat-true as
     unpack (L::decide-eq-nat 5 5) as b ignored in b end
 
