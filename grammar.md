@@ -218,6 +218,9 @@ define transparent Pair as data A TypeN B TypeN in TypeN
 end
 ```
 
+Primitive type constructors (no constructors):
+- `Dictionary K V` (hash-based key/value store; operations are via `dictionary-*-prim` and stdlib wrappers).
+
 ## Types
 
 ```
@@ -236,6 +239,7 @@ TypeAtom ::=
   | Natural | String | Boolean | Unit
   | List Type
   | Pair Type Type                     -- non-dependent pair sugar
+  | Dictionary Type Type
   | TypeVar                            -- lower-case identifier
   | ( Type )                           -- grouping
 

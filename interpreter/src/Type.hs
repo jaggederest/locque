@@ -22,6 +22,7 @@ typeConstName tc = case tc of
   TCUnit -> "Unit"
   TCList -> "List"
   TCPair -> "Pair"
+  TCDictionary -> "Dictionary"
 
 prettyType :: Expr -> Text
 prettyType expr = case expr of

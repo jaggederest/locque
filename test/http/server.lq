@@ -1,0 +1,26 @@
+import assert as A
+import http::response as Resp
+import http::server as Server
+import prelude as P
+
+open A exposing assert-eq end
+
+module test::http::server contains
+  define transparent ok-response as
+    Server::handle-request-line "GET / HTTP/1.1"
+
+  define transparent not-found-response as
+    Server::handle-request-line "GET /missing HTTP/1.1"
+
+  define transparent bad-response as
+    Server::handle-request-line "GET /"
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (Resp::status ok-response) 200)
+      , (assert-eq Natural (Resp::status not-found-response) 404)
+      , (assert-eq Natural (Resp::status bad-response) 400)
+      ])
+  end
+end

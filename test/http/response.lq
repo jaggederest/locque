@@ -1,0 +1,31 @@
+import assert as A
+import http::response as Resp
+import prelude as P
+
+open A exposing assert-eq end
+module test::http::response contains
+  define transparent ok-response as
+    Resp::ok ["hello"]
+
+  define transparent ok-status as
+    Resp::status ok-response
+
+  define transparent ok-rendered as
+    Resp::render ok-response
+
+  define transparent header-response as
+    Resp::with-headers (Resp::ok ["hello"])
+      [P::pair String String "Content-Type" "text/plain"]
+
+  define transparent header-rendered as
+    Resp::render header-response
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural ok-status 200)
+      , (assert-eq String ok-rendered "HTTP/1.1 200 OK\n\nhello")
+      , (assert-eq String header-rendered "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nhello")
+      ])
+  end
+end

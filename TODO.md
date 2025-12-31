@@ -2,6 +2,7 @@
 
 ## Priority (next up)
 - Refactor stdlib/tests to use type classes more broadly.
+- Move `get-line` from `prelude` to `io` and update call sites.
 
 ## Diagnostics
 - Show code context once parser locations updated.

@@ -11,6 +11,9 @@ module prelude contains
   define transparent Pair-kind as
     Types::BinaryTypeFunction Type0 Type0
 
+  define transparent Dictionary-kind as
+    Types::BinaryTypeFunction Type0 Type0
+
   define transparent Option as data A Type0 in Type0
     case Option::none of-type Option A
     case Option::some of-type Types::Function A (Option A)

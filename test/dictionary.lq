@@ -1,0 +1,14 @@
+import prelude as P
+# Test rollup for Dictionary module
+# Runs all tests in test/dictionary/
+
+import test::dictionary::basics as basics
+
+module test::dictionary contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
+  end
+end

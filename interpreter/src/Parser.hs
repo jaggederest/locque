@@ -190,6 +190,7 @@ fromExpr _ (SAtom "Boolean") = Right (ETypeConst TCBoolean)
 fromExpr _ (SAtom "Unit") = Right (ETypeConst TCUnit)
 fromExpr _ (SAtom "List") = Right (ETypeConst TCList)
 fromExpr _ (SAtom "Pair") = Right (ETypeConst TCPair)
+fromExpr _ (SAtom "Dictionary") = Right (ETypeConst TCDictionary)
 fromExpr _ (SAtom t)
   | Just n <- parseUniverseAtom t = Right (ETypeUniverse n)
   | otherwise = Right (EVar t)
@@ -413,6 +414,7 @@ fromType path se = case se of
   SAtom "Unit" -> Right (ETypeConst TCUnit)
   SAtom "List" -> Right (ETypeConst TCList)
   SAtom "Pair" -> Right (ETypeConst TCPair)
+  SAtom "Dictionary" -> Right (ETypeConst TCDictionary)
   SAtom "true" -> Right (ELit (LBoolean True))
   SAtom "false" -> Right (ELit (LBoolean False))
   SAtom "tt" -> Right (ELit LUnit)
@@ -911,6 +913,7 @@ pTypeConst =
   <|> (ETypeConst TCUnit <$ keyword "Unit")
   <|> (ETypeConst TCList <$ keyword "List")
   <|> (ETypeConst TCPair <$ keyword "Pair")
+  <|> (ETypeConst TCDictionary <$ keyword "Dictionary")
 
 -- Identifiers and symbols
 
@@ -939,7 +942,7 @@ reservedWords =
   , "typeclass", "of-kind", "instance", "where", "requires", "and"
   , "recur"
   , "true", "false", "tt"
-  , "Natural", "String", "Boolean", "Unit", "List", "Pair"
+  , "Natural", "String", "Boolean", "Unit", "List", "Pair", "Dictionary"
   ]
 
 pModuleName :: Parser Text

@@ -1,0 +1,39 @@
+import prelude as P
+import string as S
+import io as IO
+import http::request as Req
+import http::response as Resp
+
+open P exposing Option::none Option::some end
+open Req exposing Request end
+open Resp exposing Response end
+
+module http::server contains
+  define transparent is-get-root as
+    function req Request returns Boolean value
+      match (S::eq (Req::method req) "GET") of-type Boolean as ignored returns Boolean
+        case Boolean::true as S::eq (Req::path req) "/"
+        case Boolean::false as false
+      end
+    end
+
+  define transparent handle-request-line as
+    function line String returns Response value
+      match (Req::parse-request-line line) of-type (P::Option Request) as ignored returns Response
+        case Option::none as Resp::bad-request ["bad request"]
+        case Option::some with req Request as
+          match (is-get-root req) of-type Boolean as ignored returns Response
+            case Boolean::true as Resp::ok ["ok"]
+            case Boolean::false as Resp::not-found ["not found"]
+          end
+      end
+    end
+
+  define transparent serve-once as compute
+    bind line from perform P::get-line then
+      bind ignored from perform (IO::print (Resp::render (handle-request-line line))) then
+        return Unit::tt
+      end
+    end
+  end
+end

@@ -1,0 +1,80 @@
+import prelude as P
+import typeclass::equality as Eq
+import typeclass::hash as Hash
+open P exposing Option Option::none Option::some end
+
+module dictionary contains
+  define transparent empty as
+    function K Type0 V Type0 returns (Dictionary K V) value
+      dictionary-empty-prim K V
+    end
+
+  define transparent insert as
+    function K Type0 V Type0
+             key K
+             val V
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns (Dictionary K V) value
+      dictionary-insert-prim K V (Hash::hash-value K) (Eq::equals K) key val dict
+    end
+
+  define transparent lookup as
+    function K Type0 V Type0
+             key K
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns (Option V) value
+      dictionary-lookup-prim K V (Hash::hash-value K) (Eq::equals K) key dict
+    end
+
+  define transparent remove as
+    function K Type0 V Type0
+             key K
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns (Dictionary K V) value
+      dictionary-remove-prim K V (Hash::hash-value K) (Eq::equals K) key dict
+    end
+
+  define transparent size as
+    function K Type0 V Type0
+             dict (Dictionary K V)
+    returns Natural value
+      dictionary-size-prim K V dict
+    end
+
+  define transparent to-list as
+    function K Type0 V Type0
+             dict (Dictionary K V)
+    returns (List (Pair K V)) value
+      dictionary-to-list-prim K V dict
+    end
+
+  define transparent from-list as
+    function K Type0 V Type0
+             entries (List (Pair K V))
+    requires Hash::Hash K and Eq::Equality K
+    returns (Dictionary K V) value
+      P::fold (Pair K V) (Dictionary K V)
+        (function acc (Dictionary K V) entry (Pair K V) returns (Dictionary K V) value
+          match entry of-type (Pair K V) as ignored returns (Dictionary K V)
+            case Pair::pair with k K v V as insert K V k v acc
+          end
+        end)
+        (empty K V)
+        entries
+    end
+
+  define transparent member as
+    function K Type0 V Type0
+             key K
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns Boolean value
+      match (lookup K V key dict) of-type (Option V) as ignored returns Boolean
+        case Option::none as false
+        case Option::some with ignored V as true
+      end
+    end
+end

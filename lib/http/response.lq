@@ -1,0 +1,106 @@
+import prelude as P
+import string as S
+import natural as N
+import type_aliases as Types
+import typeclass::equality as Eq
+
+module http::response contains
+  define transparent Response as data in Type0
+    case Response::response of-type
+      Types::BinaryFunction Natural (List (Pair String String))
+        (Types::Function (List String) Response)
+  end
+
+  define transparent status as
+    function resp Response returns Natural value
+      match resp of-type Response as ignored returns Natural
+        case Response::response with code Natural ignored (List (Pair String String)) ignored (List String) as code
+      end
+    end
+
+  define transparent headers as
+    function resp Response returns (List (Pair String String)) value
+      match resp of-type Response as ignored returns (List (Pair String String))
+        case Response::response with ignored Natural headers (List (Pair String String)) ignored (List String) as headers
+      end
+    end
+
+  define transparent body as
+    function resp Response returns (List String) value
+      match resp of-type Response as ignored returns (List String)
+        case Response::response with ignored Natural ignored (List (Pair String String)) body (List String) as body
+      end
+    end
+
+  define transparent with-headers as
+    function resp Response headers (List (Pair String String)) returns Response value
+      match resp of-type Response as ignored returns Response
+        case Response::response with code Natural ignored (List (Pair String String)) body (List String) as
+          Response::response code headers body
+      end
+    end
+
+  define transparent ok as
+    function body (List String) returns Response value
+      Response::response 200 (P::nil (Pair String String)) body
+    end
+
+  define transparent not-found as
+    function body (List String) returns Response value
+      Response::response 404 (P::nil (Pair String String)) body
+    end
+
+  define transparent bad-request as
+    function body (List String) returns Response value
+      Response::response 400 (P::nil (Pair String String)) body
+    end
+
+  define transparent status-text as
+    function code Natural returns String value
+      match (Eq::equals Natural code 200) of-type Boolean as ignored returns String
+        case Boolean::true as "OK"
+        case Boolean::false as
+          match (Eq::equals Natural code 404) of-type Boolean as ignored returns String
+            case Boolean::true as "Not Found"
+            case Boolean::false as
+              match (Eq::equals Natural code 400) of-type Boolean as ignored returns String
+                case Boolean::true as "Bad Request"
+                case Boolean::false as "Unknown"
+              end
+          end
+      end
+    end
+
+  define transparent status-line as
+    function code Natural returns String value
+      S::concat "HTTP/1.1 "
+        (S::concat (N::to-string code) (S::concat " " (status-text code)))
+    end
+
+  define transparent header-line as
+    function entry (Pair String String) returns String value
+      match entry of-type (Pair String String) as ignored returns String
+        case Pair::pair with key String val String as
+          S::concat key (S::concat ": " val)
+      end
+    end
+
+  define transparent render as
+    function resp Response returns String value
+      let value code be status resp in
+        let value header-lines be
+          P::map (Pair String String) String header-line (headers resp)
+        in
+          let value start-lines be
+            P::cons String (status-line code) header-lines
+          in
+            let value all-lines be
+              P::append String start-lines (P::cons String "" (body resp))
+            in
+              S::unlines all-lines
+            end
+          end
+        end
+      end
+    end
+end

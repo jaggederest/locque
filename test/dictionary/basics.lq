@@ -1,0 +1,72 @@
+import assert as A
+import dictionary as D
+import list as L
+import prelude as P
+import string as S
+
+open P exposing Option Option::none Option::some end
+
+module test::dictionary::basics contains
+  define transparent empty-dict as
+    D::empty String Natural
+
+  define transparent dict-ab as
+    D::insert String Natural "b" 2
+      (D::insert String Natural "a" 1 empty-dict)
+
+  define transparent dict-updated as
+    D::insert String Natural "a" 10 dict-ab
+
+  define transparent dict-removed as
+    D::remove String Natural "b" dict-updated
+
+  define transparent dict-from-list as
+    D::from-list String Natural
+      [
+        (P::pair String Natural "x" 3)
+      , (P::pair String Natural "y" 4)
+      ]
+
+  define transparent lookup-or-zero as
+    function key String dict (Dictionary String Natural) returns Natural value
+      match (D::lookup String Natural key dict) of-type (Option Natural) as ignored returns Natural
+        case Option::none as 0
+        case Option::some with v Natural as v
+      end
+    end
+
+  define transparent test-basic as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (D::size String Natural empty-dict) 0)
+      , (A::assert-eq Boolean (D::member String Natural "a" empty-dict) false)
+      , (A::assert-eq Natural (D::size String Natural dict-ab) 2)
+      , (A::assert-eq Natural (lookup-or-zero "a" dict-ab) 1)
+      , (A::assert-eq Natural (lookup-or-zero "missing" dict-ab) 0)
+      , (A::assert-eq Natural (D::size String Natural dict-updated) 2)
+      , (A::assert-eq Natural (lookup-or-zero "a" dict-updated) 10)
+      , (A::assert-eq Natural (D::size String Natural dict-removed) 1)
+      , (A::assert-eq Boolean (D::member String Natural "b" dict-removed) false)
+      ])
+  end
+
+  define transparent test-from-list as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (D::size String Natural dict-from-list) 2)
+      , (A::assert-eq Natural (lookup-or-zero "x" dict-from-list) 3)
+      , (A::assert-eq Natural (lookup-or-zero "y" dict-from-list) 4)
+      , (A::assert-eq Natural
+          (L::length (Pair String Natural) (D::to-list String Natural dict-from-list))
+          2)
+      ])
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-basic
+      , test-from-list
+      ])
+  end
+end

@@ -63,6 +63,7 @@ data Value
   | VUnit
   | VBoolean Bool
   | VPair Value Value
+  | VDictionary (Map.Map Integer [(Value, Value)]) Int
   | VTypeConst TypeConst
   | VTypeData Text
   | VTypeUniverse Int
@@ -87,6 +88,7 @@ instance Show Value where
   show VUnit       = "tt"
   show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
+  show (VDictionary _ size) = "<dictionary:" ++ show size ++ ">"
   show (VTypeConst tc) = T.unpack (Type.typeConstName tc)
   show (VTypeData name) = T.unpack name
   show (VTypeUniverse n) = "Type" ++ show n
@@ -150,6 +152,12 @@ primEnv = Map.fromList
   , (T.pack "List::empty", BVal (VPrim primNil))
   , (T.pack "List::cons", BVal (VPrim primCons))
   , (T.pack "Pair::pair", BVal (VPrim primPair))
+  , (T.pack "dictionary-empty-prim", BVal (VPrim primDictionaryEmpty))
+  , (T.pack "dictionary-insert-prim", BVal (VPrim primDictionaryInsert))
+  , (T.pack "dictionary-lookup-prim", BVal (VPrim primDictionaryLookup))
+  , (T.pack "dictionary-remove-prim", BVal (VPrim primDictionaryRemove))
+  , (T.pack "dictionary-size-prim", BVal (VPrim primDictionarySize))
+  , (T.pack "dictionary-to-list-prim", BVal (VPrim primDictionaryToList))
   , (T.pack "Boolean::false", BVal (VBoolean False))
   , (T.pack "Boolean::true", BVal (VBoolean True))
   , (T.pack "Unit::tt", BVal VUnit)
@@ -286,6 +294,115 @@ primPair [tyA, tyB, a, b] = do
   expectTypeArg tyB
   pure $ VPair a b
 primPair _ = error "Pair::pair expects (Type, Type, a, b)"
+
+optionNone :: Value
+optionNone = VData "Option::none" []
+
+optionSome :: Value -> Value
+optionSome v = VData "Option::some" [v]
+
+expectDictionary :: Value -> IO (Map.Map Integer [(Value, Value)], Int)
+expectDictionary v = case v of
+  VDictionary buckets size -> pure (buckets, size)
+  _ -> error $ "expected Dictionary, got " ++ show v
+
+insertBucket :: Value -> Value -> Value -> [(Value, Value)] -> IO (Bool, [(Value, Value)])
+insertBucket eqFn key val entries = case entries of
+  [] -> pure (False, [(key, val)])
+  (k, v):rest -> do
+    same <- expectBool =<< apply eqFn [key, k]
+    if same
+      then pure (True, (key, val) : rest)
+      else do
+        (found, rest') <- insertBucket eqFn key val rest
+        pure (found, (k, v) : rest')
+
+lookupBucket :: Value -> Value -> [(Value, Value)] -> IO (Maybe Value)
+lookupBucket eqFn key entries = case entries of
+  [] -> pure Nothing
+  (k, v):rest -> do
+    same <- expectBool =<< apply eqFn [key, k]
+    if same
+      then pure (Just v)
+      else lookupBucket eqFn key rest
+
+removeBucket :: Value -> Value -> [(Value, Value)] -> IO (Bool, [(Value, Value)])
+removeBucket eqFn key entries = case entries of
+  [] -> pure (False, [])
+  (k, v):rest -> do
+    same <- expectBool =<< apply eqFn [key, k]
+    if same
+      then pure (True, rest)
+      else do
+        (found, rest') <- removeBucket eqFn key rest
+        pure (found, (k, v) : rest')
+
+primDictionaryEmpty :: [Value] -> IO Value
+primDictionaryEmpty [tyK, tyV] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  pure (VDictionary Map.empty 0)
+primDictionaryEmpty _ = error "dictionary-empty-prim expects (Type, Type)"
+
+primDictionaryInsert :: [Value] -> IO Value
+primDictionaryInsert [tyK, tyV, hashFn, eqFn, key, val, dictVal] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  (buckets, size) <- expectDictionary dictVal
+  h <- expectNat =<< apply hashFn [key]
+  let bucket = Map.findWithDefault [] h buckets
+  (found, bucket') <- insertBucket eqFn key val bucket
+  let size' = if found then size else size + 1
+      buckets' = Map.insert h bucket' buckets
+  pure (VDictionary buckets' size')
+primDictionaryInsert _ =
+  error "dictionary-insert-prim expects (Type, Type, hash, eq, key, value, dict)"
+
+primDictionaryLookup :: [Value] -> IO Value
+primDictionaryLookup [tyK, tyV, hashFn, eqFn, key, dictVal] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  (buckets, _) <- expectDictionary dictVal
+  h <- expectNat =<< apply hashFn [key]
+  let bucket = Map.findWithDefault [] h buckets
+  result <- lookupBucket eqFn key bucket
+  pure (maybe optionNone optionSome result)
+primDictionaryLookup _ =
+  error "dictionary-lookup-prim expects (Type, Type, hash, eq, key, dict)"
+
+primDictionaryRemove :: [Value] -> IO Value
+primDictionaryRemove [tyK, tyV, hashFn, eqFn, key, dictVal] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  (buckets, size) <- expectDictionary dictVal
+  h <- expectNat =<< apply hashFn [key]
+  let bucket = Map.findWithDefault [] h buckets
+  (removed, bucket') <- removeBucket eqFn key bucket
+  let size' = if removed then max 0 (size - 1) else size
+      buckets' = if null bucket'
+        then Map.delete h buckets
+        else Map.insert h bucket' buckets
+  pure (VDictionary buckets' size')
+primDictionaryRemove _ =
+  error "dictionary-remove-prim expects (Type, Type, hash, eq, key, dict)"
+
+primDictionarySize :: [Value] -> IO Value
+primDictionarySize [tyK, tyV, dictVal] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  (_, size) <- expectDictionary dictVal
+  pure (VNatural (toInteger size))
+primDictionarySize _ = error "dictionary-size-prim expects (Type, Type, dict)"
+
+primDictionaryToList :: [Value] -> IO Value
+primDictionaryToList [tyK, tyV, dictVal] = do
+  expectTypeArg tyK
+  expectTypeArg tyV
+  (buckets, _) <- expectDictionary dictVal
+  let entries = concatMap snd (Map.toList buckets)
+      pairs = map (\(k, v) -> VPair k v) entries
+  pure (VList pairs)
+primDictionaryToList _ = error "dictionary-to-list-prim expects (Type, Type, dict)"
 
 primValidate :: [Value] -> IO Value
 primValidate [VString s] = do

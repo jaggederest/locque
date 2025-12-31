@@ -212,6 +212,12 @@ tList a = EApp (ETypeConst TCList) [a]
 tPair :: Expr -> Expr -> Expr
 tPair a b = EApp (ETypeConst TCPair) [a, b]
 
+tOption :: Expr -> Expr
+tOption a = EApp (EVar "Option") [a]
+
+tDictionary :: Expr -> Expr -> Expr
+tDictionary k v = EApp (ETypeConst TCDictionary) [k, v]
+
 tComp :: Expr -> Expr
 tComp = ECompType
 
@@ -1840,6 +1846,9 @@ typeOfTypeConst tc = case tc of
   TCUnit -> tType 0
   TCList -> EForAll "A" (tType 0) (tType 0)
   TCPair -> EForAll "A" (tType 0) (EForAll "B" (tType 0) (tType 0))
+  TCDictionary ->
+    EForAll "K" (tType 0)
+      (EForAll "V" (tType 0) (tType 0))
 
 --------------------------------------------------------------------------------
 -- Primitive environment
@@ -1897,6 +1906,44 @@ buildPrimitiveEnv = Map.fromList
   , ("Pair::pair", EForAll "A" (tType 0)
       (EForAll "B" (tType 0)
         (tFun (EVar "A") (tFun (EVar "B") (tPair (EVar "A") (EVar "B"))))))
+  , ("dictionary-empty-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tDictionary (EVar "K") (EVar "V"))))
+  , ("dictionary-insert-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tFun (tFun (EVar "K") tNat)
+            (tFun (tFun (EVar "K") (tFun (EVar "K") tBool))
+              (tFun (EVar "K")
+                (tFun (EVar "V")
+                  (tFun (tDictionary (EVar "K") (EVar "V"))
+                        (tDictionary (EVar "K") (EVar "V")))))))))
+  , ("dictionary-lookup-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tFun (tFun (EVar "K") tNat)
+            (tFun (tFun (EVar "K") (tFun (EVar "K") tBool))
+              (tFun (EVar "K")
+                (tFun (tDictionary (EVar "K") (EVar "V"))
+                      (tOption (EVar "V"))))))))
+  , ("dictionary-remove-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tFun (tFun (EVar "K") tNat)
+            (tFun (tFun (EVar "K") (tFun (EVar "K") tBool))
+              (tFun (EVar "K")
+                (tFun (tDictionary (EVar "K") (EVar "V"))
+                      (tDictionary (EVar "K") (EVar "V"))))))))
+  , ("dictionary-size-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tFun (tDictionary (EVar "K") (EVar "V")) tNat)))
+  , ("dictionary-to-list-prim",
+      EForAll "K" (tType 0)
+        (EForAll "V" (tType 0)
+          (tFun (tDictionary (EVar "K") (EVar "V"))
+                (tList (tPair (EVar "K") (EVar "V"))))))
   , ("Boolean::false", tBool)
   , ("Boolean::true", tBool)
   , ("Unit::tt", tUnit)

@@ -1,0 +1,16 @@
+import prelude as P
+
+import test::http::request as request
+import test::http::response as response
+import test::http::server as server
+
+module test::http contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        request::main
+      , response::main
+      , server::main
+      ])
+  end
+end

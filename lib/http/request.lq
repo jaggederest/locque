@@ -1,0 +1,55 @@
+import prelude as P
+import string as S
+import type_aliases as Types
+
+open P exposing Option::none Option::some end
+
+module http::request contains
+  define transparent Request as data in Type0
+    case Request::request of-type
+      Types::BinaryFunction String String (Types::Function String Request)
+  end
+
+  define transparent method as
+    function req Request returns String value
+      match req of-type Request as ignored returns String
+        case Request::request with m String ignored String ignored String as m
+      end
+    end
+
+  define transparent path as
+    function req Request returns String value
+      match req of-type Request as ignored returns String
+        case Request::request with ignored String p String ignored String as p
+      end
+    end
+
+  define transparent version as
+    function req Request returns String value
+      match req of-type Request as ignored returns String
+        case Request::request with ignored String ignored String v String as v
+      end
+    end
+
+  define transparent parse-request-line as
+    function line String returns (P::Option Request) value
+      let value parts be S::split-spaces line in
+        match parts of-type (List String) as ignored returns (P::Option Request)
+          case List::empty as Option::none Request
+          case List::cons with m String rest1 (List String) as
+            match rest1 of-type (List String) as ignored returns (P::Option Request)
+              case List::empty as Option::none Request
+              case List::cons with p String rest2 (List String) as
+                match rest2 of-type (List String) as ignored returns (P::Option Request)
+                  case List::empty as Option::none Request
+                  case List::cons with v String rest3 (List String) as
+                    match rest3 of-type (List String) as ignored returns (P::Option Request)
+                      case List::empty as Option::some Request (Request::request m p v)
+                      case List::cons with ignored String ignored (List String) as Option::none Request
+                    end
+                end
+            end
+        end
+      end
+    end
+end

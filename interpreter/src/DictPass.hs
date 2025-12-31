@@ -560,6 +560,7 @@ typeConstName tc = case tc of
   TCUnit -> "Unit"
   TCList -> "List"
   TCPair -> "Pair"
+  TCDictionary -> "Dictionary"
 
 --------------------------------------------------------------------------------
 -- Method param construction

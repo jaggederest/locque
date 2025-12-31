@@ -18,6 +18,7 @@ data TypeConst
   | TCUnit
   | TCList
   | TCPair
+  | TCDictionary
   deriving (Show, Eq)
 
 data Param = Param
