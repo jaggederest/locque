@@ -1,0 +1,34 @@
+# String character utilities smoke tests
+
+import prelude as P
+import assert as A
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open S exposing Character end
+
+module test::string::character contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (P::length-list Character (S::to-list "hi")) 2)
+      , (assert-eq String
+          (S::character-string (P::head Character (S::to-list "hi")))
+          "h")
+      , (assert-eq String
+          (S::from-list [S::character "a", S::character "b"])
+          "ab")
+      , (assert-eq Boolean (S::char-is-digit (S::character "9")) true)
+      , (assert-eq Boolean (S::char-is-digit (S::character "a")) false)
+      , (assert-eq Boolean (S::char-is-letter (S::character "Z")) true)
+      , (assert-eq Boolean (S::char-is-letter (S::character "7")) false)
+      , (assert-eq Boolean (S::char-is-word (S::character "_")) true)
+      , (assert-eq Boolean (S::char-is-word (S::character ":")) true)
+      , (assert-eq Boolean (S::char-is-word (S::character " ")) false)
+      , (assert-eq String (S::character-string (S::head "hi")) "h")
+      , (assert-eq String (S::character-string (S::char-from-code 65)) "A")
+      ])
+  end
+end

@@ -1889,6 +1889,7 @@ buildPrimitiveEnv = Map.fromList
 
   , ("concat-string-prim", tFun tString (tFun tString tString))
   , ("char-code-prim", tFun tString tNat)
+  , ("char-from-code-prim", tFun tNat tString)
   , ("eq-string-prim", tFun tString (tFun tString tBool))
   , ("decide-eq-nat-prim",
       EForAll "x" tNat

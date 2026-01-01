@@ -24,6 +24,7 @@ import test::time as test_time
 import test::file as test_file
 import test::cli as test_cli
 import test::path as test_path
+import test::examples as test_examples
 import test::option as test_option
 import test::result as test_result
 import test::either as test_either
@@ -57,6 +58,7 @@ module test::main contains
     , (P::pair String (computation Unit) "test_file" test_file::main)
     , (P::pair String (computation Unit) "test_cli" test_cli::main)
     , (P::pair String (computation Unit) "test_path" test_path::main)
+    , (P::pair String (computation Unit) "test_examples" test_examples::main)
     , (P::pair String (computation Unit) "test_option" test_option::main)
     , (P::pair String (computation Unit) "test_result" test_result::main)
     , (P::pair String (computation Unit) "test_either" test_either::main)
@@ -82,11 +84,46 @@ module test::main contains
       end
     end
 
+  define transparent suite-name as
+    function entry (Pair String (computation Unit)) returns String value
+      match entry of-type (Pair String (computation Unit)) as ignored returns String
+        case Pair::pair with name String ignored (computation Unit) as name
+      end
+    end
+
   define transparent suite-action-checked as
     function entry (Pair String (computation Unit)) returns (computation Unit) value
       match entry of-type (Pair String (computation Unit)) as ignored returns (computation Unit)
         case Pair::pair with ignored String action (computation Unit) as
           TH::assert-no-output Unit action
+      end
+    end
+
+  define transparent suite-start-line as
+    function name String returns String value
+      S::concat "start " name
+    end
+
+  define transparent suite-end-line as
+    function name String elapsed Natural returns String value
+      S::concat "end "
+        (S::concat name (S::concat " (" (S::concat (N::to-string elapsed) "us)")))
+    end
+
+  define transparent run-suite-verbose as
+    function entry (Pair String (computation Unit)) returns (computation Unit) value
+      match entry of-type (Pair String (computation Unit)) as ignored returns (computation Unit)
+        case Pair::pair with name String action (computation Unit) as
+          compute
+            bind ignored from perform (IO::print (suite-start-line name)) then
+              bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
+                bind ignored from perform
+                  (IO::print (suite-end-line name (P::snd Unit Natural measured))) then
+                    return Unit::tt
+                end
+              end
+            end
+          end
       end
     end
 
@@ -167,12 +204,26 @@ module test::main contains
       L::member String "--slow" args
     end
 
+  define transparent verbose-enabled as
+    function args (List String) returns Boolean value
+      L::member String "--verbose" args
+    end
+
+  define transparent run-tests-verbose as compute
+    perform (P::sequence-unit
+      (P::map (Pair String (computation Unit)) (computation Unit) run-suite-verbose suites))
+  end
+
   define transparent main as compute
     bind args from perform CLI::args then
       perform
         (match (slow-enabled args) of-type Boolean as ignored returns (computation Unit)
           case Boolean::true as run-tests-slow
-          case Boolean::false as TH::assert-no-output Unit run-tests
+          case Boolean::false as
+            match (verbose-enabled args) of-type Boolean as ignored returns (computation Unit)
+              case Boolean::true as run-tests-verbose
+              case Boolean::false as TH::assert-no-output Unit run-tests
+            end
         end)
     end
   end

@@ -1,0 +1,22 @@
+# URL decode tests
+
+import prelude as P
+import assert as A
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::string::url_decode contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq String (S::url-decode "hello%20world") "hello world")
+      , (assert-eq String (S::url-decode "a+b") "a b")
+      , (assert-eq String (S::url-decode "x%3Dy%26z") "x=y&z")
+      , (assert-eq String (S::url-decode "A%41B") "AAB")
+      , (assert-eq String (S::url-decode "c%3dc") "c=c")
+      ])
+  end
+end

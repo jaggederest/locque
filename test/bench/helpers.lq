@@ -43,7 +43,9 @@ module test::bench::helpers contains
           end
         end
       in
-        P::fold Unit (computation (List Natural)) step (compute return [] end) tokens
+        P::fold Unit (computation (List Natural)) step
+          (compute return (of-type [] (List Natural)) end)
+          tokens
       end
     end
 

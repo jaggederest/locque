@@ -1,7 +1,6 @@
 import prelude as P
 import arithmetic as Ar
 import list as L
-import dictionary as Dict
 import typeclass::equality as Eq
 import typeclass::order as Order
 import type_aliases as Types
@@ -48,6 +47,16 @@ module string contains
   define transparent char-code as
     function c Character returns Natural value
       char-code-prim (character-string c)
+    end
+
+  define transparent char-from-code as
+    function code Natural returns Character value
+      character (char-from-code-prim code)
+    end
+
+  define transparent string-from-code as
+    function code Natural returns String value
+      character-string (char-from-code code)
     end
 
   define transparent LessThan-Character as instance LessThan Character where
@@ -107,75 +116,55 @@ module string contains
       join-with "" (P::map Character String character-string xs)
     end
 
-  define transparent url-decode-table as
-    Dict::from-list String String
-      [
-        (P::pair String String "20" " ")
-      , (P::pair String String "21" "!")
-      , (P::pair String String "22" "\"")
-      , (P::pair String String "23" "#")
-      , (P::pair String String "24" "$")
-      , (P::pair String String "25" "%")
-      , (P::pair String String "26" "&")
-      , (P::pair String String "27" "'")
-      , (P::pair String String "28" "(")
-      , (P::pair String String "29" ")")
-      , (P::pair String String "2A" "*")
-      , (P::pair String String "2B" "+")
-      , (P::pair String String "2C" ",")
-      , (P::pair String String "2D" "-")
-      , (P::pair String String "2E" ".")
-      , (P::pair String String "2F" "/")
-      , (P::pair String String "2a" "*")
-      , (P::pair String String "2b" "+")
-      , (P::pair String String "2c" ",")
-      , (P::pair String String "2d" "-")
-      , (P::pair String String "2e" ".")
-      , (P::pair String String "2f" "/")
-      , (P::pair String String "3A" ":")
-      , (P::pair String String "3B" ";")
-      , (P::pair String String "3C" "<")
-      , (P::pair String String "3D" "=")
-      , (P::pair String String "3E" ">")
-      , (P::pair String String "3F" "?")
-      , (P::pair String String "3a" ":")
-      , (P::pair String String "3b" ";")
-      , (P::pair String String "3c" "<")
-      , (P::pair String String "3d" "=")
-      , (P::pair String String "3e" ">")
-      , (P::pair String String "3f" "?")
-      , (P::pair String String "40" "@")
-      , (P::pair String String "5B" "[")
-      , (P::pair String String "5C" "\\")
-      , (P::pair String String "5D" "]")
-      , (P::pair String String "5E" "^")
-      , (P::pair String String "5F" "_")
-      , (P::pair String String "5b" "[")
-      , (P::pair String String "5c" "\\")
-      , (P::pair String String "5d" "]")
-      , (P::pair String String "5e" "^")
-      , (P::pair String String "5f" "_")
-      , (P::pair String String "60" "`")
-      , (P::pair String String "7B" "{")
-      , (P::pair String String "7C" "|")
-      , (P::pair String String "7D" "}")
-      , (P::pair String String "7E" "~")
-      , (P::pair String String "7b" "{")
-      , (P::pair String String "7c" "|")
-      , (P::pair String String "7d" "}")
-      , (P::pair String String "7e" "~")
-      ]
-
-  define transparent url-decode-lookup as
-    function key String returns (P::Option String) value
-      Dict::lookup String String key url-decode-table
+  define transparent hex-digit-value as
+    function c Character returns (P::Option Natural) value
+      let value code be char-code c in
+        match (Order::less-than Natural code 48) of-type Boolean as ignored returns (P::Option Natural)
+          case Boolean::true as Option::none Natural
+          case Boolean::false as
+            match (Order::less-or-equal Natural code 57) of-type Boolean as ignored returns (P::Option Natural)
+              case Boolean::true as Option::some Natural (Ar::subtract code 48)
+              case Boolean::false as
+                match (Order::less-than Natural code 65) of-type Boolean as ignored returns (P::Option Natural)
+                  case Boolean::true as Option::none Natural
+                  case Boolean::false as
+                    match (Order::less-or-equal Natural code 70) of-type Boolean as ignored returns (P::Option Natural)
+                      case Boolean::true as Option::some Natural (Ar::subtract code 55)
+                      case Boolean::false as
+                        match (Order::less-than Natural code 97) of-type Boolean as ignored returns (P::Option Natural)
+                          case Boolean::true as Option::none Natural
+                          case Boolean::false as
+                            match (Order::less-or-equal Natural code 102) of-type Boolean as ignored returns (P::Option Natural)
+                              case Boolean::true as Option::some Natural (Ar::subtract code 87)
+                              case Boolean::false as Option::none Natural
+                            end
+                        end
+                    end
+                end
+            end
+        end
+      end
     end
 
-  define transparent decode-percent-pair as
-    function pair String returns String value
-      match (url-decode-lookup pair) of-type (P::Option String) as ignored returns String
-        case Option::some with decoded String as decoded
-        case Option::none as concat "%" pair
+  define transparent hex-pair-value as
+    function first Character second Character returns (P::Option Natural) value
+      match (hex-digit-value first) of-type (P::Option Natural) as ignored returns (P::Option Natural)
+        case Option::none as Option::none Natural
+        case Option::some with hi Natural as
+          match (hex-digit-value second) of-type (P::Option Natural) as ignored returns (P::Option Natural)
+            case Option::none as Option::none Natural
+            case Option::some with lo Natural as
+              Option::some Natural (Ar::add (Ar::mul-nat hi 16) lo)
+          end
+      end
+    end
+
+  define transparent decode-percent-chars as
+    function first Character second Character returns String value
+      match (hex-pair-value first second) of-type (P::Option Natural) as ignored returns String
+        case Option::some with code Natural as string-from-code code
+        case Option::none as
+          concat "%" (concat (character-string first) (character-string second))
       end
     end
 
@@ -194,7 +183,7 @@ module string contains
                       P::cons String "%" (P::cons String (character-string first) (P::nil String))
                     case List::cons with second Character rest2 (List Character) as
                       P::cons String
-                        (decode-percent-pair (concat (character-string first) (character-string second)))
+                        (decode-percent-chars first second)
                         (recur rest2)
                   end
               end

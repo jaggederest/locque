@@ -6,6 +6,7 @@ module SmythTest
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Maybe (catMaybes)
+import qualified Data.Map.Strict as Map
 import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((</>), isAbsolute)
 import System.Directory (setCurrentDirectory)
@@ -51,13 +52,14 @@ runTests :: SmythConfig -> [String] -> IO ()
 runTests config args = do
   -- Change to project root so all paths are relative to it
   setCurrentDirectory (projectRoot config)
-  let files = filter (/= "--slow") args
+  let verbose = "--verbose" `elem` args
+      files = filter (\arg -> arg /= "--slow" && arg /= "--verbose") args
   case files of
-    [] -> runAllTests config
-    _  -> runPositiveTests config files
+    [] -> runAllTests config verbose
+    _  -> runSelectedTests config verbose files
 
-runAllTests :: SmythConfig -> IO ()
-runAllTests config = do
+runAllTests :: SmythConfig -> Bool -> IO ()
+runAllTests config verbose = do
   start <- getPOSIXTime
   let testFile = projectRoot config </> testRoot config </> "main.lq"
   (assertions, baseErrors) <- runPositiveTestsWithCounts config [testFile]
@@ -67,27 +69,84 @@ runAllTests config = do
   let elapsedUs = floor ((end - start) * 1000000) :: Integer
   if null errors
     then do
-      putStrLn $
-        "✓ All tests passed (" ++ show assertions ++ " assertions, "
-        ++ show expectedCount ++ " expected failures, "
-        ++ show elapsedUs ++ "us)"
-      exitSuccess
+      if verbose
+        then exitSuccess
+        else do
+          putStrLn $
+            "✓ All tests passed (" ++ show assertions ++ " assertions, "
+            ++ show expectedCount ++ " expected failures, "
+            ++ show elapsedUs ++ "us)"
+          exitSuccess
     else do
-      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed (" ++ show elapsedUs ++ "us)\n"
-      mapM_ printError errors
-      exitFailure
+      if verbose
+        then do
+          mapM_ printError errors
+          exitFailure
+        else do
+          putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed (" ++ show elapsedUs ++ "us)\n"
+          mapM_ printError errors
+          exitFailure
 
-runPositiveTests :: SmythConfig -> [FilePath] -> IO ()
-runPositiveTests config files = do
+runPositiveTests :: SmythConfig -> Bool -> [FilePath] -> IO ()
+runPositiveTests config verbose files = do
   (assertions, errors) <- runPositiveTestsWithCounts config files
   if null errors
     then do
-      putStrLn $ "✓ All tests passed (" ++ show assertions ++ " assertions)"
-      exitSuccess
+      if verbose
+        then exitSuccess
+        else do
+          putStrLn $ "✓ All tests passed (" ++ show assertions ++ " assertions)"
+          exitSuccess
     else do
-      putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
-      mapM_ printError errors
-      exitFailure
+      if verbose
+        then do
+          mapM_ printError errors
+          exitFailure
+        else do
+          putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
+          mapM_ printError errors
+          exitFailure
+
+runSelectedTests :: SmythConfig -> Bool -> [FilePath] -> IO ()
+runSelectedTests config verbose files = do
+  let root = projectRoot config
+      errorMap =
+        Map.fromList
+          [ (resolvePath root path, (path, msg))
+          | (path, msg) <- errorTests config
+          ]
+      (expectedEntries, positiveFiles) =
+        foldr
+          (\file (expectedAcc, positiveAcc) ->
+              let resolved = resolvePath root file
+              in case Map.lookup resolved errorMap of
+                  Just entry -> (entry : expectedAcc, positiveAcc)
+                  Nothing -> (expectedAcc, file : positiveAcc))
+          ([], [])
+          files
+  (assertions, posErrors) <- runPositiveTestsWithCounts config positiveFiles
+  expectedResults <- mapM (runExpectedFailure root) expectedEntries
+  let expectedErrors = catMaybes expectedResults
+      expectedCount = length expectedEntries - length expectedErrors
+      errors = posErrors ++ expectedErrors
+  if null errors
+    then do
+      if verbose
+        then exitSuccess
+        else do
+          putStrLn $
+            "✓ All tests passed (" ++ show assertions ++ " assertions, "
+            ++ show expectedCount ++ " expected failures)"
+          exitSuccess
+    else do
+      if verbose
+        then do
+          mapM_ printError errors
+          exitFailure
+        else do
+          putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
+          mapM_ printError errors
+          exitFailure
 
 runPositiveTestsWithCounts :: SmythConfig -> [FilePath] -> IO (Int, [TestError])
 runPositiveTestsWithCounts config files = do

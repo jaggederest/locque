@@ -1,0 +1,57 @@
+# Example tests for the webapp module
+
+import assert as A
+import examples::webapp as Web
+import option as Opt
+import prelude as P
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open Web exposing Todo Todo::todo todo-line page-lines end
+
+module test::examples::webapp contains
+  define transparent extract-params as
+    function raw String returns (Pair String (List (Pair String String))) value
+      Web::split-path-query raw
+    end
+
+  define transparent main as compute
+    perform
+      (let value parsed be extract-params "/todo?text=hello+world&method=PUT" in
+        let value path be P::fst String (List (Pair String String)) parsed in
+          let value params be P::snd String (List (Pair String String)) parsed in
+            P::sequence-unit
+              [
+                (assert-eq Natural
+                  (Opt::unwrap-or Natural 0 (Web::todo-id-from-path "/todo/12"))
+                  12)
+              , (assert-eq Natural
+                  (Opt::unwrap-or Natural 0 (Web::todo-id-from-path "/todo/12/extra"))
+                  0)
+              , (assert-eq String path "/todo")
+              , (assert-eq String
+                  (Opt::unwrap-or String "" (Web::find-param "text" params))
+                  "hello world")
+              , (assert-eq String (Web::effective-method "POST" params) "PUT")
+              , (assert-eq String
+                  (Web::effective-method "POST"
+                    [
+                      (P::pair String String "_method" "DELETE")
+                    , (P::pair String String "method" "PUT")
+                    ])
+                  "DELETE")
+              , (assert-eq Boolean
+                  (S::has-substring "/todo/1"
+                    (todo-line (Todo::todo 1 true "hello")))
+                  true)
+              , (assert-eq String
+                  (P::head String (page-lines (P::nil Todo)))
+                  "<!doctype html>")
+              ]
+          end
+        end
+      end)
+  end
+end

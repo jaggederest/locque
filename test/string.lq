@@ -2,13 +2,17 @@ import prelude as P
 # Test rollup for String module
 # Runs all tests in test/string/
 
-import test::string::utils as utils
+import test::string::basic as basic
+import test::string::character as character
+import test::string::url_decode as url_decode
 
 module test::string contains
   define transparent main as compute
     perform (P::sequence-unit
       [
-        utils::main
+        basic::main
+      , character::main
+      , url_decode::main
       ])
   end
 end

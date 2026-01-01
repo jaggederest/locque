@@ -1,0 +1,12 @@
+import prelude as P
+
+import test::examples::webapp as webapp
+
+module test::examples contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        webapp::main
+      ])
+  end
+end

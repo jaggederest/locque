@@ -29,7 +29,7 @@ module path contains
 
   define transparent segments as
     function path String returns (List String) value
-      drop-trailing-empty (S::split-on "/" path)
+      drop-leading-empty (drop-trailing-empty (S::split-on "/" path))
     end
 
   define transparent join-segments as

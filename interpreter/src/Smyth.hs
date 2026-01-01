@@ -122,7 +122,7 @@ printHelp = do
   putStrLn ""
   putStrLn "Usage:"
   putStrLn "  smyth run <file> -- <args>    Type check and run a .lq/.lqs file"
-  putStrLn "  smyth test [--slow] Run all tests (test/main.lq)"
+  putStrLn "  smyth test [--slow] [--verbose] Run all tests (test/main.lq)"
   putStrLn "  smyth test <file>   Run specific test file"
   putStrLn "  smyth bench         Run benchmarks (test/bench.lq)"
   putStrLn "  smyth bench <file>  Run a specific benchmark file"
@@ -136,3 +136,4 @@ printHelp = do
   putStrLn "  Project root found by searching for Smythfile.lq"
   putStrLn "  'smyth format' defaults to lib/, test/, and Smythfile.lq under the Smythfile.lq directory"
   putStrLn "  'smyth test --slow' prints the slowest suites from test/main.lq"
+  putStrLn "  'smyth test --verbose' prints per-suite timing from test/main.lq"

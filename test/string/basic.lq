@@ -7,9 +7,8 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
-open S exposing Character end
 
-module test::string::utils contains
+module test::string::basic contains
   define transparent main as compute
     perform (P::sequence-unit
       [
@@ -32,23 +31,6 @@ module test::string::utils contains
       , (assert-eq String (S::slice 0 3 "hello") "hel")
       , (assert-eq String (S::slice 2 3 "hello") "llo")
       , (assert-eq String (S::slice 1 2 "hello") "el")
-      , (assert-eq Natural
-                                                                                      (P::length-list Character (S::to-list "hi"))
-                                                                                      2)
-      , (assert-eq String
-                                                                                        (S::character-string (P::head Character (S::to-list "hi")))
-                                                                                        "h")
-      , (assert-eq String
-                                                                                          (S::from-list
-                                                                                            [S::character "a", S::character "b"])
-                                                                                          "ab")
-      , (assert-eq Boolean (S::char-is-digit (S::character "9")) true)
-      , (assert-eq Boolean (S::char-is-digit (S::character "a")) false)
-      , (assert-eq Boolean (S::char-is-letter (S::character "Z")) true)
-      , (assert-eq Boolean (S::char-is-letter (S::character "7")) false)
-      , (assert-eq Boolean (S::char-is-word (S::character "_")) true)
-      , (assert-eq Boolean (S::char-is-word (S::character ":")) true)
-      , (assert-eq Boolean (S::char-is-word (S::character " ")) false)
       , (assert-eq Boolean
                                                                                                           (S::starts-with-any
                                                                                                             ["a", "b"]
@@ -59,12 +41,8 @@ module test::string::utils contains
                                                                                                               ["lo"]
                                                                                                               "hello")
                                                                                                             true)
-      , (assert-eq String (S::character-string (S::head "hi")) "h")
       , (assert-eq String (S::tail "hi") "i")
       , (assert-eq String (S::sort "dcba") "abcd")
-      , (assert-eq String (S::url-decode "hello%20world") "hello world")
-      , (assert-eq String (S::url-decode "a+b") "a b")
-      , (assert-eq String (S::url-decode "x%3Dy%26z") "x=y&z")
       ])
   end
 end

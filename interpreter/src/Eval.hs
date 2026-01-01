@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import           Data.Char (ord)
+import           Data.Char (ord, chr)
 import qualified Data.ByteString as BS
 import           System.FilePath ((</>), (<.>), takeExtension)
 import           System.Directory
@@ -143,6 +143,7 @@ primEnv = Map.fromList
   , (T.pack "decide-eq-list-prim", BVal (VPrim primDecideEqList))
   , (T.pack "concat-string-prim", BVal (VPrim primConcatString))
   , (T.pack "char-code-prim", BVal (VPrim primCharCode))
+  , (T.pack "char-from-code-prim", BVal (VPrim primCharFromCode))
   , (T.pack "print-prim", BVal (VPrim primPrint))
   , (T.pack "capture-output-prim", BVal (VPrim primCaptureOutput))
   , (T.pack "forever-prim", BVal (VPrim primForever))
@@ -312,6 +313,12 @@ primCharCode [VString s] =
     [c] -> pure $ VNatural (toInteger (ord c))
     _ -> error "char-code-prim expects a single-character string"
 primCharCode _ = error "char-code-prim expects 1 string arg"
+
+primCharFromCode :: [Value] -> IO Value
+primCharFromCode [VNatural n]
+  | n <= 0x10FFFF = pure $ VString (T.singleton (chr (fromInteger n)))
+  | otherwise = error "char-from-code-prim expects a valid Unicode codepoint"
+primCharFromCode _ = error "char-from-code-prim expects 1 nat arg"
 
 primNil :: [Value] -> IO Value
 primNil [ty] = do
@@ -990,14 +997,15 @@ countFreeDataParams params ctorTy =
   in length [() | Param name _ <- params, name `Set.member` free]
 
 runModuleMain :: FilePath -> CtorArityMap -> Module -> IO Int
-runModuleMain projectRoot ctorArity m@(Module _modName _ _ _) = do
+runModuleMain projectRoot ctorArity m@(Module _modName _ opens _) = do
   caps <- getNumCapabilities
   when (caps < 2) (setNumCapabilities 2)
   -- Reset assertion counter
   writeIORef assertionCounter 0
 
   envImports <- loadImports projectRoot m
-  let env = bindModule ctorArity m envImports
+  let envWithOpens = processOpens opens envImports
+      env = bindModule ctorArity m envWithOpens
   case Map.lookup (T.pack "main") env of
     Just b -> do
       val <- resolveBinding env b
