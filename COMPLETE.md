@@ -55,6 +55,9 @@
 - [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.
 - [x] Cache per-module normalized/transform results for imports via RunCache in evaluator.
 
+## Compiler (Haskell backend bootstrap)
+- [x] M0: Core IR AST + pretty-printer + parser round-trips + conversion stubs (typed CBPV Core).
+
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.
 - [x] Equality types + transport (`equal`, `reflexive`, `rewrite`).
