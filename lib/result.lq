@@ -5,6 +5,13 @@ import type_aliases as Types
 open P exposing Result::ok Result::err Option::none Option::some end
 
 module result contains
+  define transparent Result-with as
+    function E Type0 returns (Types::TypeFunction Type0) value
+      function A Type0 returns Type0 value
+        P::Result A E
+      end
+    end
+
   define transparent is-ok as
     function A Type0 E Type0 res (P::Result A E) returns Boolean value
       match res of-type (P::Result A E) as ignored returns Boolean

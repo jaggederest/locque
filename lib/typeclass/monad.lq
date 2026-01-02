@@ -1,0 +1,79 @@
+import prelude as P
+import type_aliases as Types
+import option as Option
+import either as Either
+import result as Result
+import list as L
+
+module typeclass::monad contains
+  define transparent Monad as typeclass M of-kind (Types::TypeFunction Type0) where
+    pure of-type (for-all A as Type0 to Types::Function A (M A))
+    and-then of-type
+      (for-all A as Type0 to
+        for-all B as Type0 to
+          Types::Function (M A)
+            (Types::Function (Types::Function A (M B)) (M B)))
+  end
+
+  define transparent flat-map as
+    function M (Types::TypeFunction Type0) A Type0 B Type0
+             ma (M A)
+             f (Types::Function A (M B))
+    requires Monad M
+    returns (M B) value
+      and-then A B ma f
+    end
+
+  define transparent Monad-Option as instance Monad P::Option where
+    and-then as
+      function A Type0 B Type0
+               ma (P::Option A)
+               f (Types::Function A (P::Option B))
+      returns (P::Option B) value
+        Option::and-then A B f ma
+      end
+    pure as Option::some
+  end
+
+  define transparent Monad-Either as instance Monad (P::Either E) where
+    pure as
+      function E Type0 A Type0 x A returns (P::Either E A) value
+        Either::right E A x
+      end
+    and-then as
+      function E Type0 A Type0 B Type0
+               ma (P::Either E A)
+               f (Types::Function A (P::Either E B))
+      returns (P::Either E B) value
+        Either::and-then E A B f ma
+      end
+  end
+
+  define transparent Monad-Result as instance Monad (Result::Result-with E) where
+    pure as
+      function E Type0 A Type0 x A returns (P::Result A E) value
+        Result::ok A E x
+      end
+    and-then as
+      function E Type0 A Type0 B Type0
+               ma (P::Result A E)
+               f (Types::Function A (P::Result B E))
+      returns (P::Result B E) value
+        Result::and-then A B E f ma
+      end
+  end
+
+  define transparent Monad-List as instance Monad List where
+    pure as
+      function A Type0 x A returns (List A) value
+        [x]
+      end
+    and-then as
+      function A Type0 B Type0
+               ma (List A)
+               f (Types::Function A (List B))
+      returns (List B) value
+        L::concat B (P::map A (List B) f ma)
+      end
+  end
+end

@@ -8,7 +8,7 @@ module RunCache
   ) where
 
 import AST (Module)
-import Eval (CtorArityMap)
+import CtorArity (CtorArityMap)
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -29,7 +29,7 @@ data RunCache = RunCache
   } deriving (Show, Read)
 
 cacheVersionCurrent :: Int
-cacheVersionCurrent = 1
+cacheVersionCurrent = 4
 
 cacheRoot :: FilePath -> FilePath
 cacheRoot projectRoot = projectRoot </> "tmp" </> "locque" </> "cache"

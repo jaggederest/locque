@@ -20,6 +20,7 @@ import AST (Module)
 import qualified TypeChecker as TC
 import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
+import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (SmythConfig(..))
 import qualified RunCache as RC
 
@@ -83,28 +84,34 @@ runFileNoExit config file = do
                   pure False
                 Right (Right (env, normalized)) -> do
                   let arity = ctorArityMap normalized
-                  -- Transform: dictionary passing for evaluation
-                  transformAttempt <- try (transformModuleWithEnvs (projectRoot config) m)
-                    :: IO (Either SomeException Module)
-                  case transformAttempt of
-                    Left e -> do
-                      putStrLn $ "Transform error: " ++ show e
+                      recDefs = recursorDefs normalized
+                  case insertRecursors m recDefs of
+                    Left msg -> do
+                      putStrLn $ "Transform error: " ++ msg
                       pure False
-                    Right m' -> do
-                      -- Annotate: wrap expressions with inferred types
-                      case TC.annotateModule env m' of
-                        Left annotErr -> do
-                          putStrLn $ "Annotation error: " ++ show annotErr
+                    Right prepared -> do
+                      -- Transform: dictionary passing for evaluation
+                      transformAttempt <- try (transformModuleWithEnvs (projectRoot config) prepared)
+                        :: IO (Either SomeException Module)
+                      case transformAttempt of
+                        Left e -> do
+                          putStrLn $ "Transform error: " ++ show e
                           pure False
-                        Right annotatedM -> do
-                          let cacheEntry = RC.RunCache
-                                { RC.cacheVersion = RC.cacheVersionCurrent
-                                , RC.cacheDigest = digest
-                                , RC.cacheAnnotated = annotatedM
-                                , RC.cacheCtorArity = arity
-                                }
-                          RC.writeRunCache (projectRoot config) file cacheEntry
-                          runAnnotated arity annotatedM
+                        Right m' -> do
+                          -- Annotate: wrap expressions with inferred types
+                          case TC.annotateModule env m' of
+                            Left annotErr -> do
+                              putStrLn $ "Annotation error: " ++ show annotErr
+                              pure False
+                            Right annotatedM -> do
+                              let cacheEntry = RC.RunCache
+                                    { RC.cacheVersion = RC.cacheVersionCurrent
+                                    , RC.cacheDigest = digest
+                                    , RC.cacheAnnotated = annotatedM
+                                    , RC.cacheCtorArity = arity
+                                    }
+                              RC.writeRunCache (projectRoot config) file cacheEntry
+                              runAnnotated arity annotatedM
 
 runFileNoExitWithOptions :: SmythConfig -> RunOptions -> FilePath -> IO Bool
 runFileNoExitWithOptions config opts file = do

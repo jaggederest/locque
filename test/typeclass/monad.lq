@@ -1,0 +1,143 @@
+import arithmetic as Ar
+import assert as A
+import prelude as P
+import type_aliases as Types
+import typeclass::equality as Eq
+import typeclass::monad as M
+import option as Option
+import either as Either
+import result as Result
+import string as S
+
+open P exposing Option::none Option::some Either::left Either::right Result::ok Result::err end
+open M exposing Monad and-then pure end
+
+module test::typeclass::monad contains
+  define transparent bind-value as
+    function F (Types::TypeFunction Type0) A Type0 B Type0
+             ma (F A)
+             f (Types::Function A (F B))
+    requires Monad F
+    returns (F B) value
+      and-then A B ma f
+    end
+
+  define transparent pure-value as
+    function F (Types::TypeFunction Type0) A Type0 x A
+    requires Monad F
+    returns (F A) value
+      pure A x
+    end
+
+  define transparent inc-option as
+    function x Natural returns (P::Option Natural) value
+      Option::some Natural (Ar::add x 1)
+    end
+
+  define transparent option-some as
+    bind-value P::Option Natural Natural
+      (Option::some Natural 1)
+      inc-option
+
+  define transparent option-none as
+    bind-value P::Option Natural Natural
+      (Option::none Natural)
+      inc-option
+
+  define transparent option-pure as
+    pure-value P::Option Natural 7
+
+  define transparent option-some-ok as
+    match option-some of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with x Natural as Eq::equals Natural x 2
+    end
+
+  define transparent option-none-ok as
+    match option-none of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored Natural as false
+    end
+
+  define transparent option-pure-ok as
+    match option-pure of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with x Natural as Eq::equals Natural x 7
+    end
+
+  define transparent either-right as
+    bind-value (P::Either String) Natural Natural
+      (Either::right String Natural 1)
+      (function x Natural returns (P::Either String Natural) value
+        Either::right String Natural (Ar::add x 1)
+      end)
+
+  define transparent either-left as
+    bind-value (P::Either String) Natural Natural
+      (Either::left String Natural "err")
+      (function x Natural returns (P::Either String Natural) value
+        Either::right String Natural (Ar::add x 1)
+      end)
+
+  define transparent either-right-ok as
+    match either-right of-type (P::Either String Natural) as ignored returns Boolean
+      case Either::left with ignored String as false
+      case Either::right with x Natural as Eq::equals Natural x 2
+    end
+
+  define transparent either-left-ok as
+    match either-left of-type (P::Either String Natural) as ignored returns Boolean
+      case Either::left with msg String as Eq::equals String msg "err"
+      case Either::right with ignored Natural as false
+    end
+
+  define transparent result-ok as
+    bind-value (Result::Result-with String) Natural Natural
+      (Result::ok Natural String 1)
+      (function x Natural returns (P::Result Natural String) value
+        Result::ok Natural String (Ar::add x 1)
+      end)
+
+  define transparent result-err as
+    bind-value (Result::Result-with String) Natural Natural
+      (Result::err Natural String "boom")
+      (function x Natural returns (P::Result Natural String) value
+        Result::ok Natural String (Ar::add x 1)
+      end)
+
+  define transparent result-ok-ok as
+    match result-ok of-type (P::Result Natural String) as ignored returns Boolean
+      case Result::ok with x Natural as Eq::equals Natural x 2
+      case Result::err with ignored String as false
+    end
+
+  define transparent result-err-ok as
+    match result-err of-type (P::Result Natural String) as ignored returns Boolean
+      case Result::ok with ignored Natural as false
+      case Result::err with msg String as Eq::equals String msg "boom"
+    end
+
+  define transparent list-bind as
+    bind-value List Natural Natural
+      [1, 2]
+      (function x Natural returns (List Natural) value
+        [x, Ar::add x 1]
+      end)
+
+  define transparent list-bind-ok as
+    Eq::equals (List Natural) list-bind [1, 2, 2, 3]
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean option-some-ok true)
+      , (A::assert-eq Boolean option-none-ok true)
+      , (A::assert-eq Boolean option-pure-ok true)
+      , (A::assert-eq Boolean either-right-ok true)
+      , (A::assert-eq Boolean either-left-ok true)
+      , (A::assert-eq Boolean result-ok-ok true)
+      , (A::assert-eq Boolean result-err-ok true)
+      , (A::assert-eq Boolean list-bind-ok true)
+      ])
+  end
+end

@@ -1,0 +1,98 @@
+import prelude as P
+import type_aliases as Types
+import option as Option
+import either as Either
+import result as Result
+import list as L
+
+module typeclass::applicative contains
+  define transparent Applicative as typeclass F of-kind (Types::TypeFunction Type0) where
+    pure of-type (for-all A as Type0 to Types::Function A (F A))
+    apply of-type
+      (for-all A as Type0 to
+        for-all B as Type0 to
+          Types::Function (F (Types::Function A B))
+            (Types::Function (F A) (F B)))
+  end
+
+  define transparent pure-value as
+    function F (Types::TypeFunction Type0) A Type0 x A requires Applicative F returns (F A) value
+      pure A x
+    end
+
+  define transparent ap as
+    function F (Types::TypeFunction Type0) A Type0 B Type0
+             ff (F (Types::Function A B))
+             fa (F A)
+    requires Applicative F
+    returns (F B) value
+      apply A B ff fa
+    end
+
+  define transparent Applicative-Option as instance Applicative P::Option where
+    apply as
+      function A Type0 B Type0
+               ff (P::Option (Types::Function A B))
+               fa (P::Option A)
+      returns (P::Option B) value
+        match ff of-type (P::Option (Types::Function A B)) as ignored returns (P::Option B)
+          case Option::none as Option::none B
+          case Option::some with f (Types::Function A B) as Option::map A B f fa
+        end
+      end
+    pure as Option::some
+  end
+
+  define transparent Applicative-Either as instance Applicative (P::Either E) where
+    pure as
+      function E Type0 A Type0 x A returns (P::Either E A) value
+        Either::right E A x
+      end
+    apply as
+      function E Type0 A Type0 B Type0
+               ff (P::Either E (Types::Function A B))
+               fa (P::Either E A)
+      returns (P::Either E B) value
+        match ff of-type (P::Either E (Types::Function A B)) as ignored returns (P::Either E B)
+          case Either::left with err E as Either::left E B err
+          case Either::right with f (Types::Function A B) as Either::map E A B f fa
+        end
+      end
+  end
+
+  define transparent Applicative-Result as instance Applicative (Result::Result-with E) where
+    pure as
+      function E Type0 A Type0 x A returns (P::Result A E) value
+        Result::ok A E x
+      end
+    apply as
+      function E Type0 A Type0 B Type0
+               ff (P::Result (Types::Function A B) E)
+               fa (P::Result A E)
+      returns (P::Result B E) value
+        match ff of-type (P::Result (Types::Function A B) E) as ignored returns (P::Result B E)
+          case Result::ok with f (Types::Function A B) as Result::map A B E f fa
+          case Result::err with err E as Result::err B E err
+        end
+      end
+  end
+
+  define transparent Applicative-List as instance Applicative List where
+    pure as
+      function A Type0 x A returns (List A) value
+        [x]
+      end
+    apply as
+      function A Type0 B Type0
+               ff (List (Types::Function A B))
+               fa (List A)
+      returns (List B) value
+        L::concat B
+          (P::map (Types::Function A B) (List B)
+            (function f (Types::Function A B) returns (List B) value
+              P::map A B f fa
+            end)
+            ff)
+      end
+  end
+end

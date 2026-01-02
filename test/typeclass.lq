@@ -4,8 +4,11 @@ import prelude as P
 
 import test::typeclass::equality as equality
 import test::typeclass::arithmetic as arithmetic
+import test::typeclass::applicative as applicative
 import test::typeclass::default as default
 import test::typeclass::display as display
+import test::typeclass::functor as functor
+import test::typeclass::monad as monad
 import test::typeclass::order as order
 import test::typeclass::semigroup as semigroup
 import test::typeclass::monoid as monoid
@@ -17,8 +20,11 @@ module test::typeclass contains
       [
         equality::main
       , arithmetic::main
+      , applicative::main
       , default::main
       , display::main
+      , functor::main
+      , monad::main
       , order::main
       , semigroup::main
       , monoid::main

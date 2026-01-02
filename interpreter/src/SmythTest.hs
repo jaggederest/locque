@@ -20,6 +20,7 @@ import Parser (parseMExprFile)
 import qualified TypeChecker as TC
 import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
+import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (SmythConfig(..))
 import qualified RunCache as RC
 
@@ -223,19 +224,23 @@ runTestOutcome projectRoot file = do
               Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
               Right (env, normalized) -> do
                 let arity = ctorArityMap normalized
-                m' <- transformModuleWithEnvs projectRoot m
-                case TC.annotateModule env m' of
-                  Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-                  Right annotatedM -> do
-                    let cacheEntry = RC.RunCache
-                          { RC.cacheVersion = RC.cacheVersionCurrent
-                          , RC.cacheDigest = digest
-                          , RC.cacheAnnotated = annotatedM
-                          , RC.cacheCtorArity = arity
-                          }
-                    RC.writeRunCache projectRoot file cacheEntry
-                    count <- runModuleMain projectRoot arity annotatedM
-                    pure (Right count)
+                    recDefs = recursorDefs normalized
+                case insertRecursors m recDefs of
+                  Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
+                  Right prepared -> do
+                    m' <- transformModuleWithEnvs projectRoot prepared
+                    case TC.annotateModule env m' of
+                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                      Right annotatedM -> do
+                        let cacheEntry = RC.RunCache
+                              { RC.cacheVersion = RC.cacheVersionCurrent
+                              , RC.cacheDigest = digest
+                              , RC.cacheAnnotated = annotatedM
+                              , RC.cacheCtorArity = arity
+                              }
+                        RC.writeRunCache projectRoot file cacheEntry
+                        count <- runModuleMain projectRoot arity annotatedM
+                        pure (Right count)
         ) `catch` handleTestException
       pure result
 
@@ -277,21 +282,25 @@ runTestOutcomeTimed projectRoot file = do
               Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
               Right (env, normalized) -> do
                 let arity = ctorArityMap normalized
-                m' <- record "transform" (transformModuleWithEnvs projectRoot m)
-                annotRes <- record "annotate" (evaluate (TC.annotateModule env m'))
-                case annotRes of
-                  Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-                  Right annotatedM -> do
-                    record "cache-write" $ do
-                      let cacheEntry = RC.RunCache
-                            { RC.cacheVersion = RC.cacheVersionCurrent
-                            , RC.cacheDigest = digest
-                            , RC.cacheAnnotated = annotatedM
-                            , RC.cacheCtorArity = arity
-                            }
-                      RC.writeRunCache projectRoot file cacheEntry
-                    count <- record "run" (runModuleMain projectRoot arity annotatedM)
-                    pure (Right count)
+                    recDefs = recursorDefs normalized
+                case insertRecursors m recDefs of
+                  Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
+                  Right prepared -> do
+                    m' <- record "transform" (transformModuleWithEnvs projectRoot prepared)
+                    annotRes <- record "annotate" (evaluate (TC.annotateModule env m'))
+                    case annotRes of
+                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                      Right annotatedM -> do
+                        record "cache-write" $ do
+                          let cacheEntry = RC.RunCache
+                                { RC.cacheVersion = RC.cacheVersionCurrent
+                                , RC.cacheDigest = digest
+                                , RC.cacheAnnotated = annotatedM
+                                , RC.cacheCtorArity = arity
+                                }
+                          RC.writeRunCache projectRoot file cacheEntry
+                        count <- record "run" (runModuleMain projectRoot arity annotatedM)
+                        pure (Right count)
     ) `catch` handleTestException
   timings <- readIORef timingsRef
   pure (outcome, timings)

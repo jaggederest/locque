@@ -1,0 +1,48 @@
+import prelude as P
+import type_aliases as Types
+import option as Option
+import either as Either
+import result as Result
+
+module typeclass::functor contains
+  define transparent Functor as typeclass F of-kind (Types::TypeFunction Type0) where
+    map of-type
+      (for-all A as Type0 to
+        for-all B as Type0 to
+          Types::Function (Types::Function A B)
+            (Types::Function (F A) (F B)))
+  end
+
+  define transparent fmap as
+    function F (Types::TypeFunction Type0) A Type0 B Type0
+             f (Types::Function A B)
+             fa (F A)
+    requires Functor F
+    returns (F B) value
+      map A B f fa
+    end
+
+  define transparent Functor-Option as instance Functor P::Option where
+    map as
+      function A Type0 B Type0 f (Types::Function A B) opt (P::Option A)
+      returns (P::Option B) value
+        Option::map A B f opt
+      end
+  end
+
+  define transparent Functor-Either as instance Functor (P::Either E) where
+    map as
+      function E Type0 A Type0 B Type0 f (Types::Function A B) fa (P::Either E A)
+      returns (P::Either E B) value
+        Either::map E A B f fa
+      end
+  end
+
+  define transparent Functor-Result as instance Functor (Result::Result-with E) where
+    map as
+      function E Type0 A Type0 B Type0 f (Types::Function A B) fa (P::Result A E)
+      returns (P::Result B E) value
+        Result::map A B E f fa
+      end
+  end
+end

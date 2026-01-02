@@ -1,0 +1,138 @@
+import arithmetic as Ar
+import assert as A
+import prelude as P
+import type_aliases as Types
+import typeclass::equality as Eq
+import typeclass::applicative as App
+import option as Option
+import either as Either
+import result as Result
+import string as S
+
+open P exposing Option::none Option::some Either::left Either::right Result::ok Result::err end
+open App exposing Applicative pure apply end
+
+module test::typeclass::applicative contains
+  define transparent apply-value as
+    function F (Types::TypeFunction Type0) A Type0 B Type0
+             ff (F (Types::Function A B))
+             fa (F A)
+    requires Applicative F
+    returns (F B) value
+      apply A B ff fa
+    end
+
+  define transparent pure-value as
+    function F (Types::TypeFunction Type0) A Type0 x A
+    requires Applicative F
+    returns (F A) value
+      pure A x
+    end
+
+  define transparent inc as
+    function x Natural returns Natural value
+      Ar::add x 1
+    end
+
+  define transparent double as
+    function x Natural returns Natural value
+      Ar::mul-nat x 2
+    end
+
+  define transparent option-some as
+    apply-value P::Option Natural Natural
+      (Option::some (Types::Function Natural Natural) inc)
+      (Option::some Natural 1)
+
+  define transparent option-none as
+    apply-value P::Option Natural Natural
+      (Option::none (Types::Function Natural Natural))
+      (Option::some Natural 1)
+
+  define transparent option-pure as
+    pure-value P::Option Natural 9
+
+  define transparent option-some-ok as
+    match option-some of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with x Natural as Eq::equals Natural x 2
+    end
+
+  define transparent option-none-ok as
+    match option-none of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored Natural as false
+    end
+
+  define transparent option-pure-ok as
+    match option-pure of-type (P::Option Natural) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with x Natural as Eq::equals Natural x 9
+    end
+
+  define transparent either-right as
+    apply-value (P::Either String) Natural Natural
+      (Either::right String (Types::Function Natural Natural) inc)
+      (Either::right String Natural 1)
+
+  define transparent either-left as
+    apply-value (P::Either String) Natural Natural
+      (Either::left String (Types::Function Natural Natural) "err")
+      (Either::right String Natural 1)
+
+  define transparent either-right-ok as
+    match either-right of-type (P::Either String Natural) as ignored returns Boolean
+      case Either::left with ignored String as false
+      case Either::right with x Natural as Eq::equals Natural x 2
+    end
+
+  define transparent either-left-ok as
+    match either-left of-type (P::Either String Natural) as ignored returns Boolean
+      case Either::left with msg String as Eq::equals String msg "err"
+      case Either::right with ignored Natural as false
+    end
+
+  define transparent result-ok as
+    apply-value (Result::Result-with String) Natural Natural
+      (Result::ok (Types::Function Natural Natural) String inc)
+      (Result::ok Natural String 1)
+
+  define transparent result-err as
+    apply-value (Result::Result-with String) Natural Natural
+      (Result::err (Types::Function Natural Natural) String "boom")
+      (Result::ok Natural String 1)
+
+  define transparent result-ok-ok as
+    match result-ok of-type (P::Result Natural String) as ignored returns Boolean
+      case Result::ok with x Natural as Eq::equals Natural x 2
+      case Result::err with ignored String as false
+    end
+
+  define transparent result-err-ok as
+    match result-err of-type (P::Result Natural String) as ignored returns Boolean
+      case Result::ok with ignored Natural as false
+      case Result::err with msg String as Eq::equals String msg "boom"
+    end
+
+  define transparent list-apply as
+    apply-value List Natural Natural
+      [inc, double]
+      [1, 2]
+
+  define transparent list-apply-ok as
+    Eq::equals (List Natural) list-apply [2, 3, 2, 4]
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean option-some-ok true)
+      , (A::assert-eq Boolean option-none-ok true)
+      , (A::assert-eq Boolean option-pure-ok true)
+      , (A::assert-eq Boolean either-right-ok true)
+      , (A::assert-eq Boolean either-left-ok true)
+      , (A::assert-eq Boolean result-ok-ok true)
+      , (A::assert-eq Boolean result-err-ok true)
+      , (A::assert-eq Boolean list-apply-ok true)
+      ])
+  end
+end

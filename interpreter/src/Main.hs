@@ -16,6 +16,7 @@ import           Validator
 import qualified Type as LT
 import qualified TypeChecker as TC
 import           DictPass (transformModuleWithEnvs)
+import           Recursor (recursorDefs, insertRecursors)
 
 main :: IO ()
 main = do
@@ -44,7 +45,11 @@ runFile file = do
         Left tcErr -> die ("Type error: " ++ show tcErr)
         Right (_env, normalized) -> do
           let ctorArity = ctorArityMap normalized
-          m' <- transformModuleWithEnvs projectRoot m
+              recDefs = recursorDefs normalized
+          prepared <- case insertRecursors m recDefs of
+            Left msg -> die ("Transform error: " ++ msg)
+            Right prepared -> pure prepared
+          m' <- transformModuleWithEnvs projectRoot prepared
           _ <- runModuleMain projectRoot ctorArity m'
           pure ()
 

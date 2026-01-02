@@ -55,8 +55,11 @@ import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
 import           Utils (modNameToPath, qualifyName)
 import           DictPass (transformModuleWithEnvs)
+import           Recursor (recursorDefs, insertRecursors)
 import qualified Type as Type
 import qualified TypeChecker as TC
+import qualified RunCache as RC
+import           CtorArity (CtorArityMap)
 
 -- Global assertion counter (reset at the start of each test run)
 assertionCounter :: IORef Int
@@ -129,8 +132,6 @@ data Binding
   | BValueExpr Env Expr  -- Capture environment for lazy evaluation (module-local scope)
 
 type Env = Map.Map Text Binding
-type CtorArityMap = Map.Map Text (Int, Int)
-
 primEnv :: Env
 primEnv = Map.fromList
   [ (T.pack "add-nat-prim", BVal (VPrim primAdd))
@@ -1266,15 +1267,33 @@ loadImport projectRoot visiting (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  -- Type check + normalize the imported module (native typeclass support on original module)
-  tcResult <- TC.typeCheckAndNormalizeWithImports projectRoot contents parsed
-  (annotated, normalized) <- case tcResult of
-    Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
-    Right (env, normalized) -> do
-      transformed <- transformModuleWithEnvs projectRoot parsed
-      case TC.annotateModule env transformed of
-        Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
-        Right m -> pure (m, normalized)
+  (digest, importedEnv) <- TC.moduleDigestWithImports projectRoot contents parsed
+  cached <- RC.readRunCache projectRoot path digest
+  (annotated, ctorArity) <- case cached of
+    Just entry ->
+      pure (RC.cacheAnnotated entry, RC.cacheCtorArity entry)
+    Nothing -> do
+      let tcResult = TC.typeCheckAndNormalizeWithEnv importedEnv parsed
+      (annotated, normalized) <- case tcResult of
+        Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
+        Right (env, normalized) -> do
+          let recDefs = recursorDefs normalized
+          prepared <- case insertRecursors parsed recDefs of
+            Left msg -> error $ "Transform error in import " ++ T.unpack modName ++ ": " ++ msg
+            Right m -> pure m
+          transformed <- transformModuleWithEnvs projectRoot prepared
+          case TC.annotateModule env transformed of
+            Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
+            Right m -> pure (m, normalized)
+      let arity = ctorArityMap normalized
+          cacheEntry = RC.RunCache
+            { RC.cacheVersion = RC.cacheVersionCurrent
+            , RC.cacheDigest = digest
+            , RC.cacheAnnotated = annotated
+            , RC.cacheCtorArity = arity
+            }
+      RC.writeRunCache projectRoot path cacheEntry
+      pure (annotated, arity)
 
   let Module _modName _ opens defs = annotated
       visiting' = Set.insert modName visiting
@@ -1283,7 +1302,7 @@ loadImport projectRoot visiting (Import modName alias) = do
   let envWithOpens = processOpens opens envImports
 
   -- Bind the module to get all definitions
-  let envSelf = bindModule (ctorArityMap normalized) annotated envWithOpens
+  let envSelf = bindModule ctorArity annotated envWithOpens
       -- Add qualified names for each definition using the alias
       defNames = map defName defs
       ctorNames = concatMap defCtorNames defs

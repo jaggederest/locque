@@ -41,6 +41,8 @@
 - [x] Update stdlib/tests to use `Equality` + `assert-eq` (explicit type args).
 - [x] Typechecker native typeclass support (classes/instances/constraints); DictPass still used for dictionary insertion.
 - [x] Use stdlib wrappers in `typeclass::equality` instances (no raw prims).
+- [x] Higher-kinded type params (`TypeFunction`) and Functor class with Option/Either/Result instances + tests.
+- [x] Applicative/Monad typeclasses with Option/Either/Result/List instances + tests.
 
 ## Error Message Improvements
 - [x] Suggestions, SourceLoc/ErrorMsg infra, TypeError locations, runtime fuzzy matching, source threading.
@@ -51,10 +53,12 @@
 - [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
 - [x] Run cache in `tmp/locque/cache` for annotated modules + ctor arity; keyed by module digest; used by `smyth test/run`.
 - [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.
+- [x] Cache per-module normalized/transform results for imports via RunCache in evaluator.
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.
 - [x] Equality types + transport (`equal`, `reflexive`, `rewrite`).
+- [x] Induction/recursor generation for `data` with dependent motives.
 - [x] Decidable equality / refinement tooling (e.g., Character length 1).
 - [x] Explicit universe lifting (`lift`/`up`/`down`) for strict universes.
 - [x] there-exists intro/elim via `pack`/`unpack`.

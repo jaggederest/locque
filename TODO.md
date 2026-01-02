@@ -16,24 +16,22 @@
 - Shell: consider refined `ExistingPath` for file operations.
 - Net/TCP: consider `ValidPort` refinement for safe APIs.
 
+## Stdlib follow-ups (Applicative/Monad)
+- Add `traverse`/`sequence` for `List` using `Applicative` (plus `sequence-unit` helpers).
+- Add `Option`/`Either`/`Result`/`List` convenience wrappers (`pure`, `apply`, `and-then`) aligned with new typeclasses.
+- Consider `Dictionary` functorial map (value mapping) and possible `Functor` instance.
+- Consider `computation` monad helpers (effect-indexed) once effect polymorphism is formalized.
+
 ## Diagnostics
 - Show code context once parser locations updated.
 
 ## Performance
-- Consider caching normalization/transform outputs per module to speed repeated runs beyond the run cache.
 
 ## Language features (future)
 - Definitional equality: eta reduction for functions.
 - Type holes; better inference; rows/records.
-- Higher-kinded type parameters (plan):
-  - Accept non-`TypeN` type params (e.g., `F (for-all x as Type0 to Type0)`).
-  - Update typeclass/classType handling to support higher-kinded params.
-  - Extend DictPass type-parameter detection (`isTypeParam`) and constraint resolution.
-  - Add initial Functor-style class and instance tests (Option/Either/Result).
 
 ## Theorem proving
-- Induction/recursor generation for `data` (with dependent motives).
-- Definitional equality: iota reduction for match (match computation in types).
 - Refinement helpers: expand common predicate library beyond NonEmpty/Positive/NonZero.
 - Decidable predicates: add string helpers beyond equality.
 

@@ -73,7 +73,7 @@ dumpFileMulti config file specs = do
       mapM_ (dumpMode config file contents m) specs
 
 dumpMode :: SmythConfig -> FilePath -> T.Text -> Module -> (String, Maybe T.Text) -> IO ()
-dumpMode config file contents m (mode, selected) =
+dumpMode config _file contents m (mode, selected) =
   case mode of
     "core" -> do
       m' <- selectModule m selected

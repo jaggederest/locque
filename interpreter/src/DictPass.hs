@@ -19,7 +19,6 @@ import System.IO.Error (catchIOError, isDoesNotExistError)
 
 data ClassInfo = ClassInfo
   { classParam   :: Text
-  , classParamKind :: Expr
   , classMethods :: [(Text, Expr)]
   }
 
@@ -164,8 +163,8 @@ loadDictImport projectRoot (Import modName alias) = do
 collectLocalClasses :: [Definition] -> Map.Map Text ClassInfo
 collectLocalClasses defs =
   Map.fromList
-    [ (defName, ClassInfo param kind methods)
-    | Definition _ defName (ETypeClass param kind methods) <- defs
+    [ (defName, ClassInfo param methods)
+    | Definition _ defName (ETypeClass param _kind methods) <- defs
     ]
 
 collectLocalFns :: Map.Map Text ClassInfo -> Map.Map Text Text -> [Definition] -> Map.Map Text FnSig
@@ -704,6 +703,7 @@ renameBound from to expr =
   where
     rename e = case e of
       EVar v | v == from -> EVar to
+      EVar _ -> e
       ELit _ -> e
       EListLiteral elems -> EListLiteral (map rename elems)
       ETypeConst _ -> e
@@ -757,10 +757,10 @@ renameBound from to expr =
             universe' = rename universe
             cases' = if from `elem` boundNames then cases else map renameDataCase cases
         in EData params' universe' cases'
-      EAnnot e ty -> EAnnot (rename e) (rename ty)
-      ETyped e ty -> ETyped (rename e) (rename ty)
-      EDict className impls -> EDict className [ (n, rename e) | (n, e) <- impls ]
-      EDictAccess e method -> EDictAccess (rename e) method
+      EAnnot expr' ty -> EAnnot (rename expr') (rename ty)
+      ETyped expr' ty -> ETyped (rename expr') (rename ty)
+      EDict className impls -> EDict className [ (n, rename expr') | (n, expr') <- impls ]
+      EDictAccess expr' method -> EDictAccess (rename expr') method
       ETypeClass param kind methods ->
         let kind' = rename kind
             methods' =
@@ -769,7 +769,7 @@ renameBound from to expr =
                 else [ (n, rename ty) | (n, ty) <- methods ]
         in ETypeClass param kind' methods'
       EInstance cls instTy methods ->
-        EInstance cls (rename instTy) [ (n, rename e) | (n, e) <- methods ]
+        EInstance cls (rename instTy) [ (n, rename expr') | (n, expr') <- methods ]
     renameBody b = case b of
       FunctionValue e -> FunctionValue (rename e)
       FunctionCompute c -> FunctionCompute (renameComp c)
@@ -900,9 +900,35 @@ splitTypeParams params =
   in (typeParams, rest)
 
 isTypeParam :: Expr -> Bool
-isTypeParam expr = case expr of
+isTypeParam expr = isKindExpr (stripType expr)
+
+isKindExpr :: Expr -> Bool
+isKindExpr expr = case stripType expr of
   ETypeUniverse _ -> True
+  EForAll _ dom cod -> isUniverseExpr dom && isKindExpr cod
+  EThereExists _ dom cod -> isUniverseExpr dom && isKindExpr cod
+  ELift ty _ _ -> isKindExpr ty
+  EApp f args ->
+    case stripType f of
+      EVar name | isKindAliasName name -> all isUniverseExpr args
+      _ -> False
+  EVar name -> isBaseTypeAlias name
+  EAnnot e _ -> isKindExpr e
+  ETyped e _ -> isKindExpr e
   _ -> False
+
+isUniverseExpr :: Expr -> Bool
+isUniverseExpr expr = case stripType expr of
+  ETypeUniverse _ -> True
+  EVar name -> isBaseTypeAlias name
+  _ -> False
+
+isKindAliasName :: Text -> Bool
+isKindAliasName name =
+  T.isSuffixOf "TypeFunction" name || T.isSuffixOf "BinaryTypeFunction" name
+
+isBaseTypeAlias :: Text -> Bool
+isBaseTypeAlias name = T.isSuffixOf "BaseType" name
 
 substType :: Map.Map Text Expr -> Expr -> Expr
 substType sub expr = case expr of

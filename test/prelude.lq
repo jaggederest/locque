@@ -16,6 +16,7 @@ import test::prelude::match as match
 import test::prelude::match_semantics as match_semantics
 import test::prelude::new_primitives as new_primitives
 import test::prelude::primitives as primitives
+import test::prelude::recursor as recursor
 import test::prelude::run_basic as run_basic
 
 module test::prelude contains
@@ -37,6 +38,7 @@ module test::prelude contains
       , match_semantics::main
       , new_primitives::main
       , primitives::main
+      , recursor::main
       , run_basic::main
       ])
   end

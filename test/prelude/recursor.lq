@@ -1,0 +1,33 @@
+import arithmetic as Ar
+import assert as A
+import prelude as P
+import type_aliases as Types
+
+open A exposing assert-eq end
+
+module test::prelude::recursor contains
+  define transparent Nat as data in Type0
+    case Nat::zero of-type Nat
+    case Nat::succ of-type Types::Function Nat Nat
+  end
+
+  define transparent nat-to-natural as
+    function n Nat returns Natural value
+      Nat::recursor
+        (function ignored Nat returns Type0 value Natural end)
+        0
+        (function ignored Nat rec Natural returns Natural value
+          Ar::add rec 1
+        end)
+        n
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Natural (nat-to-natural Nat::zero) 0)
+      , (assert-eq Natural (nat-to-natural (Nat::succ Nat::zero)) 1)
+      , (assert-eq Natural (nat-to-natural (Nat::succ (Nat::succ Nat::zero))) 2)
+      ])
+  end
+end
