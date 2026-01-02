@@ -2,6 +2,7 @@
 
 import assert as A
 import arithmetic as Ar
+import logic as L
 import option as Opt
 import prelude as P
 import result as Res
@@ -46,6 +47,28 @@ module test::option::basics contains
   define transparent to-result-some as
     Opt::to-result Natural String "missing" some1
 
+  define transparent not-eq-1-2 as
+    unpack (L::decide-eq-nat 1 2) as flag proof in
+      match flag of-type Boolean as flag returns (L::Not (equal Natural 1 2))
+        case Boolean::false as proof
+        case Boolean::true as P::error (L::Not (equal Natural 1 2)) "expected false"
+      end
+    end
+
+  define transparent decidable-none as
+    Opt::to-decidable (equal Natural 1 2)
+      (function ignored Unit returns (L::Not (equal Natural 1 2)) value
+        not-eq-1-2
+      end)
+      (Option::none (equal Natural 1 2))
+
+  define transparent decidable-some as
+    Opt::to-decidable (equal Natural 1 1)
+      (function ignored Unit returns (L::Not (equal Natural 1 1)) value
+        P::error (L::Not (equal Natural 1 1)) "unexpected none proof"
+      end)
+      (Option::some (equal Natural 1 1) (reflexive Natural 1))
+
   define transparent main as compute
     perform (P::sequence-unit
       [
@@ -57,6 +80,12 @@ module test::option::basics contains
       , (assert-eq Natural (Opt::unwrap-or Natural 0 bind-none) 0)
       , (assert-eq Boolean (Res::is-err Natural String to-result-none) true)
       , (assert-eq Boolean (Res::is-ok Natural String to-result-some) true)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 2) decidable-none)
+          false)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 1) decidable-some)
+          true)
       ])
   end
 end

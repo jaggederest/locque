@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/path/
 
 import test::path::basics as basics
+import test::path::refinements as refinements
 
 module test::path contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , refinements::main
       ])
   end
 end

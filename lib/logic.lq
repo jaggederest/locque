@@ -8,16 +8,131 @@ module logic contains
     function P Type0 returns Type0 value
       Types::Function P False
     end
+  define transparent contradiction as
+    function P Type0 proof P not-proof (Not P) returns False value
+      not-proof proof
+    end
+  define transparent not-not as
+    function P Type0 proof P returns Not (Not P) value
+      function not-proof (Not P) returns False value
+        not-proof proof
+      end
+    end
+  define transparent And as
+    function P Type0 Q Type0 returns Type0 value
+      Pair P Q
+    end
+  define transparent Or as data P Type0 Q Type0 in Type0
+    case Or::left of-type Types::Function P (Or P Q)
+    case Or::right of-type Types::Function Q (Or P Q)
+  end
+  define transparent decidable-predicate as
+    function P Type0 returns (for-all b as Boolean to Type0) value
+      function b Boolean returns Type0 value
+        match b of-type Boolean as ignored returns Type0
+          case Boolean::false as Not P
+          case Boolean::true as P
+        end
+      end
+    end
 
   define transparent Decidable as
     function P Type0 returns Type0 value
-      Types::Exists Boolean
-        (function b Boolean returns Type0 value
-          match b of-type Boolean as ignored returns Type0
-            case Boolean::false as Not P
-            case Boolean::true as P
-          end
-        end)
+      Types::Exists Boolean (decidable-predicate P)
+    end
+  define transparent Decider as
+    function A Type0 returns Type0 value
+      for-all x as A to for-all y as A to Decidable (equal A x y)
+    end
+  define transparent decidable-true as
+    function P Type0 proof P returns Decidable P value
+      pack b as Boolean in decidable-predicate P b with true proof end
+    end
+  define transparent decidable-false as
+    function P Type0 proof (Not P) returns Decidable P value
+      pack b as Boolean in decidable-predicate P b with false proof end
+    end
+  define transparent decidable-flag as
+    function P Type0 decision (Decidable P) returns Boolean value
+      unpack decision as flag ignored in flag end
+    end
+  define transparent decidable-map as
+    function P Type0 Q Type0
+             decision (Decidable P)
+             on-true (Types::Function P Q)
+             on-false (Types::Function (Not P) (Not Q))
+    returns Decidable Q value
+      unpack decision as flag proof in
+        match flag of-type Boolean as flag returns Decidable Q
+          case Boolean::false as decidable-false Q (on-false proof)
+          case Boolean::true as decidable-true Q (on-true proof)
+        end
+      end
+    end
+  define transparent decidable-not as
+    function P Type0 decision (Decidable P) returns Decidable (Not P) value
+      unpack decision as flag proof in
+        match flag of-type Boolean as flag returns Decidable (Not P)
+          case Boolean::false as decidable-true (Not P) proof
+          case Boolean::true as decidable-false (Not P) (not-not P proof)
+        end
+      end
+    end
+  define transparent decidable-and as
+    function P Type0 Q Type0
+             left (Decidable P)
+             right (Decidable Q)
+    returns Decidable (And P Q) value
+      unpack left as left-flag left-proof in
+        match left-flag of-type Boolean as left-flag returns Decidable (And P Q)
+          case Boolean::false as
+            decidable-false (And P Q)
+              (function pair (And P Q) returns False value
+                match pair of-type (And P Q) as ignored returns False
+                  case Pair::pair with p P q Q as left-proof p
+                end
+              end)
+          case Boolean::true as
+            unpack right as right-flag right-proof in
+              match right-flag of-type Boolean as right-flag returns Decidable (And P Q)
+                case Boolean::false as
+                  decidable-false (And P Q)
+                    (function pair (And P Q) returns False value
+                      match pair of-type (And P Q) as ignored returns False
+                        case Pair::pair with p P q Q as right-proof q
+                      end
+                    end)
+                case Boolean::true as
+                  decidable-true (And P Q) (Pair::pair P Q left-proof right-proof)
+              end
+            end
+        end
+      end
+    end
+  define transparent decidable-or as
+    function P Type0 Q Type0
+             left (Decidable P)
+             right (Decidable Q)
+    returns Decidable (Or P Q) value
+      unpack left as left-flag left-proof in
+        match left-flag of-type Boolean as left-flag returns Decidable (Or P Q)
+          case Boolean::true as decidable-true (Or P Q) (Or::left P Q left-proof)
+          case Boolean::false as
+            unpack right as right-flag right-proof in
+              match right-flag of-type Boolean as right-flag returns Decidable (Or P Q)
+                case Boolean::true as decidable-true (Or P Q) (Or::right P Q right-proof)
+                case Boolean::false as
+                  decidable-false (Or P Q)
+                    (function choice (Or P Q) returns False value
+                      match choice of-type (Or P Q) as ignored returns False
+                        case Or::left with p P as left-proof p
+                        case Or::right with q Q as right-proof q
+                      end
+                    end)
+              end
+            end
+        end
+      end
     end
 
   define transparent Refine as
@@ -48,6 +163,16 @@ module logic contains
     returns (P y) value
       rewrite P proof as witness
     end
+  define transparent rewrite-to as
+    function A Type0
+             P (for-all x as A to Type0)
+             x A
+             y A
+             proof (equal A x y)
+             witness (P x)
+    returns (P y) value
+      transport A P x y proof witness
+    end
 
   define transparent symmetry as
     function A Type0 x A y A proof (equal A x y) returns equal A y x value
@@ -57,6 +182,17 @@ module logic contains
         y
         proof
         (reflexive A x)
+    end
+
+  define transparent rewrite-from as
+    function A Type0
+             P (for-all x as A to Type0)
+             x A
+             y A
+             proof (equal A x y)
+             witness (P y)
+    returns (P x) value
+      transport A P y x (symmetry A x y proof) witness
     end
 
   define transparent transitivity as
@@ -120,8 +256,69 @@ module logic contains
             proof-y)
       end
     end
+  define transparent congruence3 as
+    function A Type0 B Type0 C Type0 D Type0
+             f (for-all x as A to for-all y as B to for-all z as C to D)
+             x1 A
+             x2 A
+             y1 B
+             y2 B
+             z1 C
+             z2 C
+             proof-x (equal A x1 x2)
+             proof-y (equal B y1 y2)
+             proof-z (equal C z1 z2)
+    returns equal D (f x1 y1 z1) (f x2 y2 z2) value
+      let value step-x be
+        congruence A D
+          (function x A returns D value
+            f x y1 z1
+          end)
+          x1
+          x2
+          proof-x
+      in
+        let value step-y be
+          congruence B D
+            (function y B returns D value
+              f x2 y z1
+            end)
+            y1
+            y2
+            proof-y
+        in
+          let value step-z be
+            congruence C D
+              (function z C returns D value
+                f x2 y2 z
+              end)
+              z1
+              z2
+              proof-z
+          in
+            let value step-xy be
+              transitivity D
+                (f x1 y1 z1)
+                (f x2 y1 z1)
+                (f x2 y2 z1)
+                step-x
+                step-y
+            in
+              transitivity D
+                (f x1 y1 z1)
+                (f x2 y2 z1)
+                (f x2 y2 z2)
+                step-xy
+                step-z
+            end
+          end
+        end
+      end
+    end
 
   define transparent decide-eq-nat as decide-eq-nat-prim
   define transparent decide-eq-string as decide-eq-string-prim
   define transparent decide-eq-bool as decide-eq-bool-prim
+  define transparent decide-eq-pair as decide-eq-pair-prim
+  define transparent decide-eq-list as decide-eq-list-prim
 end

@@ -1,5 +1,29 @@
+import logic as Lg
 import prelude as P
 
+open P exposing Option::none Option::some end
+
 module list::eq contains
-  define transparent decide-eq as P::decide-eq-list
+  define transparent decide-eq as Lg::decide-eq-list
+  define transparent decide-eq-flag as
+    function A Type0
+             eqA (Lg::Decider A)
+             xs (List A)
+             ys (List A)
+    returns Boolean value
+      Lg::decidable-flag (equal (List A) xs ys) (decide-eq A eqA xs ys)
+    end
+  define transparent decide-eq-proof as
+    function A Type0
+             eqA (Lg::Decider A)
+             xs (List A)
+             ys (List A)
+    returns (P::Option (equal (List A) xs ys)) value
+      unpack (decide-eq A eqA xs ys) as flag proof in
+        match flag of-type Boolean as flag returns (P::Option (equal (List A) xs ys))
+          case Boolean::false as Option::none (equal (List A) xs ys)
+          case Boolean::true as Option::some (equal (List A) xs ys) proof
+        end
+      end
+    end
 end

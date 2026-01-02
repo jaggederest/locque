@@ -1,0 +1,14 @@
+import prelude as P
+# Test rollup for Effects module
+# Runs all tests in test/effects/
+
+import test::effects::basics as basics
+
+module test::effects contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
+  end
+end

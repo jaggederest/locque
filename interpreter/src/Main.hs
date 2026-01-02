@@ -39,14 +39,11 @@ runFile file = do
   case parseAny file contents of
     Left err -> die err
     Right m  -> do
-      typeResult <- TC.typeCheckModuleWithImports projectRoot contents m
+      typeResult <- TC.typeCheckAndNormalizeWithImports projectRoot contents m
       case typeResult of
         Left tcErr -> die ("Type error: " ++ show tcErr)
-        Right _env -> do
-          normalized <- TC.normalizeModuleWithImports projectRoot contents m
-          ctorArity <- case normalized of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
-            Right nm -> pure (ctorArityMap nm)
+        Right (_env, normalized) -> do
+          let ctorArity = ctorArityMap normalized
           m' <- transformModuleWithEnvs projectRoot m
           _ <- runModuleMain projectRoot ctorArity m'
           pure ()

@@ -32,6 +32,19 @@ module path contains
       drop-leading-empty (drop-trailing-empty (S::split-on "/" path))
     end
 
+  define transparent NonEmptySegments as
+    L::NonEmptyList String
+
+  define transparent segments-nonempty as
+    function path String returns (P::Option NonEmptySegments) value
+      L::nonempty String (segments path)
+    end
+
+  define transparent segments-nonempty-value as
+    function segs NonEmptySegments returns (List String) value
+      L::nonempty-value String segs
+    end
+
   define transparent join-segments as
     function has-root Boolean segs (List String) returns String value
       let value cleaned be drop-leading-empty segs in

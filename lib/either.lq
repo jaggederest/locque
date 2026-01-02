@@ -1,3 +1,4 @@
+import logic as Lg
 import prelude as P
 import type_aliases as Types
 
@@ -68,6 +69,13 @@ module either contains
       match e of-type (P::Either A B) as ignored returns C
         case Either::left with x A as on-left x
         case Either::right with y B as on-right y
+      end
+    end
+  define transparent to-decidable as
+    function P Type0 e (P::Either (Lg::Not P) P) returns (Lg::Decidable P) value
+      match e of-type (P::Either (Lg::Not P) P) as ignored returns (Lg::Decidable P)
+        case Either::left with not-proof (Lg::Not P) as Lg::decidable-false P not-proof
+        case Either::right with proof P as Lg::decidable-true P proof
       end
     end
 end

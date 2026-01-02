@@ -428,7 +428,10 @@ fromType path se = case se of
   SNum n -> Right (ELit (LNatural n))
   SStr s -> Right (ELit (LString s))
   SList [] -> Left (path ++ ": empty type expression")
-  SList [SAtom "computation", t] -> ECompType <$> fromType path t
+  SList [SAtom "computation", t] ->
+    ECompType effectAnyExpr <$> fromType path t
+  SList [SAtom "computation", eff, t] ->
+    ECompType <$> fromType path eff <*> fromType path t
   SList [SAtom "lift", ty, from, to] -> do
     ty' <- fromType path ty
     fromLevel <- fromUniverse path "lift" from
@@ -866,7 +869,11 @@ pLetType = M.try $ do
 pComputation :: Parser Expr
 pComputation = M.try $ do
   keyword "computation"
-  ECompType <$> pType
+  first <- pTypeParam
+  second <- M.optional pType
+  case second of
+    Nothing -> pure (ECompType effectAnyExpr first)
+    Just ty -> pure (ECompType first ty)
 
 pLiftType :: Parser Expr
 pLiftType = pLiftExpr
@@ -936,6 +943,11 @@ isUniverseKeyword :: Text -> Bool
 isUniverseKeyword t = case parseUniverseAtom t of
   Just _ -> True
   Nothing -> False
+
+isEffectAny :: Expr -> Bool
+isEffectAny expr = case expr of
+  EVar name -> name == effectAnyName
+  _ -> False
 
 reservedWords :: [Text]
 reservedWords =
@@ -1040,7 +1052,10 @@ renderExpr expr = case expr of
     "(for-all (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod <> ")"
   EThereExists v dom cod ->
     "(there-exists (" <> v <> " " <> T.typeToSExpr dom <> ") " <> T.typeToSExpr cod <> ")"
-  ECompType t -> "(computation " <> T.typeToSExpr t <> ")"
+  ECompType eff t ->
+    if isEffectAny eff
+      then "(computation " <> T.typeToSExpr t <> ")"
+      else "(computation " <> T.typeToSExpr eff <> " " <> T.typeToSExpr t <> ")"
   EEqual ty lhs rhs ->
     "(equal " <> T.typeToSExpr ty <> " " <> renderExpr lhs <> " " <> renderExpr rhs <> ")"
   EReflexive ty term ->
@@ -1191,7 +1206,10 @@ renderMExpr expr = case expr of
     "for-all " <> v <> " as " <> T.prettyTypeAtom dom <> " to " <> T.prettyType cod
   EThereExists v dom cod ->
     "there-exists " <> v <> " as " <> T.prettyTypeAtom dom <> " in " <> T.prettyType cod
-  ECompType t -> "computation " <> T.prettyTypeAtom t
+  ECompType eff t ->
+    if isEffectAny eff
+      then "computation " <> T.prettyTypeAtom t
+      else "computation " <> T.prettyTypeAtom eff <> " " <> T.prettyTypeAtom t
   EEqual ty lhs rhs ->
     "equal " <> T.prettyTypeAtom ty <> " " <> renderMExpr lhs <> " " <> renderMExpr rhs
   EReflexive ty term ->

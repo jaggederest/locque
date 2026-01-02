@@ -2,6 +2,7 @@ import prelude as P
 import arithmetic as Ar
 import list as L
 import string as S
+import typeclass::equality as Eq
 
 open S exposing Character end
 open P exposing Option::none Option::some end
@@ -27,46 +28,46 @@ module tools::formatter_indent contains
     function tokens (List String) returns Natural value
       L::count-prefix String
         (function token String returns Boolean value
-          S::eq token "end"
+          Eq::equals String token "end"
         end)
         tokens
     end
 
   define transparent is-opener as
     function token String returns Boolean value
-      match (S::eq token "module") of-type Boolean as ignored returns Boolean
+      match (Eq::equals String token "module") of-type Boolean as ignored returns Boolean
         case Boolean::true as true
         case Boolean::false as
-          match (S::eq token "open") of-type Boolean as ignored returns Boolean
+          match (Eq::equals String token "open") of-type Boolean as ignored returns Boolean
             case Boolean::true as true
             case Boolean::false as
-              match (S::eq token "function") of-type Boolean as ignored returns Boolean
+              match (Eq::equals String token "function") of-type Boolean as ignored returns Boolean
                 case Boolean::true as true
                 case Boolean::false as
-                  match (S::eq token "compute") of-type Boolean as ignored returns Boolean
+                  match (Eq::equals String token "compute") of-type Boolean as ignored returns Boolean
                     case Boolean::true as true
                     case Boolean::false as
-                          match (S::eq token "let") of-type Boolean as ignored returns Boolean
+                          match (Eq::equals String token "let") of-type Boolean as ignored returns Boolean
                             case Boolean::true as true
                             case Boolean::false as
-                              match (S::eq token "bind") of-type Boolean as ignored returns Boolean
+                              match (Eq::equals String token "bind") of-type Boolean as ignored returns Boolean
                                 case Boolean::true as true
                                 case Boolean::false as
-                                  match (S::eq token "match") of-type Boolean as ignored returns Boolean
+                                  match (Eq::equals String token "match") of-type Boolean as ignored returns Boolean
                                     case Boolean::true as true
                                     case Boolean::false as
-                                      match (S::eq token "pack") of-type Boolean as ignored returns Boolean
+                                      match (Eq::equals String token "pack") of-type Boolean as ignored returns Boolean
                                         case Boolean::true as true
                                         case Boolean::false as
-                                          match (S::eq token "unpack") of-type Boolean as ignored returns Boolean
+                                          match (Eq::equals String token "unpack") of-type Boolean as ignored returns Boolean
                                             case Boolean::true as true
                                             case Boolean::false as
-                                              match (S::eq token "typeclass") of-type Boolean as ignored returns Boolean
+                                              match (Eq::equals String token "typeclass") of-type Boolean as ignored returns Boolean
                                                 case Boolean::true as true
                                                 case Boolean::false as
-                                                  match (S::eq token "instance") of-type Boolean as ignored returns Boolean
+                                                  match (Eq::equals String token "instance") of-type Boolean as ignored returns Boolean
                                                     case Boolean::true as true
-                                                    case Boolean::false as S::eq token "data"
+                                                    case Boolean::false as Eq::equals String token "data"
                                                   end
                                               end
                                           end
@@ -85,13 +86,13 @@ module tools::formatter_indent contains
       match tokens of-type (List String) as ignored returns Natural
         case List::empty as 0
         case List::cons with h String t (List String) as
-          match (S::eq h "import") of-type Boolean as ignored returns Natural
+          match (Eq::equals String h "import") of-type Boolean as ignored returns Natural
             case Boolean::true as 0
             case Boolean::false as
               let value rest be recur has-function t in
                 match (is-opener h) of-type Boolean as ignored returns Natural
                   case Boolean::true as
-                    match (S::eq h "compute") of-type Boolean as ignored returns Natural
+                    match (Eq::equals String h "compute") of-type Boolean as ignored returns Natural
                       case Boolean::true as
                         match has-function of-type Boolean as ignored returns Natural
                           case Boolean::true as rest
@@ -115,12 +116,12 @@ module tools::formatter_indent contains
             case Option::none as false
             case Option::some with nonempty (L::NonEmptyList String) as
               let value last be L::last-nonempty String nonempty in
-                match (S::eq h "case") of-type Boolean as ignored returns Boolean
-                  case Boolean::true as S::eq last "as"
+                match (Eq::equals String h "case") of-type Boolean as ignored returns Boolean
+                  case Boolean::true as Eq::equals String last "as"
                   case Boolean::false as false
                 end
+              end
           end
       end
     end
-end
 end

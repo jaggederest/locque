@@ -7,6 +7,7 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
+open P exposing Option::none Option::some end
 
 module test::string::character contains
   define transparent main as compute
@@ -28,6 +29,32 @@ module test::string::character contains
       , (assert-eq Boolean (S::char-is-word (S::character " ")) false)
       , (assert-eq String (S::character-string (S::head "hi")) "h")
       , (assert-eq String (S::character-string (S::char-from-code 65)) "A")
+      , (assert-eq Boolean (S::char-is-ascii (S::char-from-code 65)) true)
+      , (assert-eq Boolean (S::char-is-ascii (S::char-from-code 200)) false)
+      , (assert-eq Boolean
+          (match (S::ascii (S::character "A")) of-type (P::Option S::AsciiChar) as ignored returns Boolean
+            case Option::none as false
+            case Option::some with ignored S::AsciiChar as true
+          end)
+          true)
+      , (assert-eq Boolean
+          (match (S::ascii (S::char-from-code 200)) of-type (P::Option S::AsciiChar) as ignored returns Boolean
+            case Option::none as true
+            case Option::some with ignored S::AsciiChar as false
+          end)
+          true)
+      , (assert-eq Boolean
+          (match (S::lower (S::character "a")) of-type (P::Option S::LowerChar) as ignored returns Boolean
+            case Option::none as false
+            case Option::some with ignored S::LowerChar as true
+          end)
+          true)
+      , (assert-eq Boolean
+          (match (S::lower (S::character "A")) of-type (P::Option S::LowerChar) as ignored returns Boolean
+            case Option::none as true
+            case Option::some with ignored S::LowerChar as false
+          end)
+          true)
       ])
   end
 end

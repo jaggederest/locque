@@ -47,7 +47,7 @@ end
 - Opacity: `transparent` or `opaque` on the binding.
 - Definitions are values by default.
 - Computation values are explicit: `compute <Computation> end` (M-expr) or `(compute <Computation>)` (S-expr); they run only when performed.
-- Functions are values; effectful functions return `computation T`.
+- Functions are values; effectful functions return `computation E T` (effect-annotated) or `computation T` (defaults to `Effects::any`).
 - `data` defines a type constructor and its constructors (values) as `TypeName::Constructor`.
 - Data parameters use the same `name Type` binder rules as functions; they may live in any universe (`TypeN`) and are in scope in constructor types.
 - Data parameters may be empty.
@@ -55,7 +55,7 @@ end
 - Each constructor type must return the data type with the same arity as the header, but arguments may be refined (indices). The checker enforces this.
 - Constructor applications include only the data parameters that appear free in the constructor type, in header order; unused data parameters are implicit. Example:
   `define transparent Tagged as data n Natural in Type0 ... case Tagged::zero of-type Tagged 0 ... end` makes `Tagged::zero` nullary.
-- Constructor field types may include `computation T` (since computations are values), but constructor results must be pure data (not `computation (Type ...)`).
+- Constructor field types may include `computation E T` (since computations are values), but constructor results must be pure data (not `computation (Type ...)`).
 - A `data` definition may declare zero constructors (an empty type).
 
 ## Typeclasses and constraints
@@ -132,15 +132,15 @@ ListLiteral ::=
 ### Function (only form)
 
 ```
-function p1 TypeParam p2 TypeParam ... returns Type value ValueBody end              -- pure
-function p1 TypeParam p2 TypeParam ... returns computation Type compute CompBody end -- effectful
+function p1 TypeParam p2 TypeParam ... returns Type value ValueBody end                     -- pure
+function p1 TypeParam p2 TypeParam ... returns computation Effect Type compute CompBody end -- effectful
 function returns Type value|compute Body end                          -- zero-arg
 ```
 
 - Parameters are `name Type`, space-separated.
 - `returns` separates params from result type.
 - Body keyword: `value` (pure value body) or `compute` (computation body). This also signals purity.
-- Non-atomic parameter types must be parenthesized: `xs (List String)`, `f (for-all x as A to B)`, `c (computation T)`.
+- Non-atomic parameter types must be parenthesized: `xs (List String)`, `f (for-all x as A to B)`, `c (computation E T)`.
 
 ## Computations
 
@@ -148,12 +148,12 @@ function returns Type value|compute Body end                          -- zero-ar
 Computation ::=
     return Value
   | bind x from Computation then Computation end
-  | perform Value                 -- value of type computation T
+  | perform Value                 -- value of type computation E T
 
 - Computations are not identifiers; to run a named computation value, use `perform`.
 - Sequencing helpers are in the prelude:
-  - `sequence` : `List (computation A)` → `computation (List A)`
-  - `sequence-unit` : `List (computation Unit)` → `computation Unit`
+  - `sequence` : `List (computation E A)` → `computation E (List A)`
+  - `sequence-unit` : `List (computation E Unit)` → `computation E Unit`
 ```
 
 ## Pattern matching (typed, unified `match`)
@@ -229,7 +229,8 @@ Type ::=
     TypeAtom
   | for-all x as Type to Type          -- Pi (function type, dependent)
   | there-exists x as Type in Type     -- Sigma (dependent pair)
-  | computation Type                   -- effectful result type
+  | computation Type                   -- effectful result type (defaults to `Effects::any`)
+  | computation Effect Type            -- effect-annotated result type
   | lift Type from TypeN to TypeM      -- universe lift (strict)
   | equal Type ValueAtom ValueAtom     -- equality type
 
@@ -258,6 +259,7 @@ TypeSimple ::=
 - `TypeN : Type(N+1)`. Use `lift` to move a type across universes.
 - Type application is word-based: `List Natural`, `Vector Natural n`, `Result Error a`.
 - In M-expr binder positions, parenthesize non-atomic types: `x (List Natural)`, `x (Vector Natural n)`.
+- `computation E T` uses `E` as an effect annotation; omit `E` to mean `Effects::any`. If `T` is non-atomic, parenthesize: `computation E (List Natural)`.
 - `equal A x y` is a type (in the same universe as `A`) asserting `x` and `y` are definitionally equal at `A`.
 - Type formation is not restricted: any value expression that checks as `Typek` is a valid type (e.g., `match`, `let`, or `function` in types; parenthesize non-atomic forms when used as type arguments).
 
@@ -305,7 +307,7 @@ rewrite P p as t
 
 - `perform <value>` is the only value→computation bridge; effect kind comes from the callee’s type (no `io` token).
 - Computation values are formed with `compute <Computation> end` or `(compute <Computation>)`; they run only when performed.
-- Effectful functions return `computation T` and use `compute` bodies; pure functions return `T` with `value` bodies.
+- Effectful functions return `computation E T` and use `compute` bodies; pure functions return `T` with `value` bodies.
 
 ## Removed / forbidden
 

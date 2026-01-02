@@ -37,9 +37,10 @@ module typeclass::default contains
 
   # Instance: List (default is empty list)
   define transparent Default-List as instance Default (List A) where
-    default-value as function u Unit returns (List A) value
-      List::empty A
-    end
+    default-value as
+      function A Type0 u Unit returns (List A) value
+        List::empty A
+      end
   end
 
   # Instance: Unit (default is tt)

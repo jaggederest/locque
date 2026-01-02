@@ -38,7 +38,10 @@ prettyType expr = case expr of
     "for-all " <> v <> " as " <> prettyTypeAtom dom <> " to " <> prettyType cod
   EThereExists v dom cod ->
     "there-exists " <> v <> " as " <> prettyTypeAtom dom <> " in " <> prettyType cod
-  ECompType t -> "computation " <> prettyTypeAtom t
+  ECompType eff t ->
+    if isEffectAny eff
+      then "computation " <> prettyTypeAtom t
+      else "computation " <> prettyTypeAtom eff <> " " <> prettyTypeAtom t
   EEqual ty lhs rhs ->
     "equal " <> prettyTypeAtom ty <> " " <> prettyTypeAtom lhs <> " " <> prettyTypeAtom rhs
   ELift ty fromLevel toLevel ->
@@ -68,7 +71,10 @@ typeToSExpr expr = case expr of
     "(for-all (" <> v <> " " <> typeToSExpr dom <> ") " <> typeToSExpr cod <> ")"
   EThereExists v dom cod ->
     "(there-exists (" <> v <> " " <> typeToSExpr dom <> ") " <> typeToSExpr cod <> ")"
-  ECompType t -> "(computation " <> typeToSExpr t <> ")"
+  ECompType eff t ->
+    if isEffectAny eff
+      then "(computation " <> typeToSExpr t <> ")"
+      else "(computation " <> typeToSExpr eff <> " " <> typeToSExpr t <> ")"
   EEqual ty lhs rhs ->
     "(equal " <> typeToSExpr ty <> " " <> typeToSExpr lhs <> " " <> typeToSExpr rhs <> ")"
   ELift ty fromLevel toLevel ->
@@ -85,6 +91,11 @@ typeToSExpr expr = case expr of
 
 prettyUniverse :: Int -> Text
 prettyUniverse n = "Type" <> T.pack (show n)
+
+isEffectAny :: Expr -> Bool
+isEffectAny expr = case expr of
+  EVar name -> name == effectAnyName
+  _ -> False
 
 renderLiteral :: Literal -> Text
 renderLiteral lit = case lit of

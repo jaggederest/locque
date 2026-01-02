@@ -2,9 +2,13 @@
 module TypeChecker
   ( typeCheckModule
   , typeCheckModuleWithImports
+  , typeCheckAndNormalizeWithEnv
+  , typeCheckAndNormalizeWithImports
   , normalizeModuleWithImports
   , normalizeTypeEnvWithImports
   , annotateModule
+  , moduleDigest
+  , moduleDigestWithImports
   , TypeError(..)
   , TypeEnv
   , freeVars
@@ -12,14 +16,24 @@ module TypeChecker
 
 import Control.Monad (foldM, when)
 import Control.Monad.State
+import Data.Bits (xor)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
+import Data.Char (ord)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.FilePath ((</>), (<.>), takeExtension)
+import Data.Word (Word64)
+import Numeric (showHex)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.FilePath ((</>), (<.>), makeRelative, takeDirectory, takeExtension)
 import System.IO.Error (catchIOError, isDoesNotExistError)
+import System.IO.Unsafe (unsafePerformIO)
+import Text.Read (readMaybe)
 import AST
 import Type (prettyType)
 import Parser (parseModuleFile, parseMExprFile, exprToMExprText)
@@ -32,7 +46,7 @@ data DataInfo = DataInfo
   , dataParams :: [Param]
   , dataUniverse :: Int
   , dataCtors :: [CtorInfo]
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data CtorInfo = CtorInfo
   { ctorName :: Text
@@ -40,21 +54,21 @@ data CtorInfo = CtorInfo
   , ctorParams :: [Param]
   , ctorResult :: Expr
   , ctorType :: Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data ClassInfo = ClassInfo
   { className    :: Text
   , classParam   :: Text
   , classParamKind :: Expr
   , classMethods :: [(Text, Expr)]
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data InstanceInfo = InstanceInfo
   { instName    :: Text
   , instClass   :: Text
   , instType    :: Expr
   , instMethods :: Map.Map Text Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 -- | Type errors with context
 data TypeError
@@ -172,7 +186,7 @@ data TCEnv = TCEnv
   , tcInstances :: Map.Map Text [InstanceInfo]
   , tcData :: Map.Map Text DataInfo
   , tcCtors :: Map.Map Text CtorInfo
-  }
+  } deriving (Show, Read, Eq)
 
 type TypeCheckM a = StateT Int (Either TypeError) a
 
@@ -206,6 +220,18 @@ tUnit = ETypeConst TCUnit
 tType :: Int -> Expr
 tType = ETypeUniverse
 
+tTypeUniverse :: Expr -> Bool
+tTypeUniverse expr = case expr of
+  ETypeUniverse _ -> True
+  _ -> False
+
+stripInstanceTypeParams :: Set.Set Text -> Expr -> Expr
+stripInstanceTypeParams allowed ty = case ty of
+  EForAll v dom cod
+    | v `Set.member` allowed && tTypeUniverse dom ->
+        stripInstanceTypeParams (Set.delete v allowed) cod
+  _ -> ty
+
 tListener :: Expr
 tListener = ETypeConst TCListener
 
@@ -225,7 +251,7 @@ tDictionary :: Expr -> Expr -> Expr
 tDictionary k v = EApp (ETypeConst TCDictionary) [k, v]
 
 tComp :: Expr -> Expr
-tComp = ECompType
+tComp t = ECompType effectAnyExpr t
 
 tFun :: Expr -> Expr -> Expr
 tFun dom cod = EForAll "_" dom cod
@@ -443,7 +469,8 @@ freeVarsWithBound bound expr = case expr of
     freeVarsWithBound bound dom `Set.union` freeVarsWithBound (Set.insert v bound) cod
   EThereExists v dom cod ->
     freeVarsWithBound bound dom `Set.union` freeVarsWithBound (Set.insert v bound) cod
-  ECompType t -> freeVarsWithBound bound t
+  ECompType eff t ->
+    freeVarsWithBound bound eff `Set.union` freeVarsWithBound bound t
   EEqual ty lhs rhs ->
     freeVarsWithBound bound ty
       `Set.union` freeVarsWithBound bound lhs
@@ -561,7 +588,7 @@ subst name replacement expr = go Set.empty expr
             (v', cod') <- refreshBinder bound v cod
             cod'' <- go (Set.insert v' bound) cod'
             pure (EThereExists v' dom' cod'')
-      ECompType t -> ECompType <$> go bound t
+      ECompType eff t -> ECompType <$> go bound eff <*> go bound t
       EEqual ty lhs rhs ->
         EEqual <$> go bound ty <*> go bound lhs <*> go bound rhs
       EReflexive ty term ->
@@ -843,7 +870,7 @@ normalize env expr = do
       let env' = extendLocal env v dom'
       cod' <- normalize env' cod
       pure (EThereExists v dom' cod')
-    ECompType t -> ECompType <$> normalize env t
+    ECompType eff t -> ECompType <$> normalize env eff <*> normalize env t
     EEqual ty lhs rhs ->
       EEqual <$> normalize env ty <*> normalize env lhs <*> normalize env rhs
     EReflexive ty term ->
@@ -1137,10 +1164,290 @@ renameConstraintName oldName newName (Constraint cls ty) =
   Constraint cls <$> subst oldName (EVar newName) ty
 
 conv :: TCEnv -> Expr -> Expr -> TypeCheckM Bool
-conv env a b = do
-  a' <- normalize env a
-  b' <- normalize env b
-  pure (alphaEq env Map.empty a' b')
+conv env a b = convWith env Map.empty a b
+
+convWith :: TCEnv -> Map.Map Text Text -> Expr -> Expr -> TypeCheckM Bool
+convWith env ren a b = do
+  a' <- whnf env a
+  b' <- whnf env b
+  simplifyUpDown env ren a' b'
+  where
+    simplifyUpDown env' ren' a1 b1 = do
+      ma <- reduceUpDown env' ren' a1
+      case ma of
+        Just a2 -> convWith env' ren' a2 b1
+        Nothing -> do
+          mb <- reduceUpDown env' ren' b1
+          case mb of
+            Just b2 -> convWith env' ren' a1 b2
+            Nothing -> convWhnf env' ren' a1 b1
+
+reduceUpDown :: TCEnv -> Map.Map Text Text -> Expr -> TypeCheckM (Maybe Expr)
+reduceUpDown env ren expr = case expr of
+  EUp _ fromLevel toLevel body
+    | fromLevel == toLevel -> pure (Just body)
+  EDown _ fromLevel toLevel body
+    | fromLevel == toLevel -> pure (Just body)
+  EDown ty fromLevel toLevel body -> case body of
+    EUp ty2 from2 to2 inner
+      | fromLevel == from2 && toLevel == to2 -> do
+          ok <- convWith env ren ty ty2
+          pure (if ok then Just inner else Nothing)
+    _ -> pure Nothing
+  _ -> pure Nothing
+
+isEffectAny :: Expr -> Bool
+isEffectAny expr = case expr of
+  EVar name -> name == effectAnyName
+  _ -> False
+
+convWhnf :: TCEnv -> Map.Map Text Text -> Expr -> Expr -> TypeCheckM Bool
+convWhnf env ren a b =
+  case (a, b) of
+      (EVar v1, EVar v2) ->
+        case Map.lookup v1 ren of
+          Just v2' -> pure (v2 == v2')
+          Nothing -> pure (canonicalGlobal env v1 == canonicalGlobal env v2)
+      (ELit l1, ELit l2) -> pure (l1 == l2)
+      (EListLiteral xs, EListLiteral ys) -> convList env ren xs ys
+      (ETypeConst c1, ETypeConst c2) -> pure (c1 == c2)
+      (ETypeUniverse n1, ETypeUniverse n2) -> pure (n1 == n2)
+      (EForAll v1 dom1 cod1, EForAll v2 dom2 cod2) -> do
+        okDom <- convWith env ren dom1 dom2
+        if not okDom
+          then pure False
+          else do
+            let env' = extendLocalPair env v1 dom1 v2 dom2
+                ren' = Map.insert v1 v2 ren
+            convWith env' ren' cod1 cod2
+      (EThereExists v1 dom1 cod1, EThereExists v2 dom2 cod2) -> do
+        okDom <- convWith env ren dom1 dom2
+        if not okDom
+          then pure False
+          else do
+            let env' = extendLocalPair env v1 dom1 v2 dom2
+                ren' = Map.insert v1 v2 ren
+            convWith env' ren' cod1 cod2
+      (ECompType eff1 t1, ECompType eff2 t2) -> do
+        okTy <- convWith env ren t1 t2
+        if not okTy
+          then pure False
+          else if isEffectAny eff1 || isEffectAny eff2
+            then pure True
+            else convWith env ren eff1 eff2
+      (EEqual ty1 l1 r1, EEqual ty2 l2 r2) -> do
+        okTy <- convWith env ren ty1 ty2
+        if not okTy
+          then pure False
+          else do
+            okL <- convWith env ren l1 l2
+            if not okL then pure False else convWith env ren r1 r2
+      (EReflexive ty1 t1, EReflexive ty2 t2) -> do
+        okTy <- convWith env ren ty1 ty2
+        if not okTy then pure False else convWith env ren t1 t2
+      (ERewrite f1 p1 b1, ERewrite f2 p2 b2) -> do
+        okF <- convWith env ren f1 f2
+        if not okF
+          then pure False
+          else do
+            okP <- convWith env ren p1 p2
+            if not okP then pure False else convWith env ren b1 b2
+      (EPack v1 dom1 cod1 w1 b1, EPack v2 dom2 cod2 w2 b2) -> do
+        okDom <- convWith env ren dom1 dom2
+        if not okDom
+          then pure False
+          else do
+            let env' = extendLocalPair env v1 dom1 v2 dom2
+                ren' = Map.insert v1 v2 ren
+            okCod <- convWith env' ren' cod1 cod2
+            if not okCod
+              then pure False
+              else do
+                okW <- convWith env ren w1 w2
+                if not okW then pure False else convWith env ren b1 b2
+      (EUnpack p1 x1 y1 b1, EUnpack p2 x2 y2 b2) -> do
+        okP <- convWith env ren p1 p2
+        if not okP
+          then pure False
+          else do
+            let env' = extendLocalPair (extendLocalPair env x1 tUnit x2 tUnit) y1 tUnit y2 tUnit
+                ren' = Map.insert y1 y2 (Map.insert x1 x2 ren)
+            convWith env' ren' b1 b2
+      (ELift ty1 from1 to1, ELift ty2 from2 to2) ->
+        if from1 == from2 && to1 == to2
+          then convWith env ren ty1 ty2
+          else pure False
+      (EUp ty1 from1 to1 body1, EUp ty2 from2 to2 body2) ->
+        if from1 == from2 && to1 == to2
+          then do
+            okTy <- convWith env ren ty1 ty2
+            if not okTy then pure False else convWith env ren body1 body2
+          else pure False
+      (EDown ty1 from1 to1 body1, EDown ty2 from2 to2 body2) ->
+        if from1 == from2 && to1 == to2
+          then do
+            okTy <- convWith env ren ty1 ty2
+            if not okTy then pure False else convWith env ren body1 body2
+          else pure False
+      (EApp f1 args1, EApp f2 args2)
+        | length args1 == length args2 -> do
+            okF <- convWith env ren f1 f2
+            if not okF then pure False else convList env ren args1 args2
+      (EFunction params1 constraints1 ret1 body1, EFunction params2 constraints2 ret2 body2)
+        | length params1 == length params2
+          , length constraints1 == length constraints2 -> do
+            paramsRes <- convParams env ren params1 params2
+            case paramsRes of
+              Nothing -> pure False
+              Just (env', ren') -> do
+                okConstraints <- convConstraints env' ren' constraints1 constraints2
+                if not okConstraints
+                  then pure False
+                  else do
+                    okRet <- convWith env' ren' ret1 ret2
+                    if not okRet then pure False else convBody env' ren' body1 body2
+      (ECompute c1, ECompute c2) -> convComp env ren c1 c2
+      (EMatch s1 ty1 n1 r1 c1, EMatch s2 ty2 n2 r2 c2)
+        | length c1 == length c2 -> do
+            okS <- convWith env ren s1 s2
+            if not okS
+              then pure False
+              else do
+                okTy <- convWith env ren ty1 ty2
+                if not okTy
+                  then pure False
+                  else do
+                    let env' = extendLocalPair env n1 ty1 n2 ty2
+                        ren' = Map.insert n1 n2 ren
+                    okRet <- convWith env' ren' r1 r2
+                    if not okRet
+                      then pure False
+                      else convCases env' ren' c1 c2
+      (EData params1 uni1 cases1, EData params2 uni2 cases2)
+        | length params1 == length params2
+          , length cases1 == length cases2 -> do
+            okUni <- convWith env ren uni1 uni2
+            if not okUni
+              then pure False
+              else do
+                paramsRes <- convParams env ren params1 params2
+                case paramsRes of
+                  Nothing -> pure False
+                  Just (env', ren') -> convDataCases env' ren' cases1 cases2
+      (EDict cls1 impls1, EDict cls2 impls2)
+        | cls1 == cls2 && length impls1 == length impls2 ->
+            convDictImpls env ren impls1 impls2
+      (EDictAccess d1 m1, EDictAccess d2 m2)
+        | m1 == m2 -> convWith env ren d1 d2
+      (ETypeClass p1 k1 ms1, ETypeClass p2 k2 ms2)
+        | length ms1 == length ms2 -> do
+            okK <- convWith env ren k1 k2
+            if not okK
+              then pure False
+              else do
+                let env' = extendLocalPair env p1 k1 p2 k2
+                    ren' = Map.insert p1 p2 ren
+                convMethodTypes env' ren' ms1 ms2
+      (EInstance c1 t1 ms1, EInstance c2 t2 ms2)
+        | c1 == c2 && length ms1 == length ms2 -> do
+            okT <- convWith env ren t1 t2
+            if not okT then pure False else convDictImpls env ren ms1 ms2
+      (EAnnot e1 _t1, _) -> convWith env ren e1 b
+      (_, EAnnot e2 _t2) -> convWith env ren a e2
+      (ETyped e1 _t1, _) -> convWith env ren e1 b
+      (_, ETyped e2 _t2) -> convWith env ren a e2
+      _ -> pure False
+
+extendLocalPair :: TCEnv -> Text -> Expr -> Text -> Expr -> TCEnv
+extendLocalPair env v1 ty1 v2 ty2 =
+  let env' = extendLocal env v1 ty1
+  in if v2 == v1 then env' else extendLocal env' v2 ty2
+
+convList :: TCEnv -> Map.Map Text Text -> [Expr] -> [Expr] -> TypeCheckM Bool
+convList _ _ [] [] = pure True
+convList env ren (x:xs) (y:ys) = do
+  ok <- convWith env ren x y
+  if ok then convList env ren xs ys else pure False
+convList _ _ _ _ = pure False
+
+convParams :: TCEnv -> Map.Map Text Text -> [Param] -> [Param] -> TypeCheckM (Maybe (TCEnv, Map.Map Text Text))
+convParams env ren [] [] = pure (Just (env, ren))
+convParams env ren (Param v1 ty1 : rest1) (Param v2 ty2 : rest2) = do
+  ok <- convWith env ren ty1 ty2
+  if not ok
+    then pure Nothing
+    else do
+      let env' = extendLocalPair env v1 ty1 v2 ty2
+          ren' = Map.insert v1 v2 ren
+      convParams env' ren' rest1 rest2
+convParams _ _ _ _ = pure Nothing
+
+convConstraints :: TCEnv -> Map.Map Text Text -> [Constraint] -> [Constraint] -> TypeCheckM Bool
+convConstraints _ _ [] [] = pure True
+convConstraints env ren (Constraint c1 t1 : rest1) (Constraint c2 t2 : rest2) =
+  if c1 /= c2
+    then pure False
+    else do
+      ok <- convWith env ren t1 t2
+      if ok then convConstraints env ren rest1 rest2 else pure False
+convConstraints _ _ _ _ = pure False
+
+convBody :: TCEnv -> Map.Map Text Text -> FunctionBody -> FunctionBody -> TypeCheckM Bool
+convBody env ren b1 b2 = case (b1, b2) of
+  (FunctionValue e1, FunctionValue e2) -> convWith env ren e1 e2
+  (FunctionCompute c1, FunctionCompute c2) -> convComp env ren c1 c2
+  _ -> pure False
+
+convComp :: TCEnv -> Map.Map Text Text -> Comp -> Comp -> TypeCheckM Bool
+convComp env ren c1 c2 = case (c1, c2) of
+  (CReturn e1, CReturn e2) -> convWith env ren e1 e2
+  (CPerform e1, CPerform e2) -> convWith env ren e1 e2
+  (CBind v1 c1' c1'', CBind v2 c2' c2'') -> do
+    ok <- convComp env ren c1' c2'
+    if not ok
+      then pure False
+      else do
+        let env' = extendLocalPair env v1 tUnit v2 tUnit
+            ren' = Map.insert v1 v2 ren
+        convComp env' ren' c1'' c2''
+  _ -> pure False
+
+convCases :: TCEnv -> Map.Map Text Text -> [MatchCase] -> [MatchCase] -> TypeCheckM Bool
+convCases _ _ [] [] = pure True
+convCases env ren (MatchCase ctor1 binders1 body1 : rest1) (MatchCase ctor2 binders2 body2 : rest2) =
+  if ctor1 /= ctor2 || length binders1 /= length binders2
+    then pure False
+    else do
+      paramsRes <- convParams env ren binders1 binders2
+      case paramsRes of
+        Nothing -> pure False
+        Just (env', ren') -> do
+          okBody <- convWith env' ren' body1 body2
+          if okBody then convCases env ren rest1 rest2 else pure False
+convCases _ _ _ _ = pure False
+
+convDataCases :: TCEnv -> Map.Map Text Text -> [DataCase] -> [DataCase] -> TypeCheckM Bool
+convDataCases _ _ [] [] = pure True
+convDataCases env ren (DataCase n1 t1 : rest1) (DataCase n2 t2 : rest2) =
+  if n1 /= n2
+    then pure False
+    else do
+      ok <- convWith env ren t1 t2
+      if ok then convDataCases env ren rest1 rest2 else pure False
+convDataCases _ _ _ _ = pure False
+
+convDictImpls :: TCEnv -> Map.Map Text Text -> [(Text, Expr)] -> [(Text, Expr)] -> TypeCheckM Bool
+convDictImpls _ _ [] [] = pure True
+convDictImpls env ren ((n1, e1) : rest1) ((n2, e2) : rest2) =
+  if n1 /= n2
+    then pure False
+    else do
+      ok <- convWith env ren e1 e2
+      if ok then convDictImpls env ren rest1 rest2 else pure False
+convDictImpls _ _ _ _ = pure False
+
+convMethodTypes :: TCEnv -> Map.Map Text Text -> [(Text, Expr)] -> [(Text, Expr)] -> TypeCheckM Bool
+convMethodTypes = convDictImpls
 
 type UnifySubst = Map.Map Text Expr
 
@@ -1216,7 +1523,8 @@ alphaEq tcEnv env a b = case (a, b) of
     alphaEq tcEnv env d1 d2 && alphaEq tcEnv (Map.insert v1 v2 env) c1 c2
   (EThereExists v1 d1 c1, EThereExists v2 d2 c2) ->
     alphaEq tcEnv env d1 d2 && alphaEq tcEnv (Map.insert v1 v2 env) c1 c2
-  (ECompType t1, ECompType t2) -> alphaEq tcEnv env t1 t2
+  (ECompType eff1 t1, ECompType eff2 t2) ->
+    alphaEq tcEnv env eff1 eff2 && alphaEq tcEnv env t1 t2
   (EEqual ty1 l1 r1, EEqual ty2 l2 r2) ->
     alphaEq tcEnv env ty1 ty2 && alphaEq tcEnv env l1 l2 && alphaEq tcEnv env r1 r2
   (EReflexive ty1 t1, EReflexive ty2 t2) ->
@@ -1539,7 +1847,7 @@ infer env expr = case expr of
     let env' = extendLocal env v dom
     codLevel <- inferUniverse env' cod
     pure (ETypeUniverse (max domLevel codLevel))
-  ECompType t -> do
+  ECompType _eff t -> do
     level <- inferUniverse env t
     pure (ETypeUniverse level)
   EEqual ty lhs rhs -> do
@@ -1635,7 +1943,7 @@ infer env expr = case expr of
     infer (extendLocal env name valTy) body
   ECompute comp -> do
     compTy <- inferComp env comp
-    pure (ECompType compTy)
+    pure (ECompType effectAnyExpr compTy)
   EData params universe cases -> do
     level <- case universe of
       ETypeUniverse n -> pure n
@@ -1673,6 +1981,7 @@ infer env expr = case expr of
     ensureUniqueMethodNames (map fst methods)
     let knownNames = Map.keysSet (tcTypes env)
         implicitVars = Set.toList (freeVars instTy `Set.difference` knownNames)
+        implicitSet = Set.fromList implicitVars
         env' = foldl (\e v -> extendLocal e v (tType 0)) env implicitVars
     instKind <- infer env' instTy
     ensureConv env' instKind (classParamKind classInfo)
@@ -1690,7 +1999,9 @@ infer env expr = case expr of
               Nothing -> pure ()
               Just impl -> do
                 expectedTy <- subst param instTy methodTy
-                check env' impl expectedTy
+                implTy <- infer env' impl
+                let implTy' = stripInstanceTypeParams implicitSet implTy
+                ensureConv env' implTy' expectedTy
           ) (classMethods classInfo)
     pure (EApp (EVar (className classInfo)) [instTy])
 
@@ -1845,7 +2156,7 @@ expectCompType :: TCEnv -> Expr -> TypeCheckM Expr
 expectCompType env ty = do
   ty' <- whnf env ty
   case ty' of
-    ECompType inner -> pure inner
+    ECompType _ inner -> pure inner
     _ -> lift (Left (NotAComputation noLoc ty'))
 
 inferUniverse :: TCEnv -> Expr -> TypeCheckM Int
@@ -2010,6 +2321,7 @@ buildPrimitiveEnv = Map.fromList
   , ("copy-tree-prim", tFun tString (tFun tString (tComp tUnit)))
   , ("rename-path-prim", tFun tString (tFun tString (tComp tUnit)))
   , ("walk-prim", tFun tString (tComp (tList (tPair tString tBool))))
+  , ("walk-filter-prim", tFun tString (tFun tString (tFun (tList tString) (tComp (tList tString)))))
   , ("stat-prim", tFun tString (tComp (tPair tString (tPair tNat tNat))))
 
   , ("nat-to-string-prim", tFun tNat tString)
@@ -2048,6 +2360,35 @@ normalizeTypeEnvWithImports projectRoot _sourceContents m = do
   pure $ runTypeCheck $ do
     env <- typeCheckModuleWithEnv envWithOpens m
     normalizeTypeEnv env
+
+typeCheckAndNormalizeWithEnv :: TCEnv -> Module -> Either TypeError (TypeEnv, Module)
+typeCheckAndNormalizeWithEnv importedEnv m =
+  runTypeCheck $ do
+    let envWithOpens = processOpens (modOpens m) importedEnv
+    env <- typeCheckModuleWithEnv envWithOpens m
+    normalized <- normalizeModule env m
+    pure (tcTypes env, normalized)
+
+typeCheckAndNormalizeWithImports :: FilePath -> Text -> Module -> IO (Either TypeError (TypeEnv, Module))
+typeCheckAndNormalizeWithImports projectRoot _sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+  pure $ runTypeCheck $ do
+    env <- typeCheckModuleWithEnv envWithOpens m
+    normalized <- normalizeModule env m
+    pure (tcTypes env, normalized)
+
+moduleDigest :: FilePath -> Text -> Module -> IO String
+moduleDigest projectRoot sourceContents m = do
+  fst <$> moduleDigestWithImports projectRoot sourceContents m
+
+moduleDigestWithImports :: FilePath -> Text -> Module -> IO (String, TCEnv)
+moduleDigestWithImports projectRoot sourceContents m = do
+  let sourceHash = hashText sourceContents
+  (importedEnv, depHashes) <- loadTypeImportsWithDigest projectRoot Set.empty (modImports m)
+  let depMap = Map.fromList depHashes
+      depDigest = computeDepDigest depMap
+  pure (computeDigest sourceHash depDigest, importedEnv)
 
 typeCheckModuleWithEnv :: TCEnv -> Module -> TypeCheckM TCEnv
 typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) =
@@ -2129,12 +2470,88 @@ annotateModule _env m = Right m
 --------------------------------------------------------------------------------
 -- Import loading
 
+data TypeImportCache = TypeImportCache
+  { cacheVersion :: Int
+  , cacheSourceHash :: String
+  , cacheDepMap :: Map.Map Text String
+  , cacheDepDigest :: String
+  , cacheEnvSelf :: TCEnv
+  , cacheParsed :: Module
+  } deriving (Show, Read)
+
+type ImportCache = Map.Map FilePath TypeImportCache
+
+{-# NOINLINE importCacheRef #-}
+importCacheRef :: IORef ImportCache
+importCacheRef = unsafePerformIO (newIORef Map.empty)
+
+cacheVersionCurrent :: Int
+cacheVersionCurrent = 2
+
+cacheRoot :: FilePath -> FilePath
+cacheRoot projectRoot = projectRoot </> ".locque-cache" </> "typecheck"
+
+cachePathFor :: FilePath -> FilePath -> FilePath
+cachePathFor projectRoot sourcePath =
+  cacheRoot projectRoot </> makeRelative projectRoot sourcePath <.> "cache"
+
+hashText :: Text -> String
+hashText = hashString . T.unpack
+
+hashString :: String -> String
+hashString str =
+  let fnvOffset :: Word64
+      fnvOffset = 14695981039346656037
+      fnvPrime :: Word64
+      fnvPrime = 1099511628211
+      step acc c = (acc `xor` fromIntegral (ord c)) * fnvPrime
+      hashValue = foldl step fnvOffset str
+  in showHex hashValue ""
+
+computeDepDigest :: Map.Map Text String -> String
+computeDepDigest deps =
+  let depsStr = concatMap (\(name, dep) -> T.unpack name ++ ":" ++ dep ++ ";") (Map.toList deps)
+  in hashString depsStr
+
+computeDigest :: String -> String -> String
+computeDigest sourceHash depDigest =
+  hashString (sourceHash ++ "|" ++ depDigest)
+
+readCacheEntry :: FilePath -> FilePath -> String -> IO (Maybe TypeImportCache)
+readCacheEntry projectRoot sourcePath sourceHash = do
+  cacheMap <- readIORef importCacheRef
+  case Map.lookup sourcePath cacheMap of
+    Just entry
+      | cacheVersion entry == cacheVersionCurrent
+      , cacheSourceHash entry == sourceHash -> pure (Just entry)
+    _ -> do
+      let cachePath = cachePathFor projectRoot sourcePath
+      exists <- doesFileExist cachePath
+      if not exists
+        then pure Nothing
+        else do
+          raw <- BS.readFile cachePath
+          case readMaybe (BS8.unpack raw) of
+            Just entry
+              | cacheVersion entry == cacheVersionCurrent
+              , cacheSourceHash entry == sourceHash -> do
+                  modifyIORef' importCacheRef (Map.insert sourcePath entry)
+                  pure (Just entry)
+            _ -> pure Nothing
+
+writeCacheEntry :: FilePath -> FilePath -> TypeImportCache -> IO ()
+writeCacheEntry projectRoot sourcePath entry = do
+  let cachePath = cachePathFor projectRoot sourcePath
+  createDirectoryIfMissing True (takeDirectory cachePath)
+  writeFile cachePath (show entry)
+  modifyIORef' importCacheRef (Map.insert sourcePath entry)
+
 loadTypeImports :: FilePath -> Module -> IO TCEnv
 loadTypeImports projectRoot (Module _ imports _ _) =
-  loadTypeImportsWith projectRoot Set.empty imports
+  fst <$> loadTypeImportsWithDigest projectRoot Set.empty imports
 
-loadTypeImport :: FilePath -> Set.Set Text -> Import -> IO TCEnv
-loadTypeImport projectRoot visiting (Import modName alias) = do
+loadTypeImportWithDigest :: FilePath -> Set.Set Text -> Import -> IO (TCEnv, (Text, String))
+loadTypeImportWithDigest projectRoot visiting (Import modName alias) = do
   when (modName `Set.member` visiting) $
     error $ "Import cycle detected: " ++ T.unpack modName
   let modPath = modNameToPath modName
@@ -2148,34 +2565,55 @@ loadTypeImport projectRoot visiting (Import modName alias) = do
     if isDoesNotExistError e
       then tryLoadFile lqsPath
       else ioError e
+  let sourceHash = hashText contents
+  cached <- readCacheEntry projectRoot path sourceHash
 
-  parsed <- case takeExtension path of
-    ".lq"  -> case parseMExprFile path contents of
-      Left err -> error err
-      Right m -> pure m
-    ".lqs" -> case parseModuleFile path contents of
-      Left err -> error err
-      Right m -> pure m
-    _      -> error $ "Unknown file extension: " ++ path
+  parsed <- case cached of
+    Just entry -> pure (cacheParsed entry)
+    Nothing -> case takeExtension path of
+      ".lq"  -> case parseMExprFile path contents of
+        Left err -> error err
+        Right m -> pure m
+      ".lqs" -> case parseModuleFile path contents of
+        Left err -> error err
+        Right m -> pure m
+      _      -> error $ "Unknown file extension: " ++ path
 
   let Module _ _ opens defs = parsed
       visiting' = Set.insert modName visiting
-  envImports <- loadTypeImportsWith projectRoot visiting' (modImports parsed)
+  (envImports, depHashes) <- loadTypeImportsWithDigest projectRoot visiting' (modImports parsed)
   let envWithOpens = processOpens opens envImports
-  case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
-    Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
-    Right envSelf -> do
-      let defNames = map defName defs
-          localDataNames = [defName d | d@(Definition _ _ body) <- defs, isData body]
-          localClassNames = [defName d | d@(Definition _ _ body) <- defs, isClass body]
-          localInstanceNames = [defName d | d@(Definition _ _ body) <- defs, isInstance body]
-          localClassSet = Set.fromList localClassNames
-          localNames = Set.fromList defNames
-          envValues = foldl (insertQualified alias envSelf localNames) envWithOpens defNames
-          envData = foldl (insertQualifiedData alias envSelf) envValues localDataNames
-          envClasses = foldl (insertQualifiedClass alias envSelf) envData localClassNames
-          envFinal = foldl (insertQualifiedInstance alias envSelf localClassSet) envClasses localInstanceNames
-      pure envFinal
+      depMap = Map.fromList depHashes
+      depDigest = computeDepDigest depMap
+  envSelf <- case cached of
+    Just entry
+      | cacheDepMap entry == depMap -> pure (cacheEnvSelf entry)
+    _ ->
+      case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
+        Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
+        Right env -> do
+          let entry = TypeImportCache
+                { cacheVersion = cacheVersionCurrent
+                , cacheSourceHash = sourceHash
+                , cacheDepMap = depMap
+                , cacheDepDigest = depDigest
+                , cacheEnvSelf = env
+                , cacheParsed = parsed
+                }
+          writeCacheEntry projectRoot path entry
+          pure env
+  let defNames = map defName defs
+      localDataNames = [defName d | d@(Definition _ _ body) <- defs, isData body]
+      localClassNames = [defName d | d@(Definition _ _ body) <- defs, isClass body]
+      localInstanceNames = [defName d | d@(Definition _ _ body) <- defs, isInstance body]
+      localClassSet = Set.fromList localClassNames
+      localNames = Set.fromList defNames
+      envValues = foldl (insertQualified alias envSelf localNames) envWithOpens defNames
+      envData = foldl (insertQualifiedData alias envSelf) envValues localDataNames
+      envClasses = foldl (insertQualifiedClass alias envSelf) envData localClassNames
+      envFinal = foldl (insertQualifiedInstance alias envSelf localClassSet) envClasses localInstanceNames
+      digest = computeDigest sourceHash depDigest
+  pure (envFinal, (modName, digest))
   where
     tryLoadFile p = do
       c <- TIO.readFile p
@@ -2190,23 +2628,25 @@ loadTypeImport projectRoot visiting (Import modName alias) = do
       EData _ _ _ -> True
       _ -> False
 
-loadTypeImportsWith :: FilePath -> Set.Set Text -> [Import] -> IO TCEnv
-loadTypeImportsWith projectRoot visiting imports = do
-  envs <- mapM (loadTypeImport projectRoot visiting) imports
+loadTypeImportsWithDigest :: FilePath -> Set.Set Text -> [Import] -> IO (TCEnv, [(Text, String)])
+loadTypeImportsWithDigest projectRoot visiting imports = do
+  envsWithDigests <- mapM (loadTypeImportWithDigest projectRoot visiting) imports
+  let envs = map fst envsWithDigests
+      digests = map snd envsWithDigests
   let mergedTypes = Map.unions (tcTypes emptyEnv : map tcTypes envs)
       mergedDefs = Map.unions (tcDefs emptyEnv : map tcDefs envs)
       mergedClasses = Map.unions (tcClasses emptyEnv : map tcClasses envs)
       mergedInstances = Map.unionsWith (++) (tcInstances emptyEnv : map tcInstances envs)
       mergedData = Map.unions (tcData emptyEnv : map tcData envs)
       mergedCtors = Map.unions (tcCtors emptyEnv : map tcCtors envs)
-  pure emptyEnv
+  pure (emptyEnv
     { tcTypes = mergedTypes
     , tcDefs = mergedDefs
     , tcClasses = mergedClasses
     , tcInstances = mergedInstances
     , tcData = mergedData
     , tcCtors = mergedCtors
-    }
+    }, digests)
 
 insertQualified :: Text -> TCEnv -> Set.Set Text -> TCEnv -> Text -> TCEnv
 insertQualified alias envSelf localNames env name =

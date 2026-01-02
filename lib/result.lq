@@ -1,3 +1,4 @@
+import logic as Lg
 import prelude as P
 import type_aliases as Types
 
@@ -89,6 +90,13 @@ module result contains
       match res of-type (P::Result A E) as ignored returns (P::Option A)
         case Result::ok with ok A as Option::some A ok
         case Result::err with ignored E as Option::none A
+      end
+    end
+  define transparent to-decidable as
+    function P Type0 res (P::Result P (Lg::Not P)) returns (Lg::Decidable P) value
+      match res of-type (P::Result P (Lg::Not P)) as ignored returns (Lg::Decidable P)
+        case Result::ok with proof P as Lg::decidable-true P proof
+        case Result::err with not-proof (Lg::Not P) as Lg::decidable-false P not-proof
       end
     end
 end

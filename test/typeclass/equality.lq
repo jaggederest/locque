@@ -35,6 +35,22 @@ module test::typeclass::equality contains
   define transparent test-bool-eq-tf as eq-value Boolean true false
   define transparent test-bool-eq-ft as eq-value Boolean false true
 
+  # Test values for List equality
+  define transparent test-list-eq-same as
+    eq-value (List Natural) [1, 2] [1, 2]
+  define transparent test-list-eq-diff as
+    eq-value (List Natural) [1, 2] [2, 1]
+
+  # Test values for Pair equality
+  define transparent test-pair-eq-same as
+    eq-value (Pair Natural Natural)
+      (P::pair Natural Natural 1 1)
+      (P::pair Natural Natural 1 1)
+  define transparent test-pair-eq-diff as
+    eq-value (Pair Natural Natural)
+      (P::pair Natural Natural 1 1)
+      (P::pair Natural Natural 2 1)
+
   # Test with variables (ETyped)
   define transparent test-nat-eq-var as
     function x Natural returns Boolean value
@@ -70,6 +86,10 @@ module test::typeclass::equality contains
       , (A::assert-eq Boolean (test-str-eq-var "test") true)
       , (A::assert-eq Boolean (test-bool-eq-var true) true)
       , (A::assert-eq Boolean (test-bool-eq-var false) true)
+      , (A::assert-eq Boolean test-list-eq-same true)
+      , (A::assert-eq Boolean test-list-eq-diff false)
+      , (A::assert-eq Boolean test-pair-eq-same true)
+      , (A::assert-eq Boolean test-pair-eq-diff false)
       , (A::assert-eq Boolean test-neq-same false)
       , (A::assert-eq Boolean test-neq-diff true)
       ])

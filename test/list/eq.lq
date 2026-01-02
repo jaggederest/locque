@@ -6,27 +6,48 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
+open P exposing Option::none Option::some end
 
 module test::list::eq contains
   define transparent eq-true as
-    unpack
-      (ListEq::decide-eq Natural L::decide-eq-nat
-        [1, 2]
-        [1, 2])
-      as b ignored in b end
+    ListEq::decide-eq-flag Natural L::decide-eq-nat
+      [1, 2]
+      [1, 2]
 
   define transparent eq-false as
-    unpack
-      (ListEq::decide-eq Natural L::decide-eq-nat
+    ListEq::decide-eq-flag Natural L::decide-eq-nat
+      [1, 2]
+      [1, 3]
+
+  define transparent eq-proof-some as
+    match
+      (ListEq::decide-eq-proof Natural L::decide-eq-nat
+        [1, 2]
+        [1, 2])
+      of-type (P::Option (equal (List Natural) [1, 2] [1, 2])) as ignored
+    returns Boolean
+      case Option::none as false
+      case Option::some with ignored (equal (List Natural) [1, 2] [1, 2]) as true
+    end
+
+  define transparent eq-proof-none as
+    match
+      (ListEq::decide-eq-proof Natural L::decide-eq-nat
         [1, 2]
         [1, 3])
-      as b ignored in b end
+      of-type (P::Option (equal (List Natural) [1, 2] [1, 3])) as ignored
+    returns Boolean
+      case Option::none as true
+      case Option::some with ignored (equal (List Natural) [1, 2] [1, 3]) as false
+    end
 
   define transparent main as compute
     perform (P::sequence-unit
       [
         (assert-eq Boolean eq-true true)
       , (assert-eq Boolean eq-false false)
+      , (assert-eq Boolean eq-proof-some true)
+      , (assert-eq Boolean eq-proof-none true)
       ])
   end
 end

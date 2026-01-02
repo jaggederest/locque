@@ -53,10 +53,10 @@ module examples::webapp contains
 
   define transparent parse-bool as
     function s String returns (P::Option Boolean) value
-      match (S::eq s "true") of-type Boolean as ignored returns (P::Option Boolean)
+      match (Eq::equals String s "true") of-type Boolean as ignored returns (P::Option Boolean)
         case Boolean::true as Option::some Boolean true
         case Boolean::false as
-          match (S::eq s "false") of-type Boolean as ignored returns (P::Option Boolean)
+          match (Eq::equals String s "false") of-type Boolean as ignored returns (P::Option Boolean)
             case Boolean::true as Option::some Boolean false
             case Boolean::false as Option::none Boolean
           end
@@ -311,7 +311,7 @@ module examples::webapp contains
         case List::cons with h (Pair String String) t (List (Pair String String)) as
           match h of-type (Pair String String) as ignored returns (P::Option String)
             case Pair::pair with key String val String as
-              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+              match (Eq::equals String key name) of-type Boolean as ignored returns (P::Option String)
                 case Boolean::true as Option::some String val
                 case Boolean::false as recur name t
               end
@@ -356,7 +356,7 @@ module examples::webapp contains
         match segs of-type (List String) as ignored returns (P::Option Natural)
           case List::empty as Option::none Natural
           case List::cons with first String rest (List String) as
-            match (S::eq first "todo") of-type Boolean as ignored returns (P::Option Natural)
+            match (Eq::equals String first "todo") of-type Boolean as ignored returns (P::Option Natural)
               case Boolean::false as Option::none Natural
               case Boolean::true as
                 match rest of-type (List String) as ignored returns (P::Option Natural)
@@ -381,7 +381,7 @@ module examples::webapp contains
 
   define transparent handle-get as
     function path String returns computation Response value
-      match (S::eq path "/") of-type Boolean as ignored returns (computation Response)
+      match (Eq::equals String path "/") of-type Boolean as ignored returns (computation Response)
         case Boolean::true as render-index
         case Boolean::false as compute return (Resp::not-found ["not found"]) end
       end
@@ -389,7 +389,7 @@ module examples::webapp contains
 
   define transparent handle-post as
     function path String params (List (Pair String String)) returns computation Response value
-      match (S::eq path "/todo") of-type Boolean as ignored returns (computation Response)
+      match (Eq::equals String path "/todo") of-type Boolean as ignored returns (computation Response)
         case Boolean::false as compute return (Resp::not-found ["not found"]) end
         case Boolean::true as
           match (find-param "text" params) of-type (P::Option String) as ignored returns (computation Response)
@@ -451,16 +451,16 @@ module examples::webapp contains
         let value path be P::fst String (List (Pair String String)) parsed in
           let value params be P::snd String (List (Pair String String)) parsed in
             let value method be effective-method (Req::method req) params in
-              match (S::eq method "GET") of-type Boolean as ignored returns (computation Response)
+              match (Eq::equals String method "GET") of-type Boolean as ignored returns (computation Response)
                 case Boolean::true as handle-get path
                 case Boolean::false as
-                  match (S::eq method "POST") of-type Boolean as ignored returns (computation Response)
+                  match (Eq::equals String method "POST") of-type Boolean as ignored returns (computation Response)
                     case Boolean::true as handle-post path params
                     case Boolean::false as
-                      match (S::eq method "PUT") of-type Boolean as ignored returns (computation Response)
+                      match (Eq::equals String method "PUT") of-type Boolean as ignored returns (computation Response)
                         case Boolean::true as handle-put path
                         case Boolean::false as
-                          match (S::eq method "DELETE") of-type Boolean as ignored returns (computation Response)
+                          match (Eq::equals String method "DELETE") of-type Boolean as ignored returns (computation Response)
                             case Boolean::true as handle-delete path
                             case Boolean::false as compute return (Resp::not-found ["not found"]) end
                           end
@@ -491,7 +491,7 @@ module examples::webapp contains
         case List::cons with h (Pair String String) t (List (Pair String String)) as
           match h of-type (Pair String String) as ignored returns (P::Option String)
             case Pair::pair with key String val String as
-              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+              match (Eq::equals String key name) of-type Boolean as ignored returns (P::Option String)
                 case Boolean::true as Option::some String val
                 case Boolean::false as recur name t
               end

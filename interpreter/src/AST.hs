@@ -1,6 +1,7 @@
 module AST where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 -- Literals in the language
 
@@ -9,7 +10,7 @@ data Literal
   | LString Text
   | LBoolean Bool
   | LUnit
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 data TypeConst
   = TCNatural
@@ -21,33 +22,33 @@ data TypeConst
   | TCDictionary
   | TCListener
   | TCSocket
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 data Param = Param
   { paramName :: Text
   , paramType :: Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data Constraint = Constraint
   { constraintClass :: Text
   , constraintType  :: Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data FunctionBody
   = FunctionValue Expr
   | FunctionCompute Comp
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 data DataCase = DataCase
   { dataCaseName :: Text
   , dataCaseType :: Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data MatchCase = MatchCase
   { matchCaseCtor :: Text
   , matchCaseBinders :: [Param]
   , matchCaseBody :: Expr
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 -- Expressions (value world)
 
@@ -59,7 +60,7 @@ data Expr
   | ETypeUniverse Int
   | EForAll Text Expr Expr
   | EThereExists Text Expr Expr
-  | ECompType Expr
+  | ECompType Expr Expr
   | EEqual Expr Expr Expr
   | EReflexive Expr Expr
   | ERewrite Expr Expr Expr
@@ -80,7 +81,7 @@ data Expr
   | EDictAccess Expr Text              -- Extract method from dictionary: dict, methodName
   | ETypeClass Text Expr [(Text, Expr)] -- Param name, kind, [(methodName, methodType)]
   | EInstance Text Expr [(Text, Expr)] -- Class name, instance type, [(methodName, impl)]
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 -- Computations (effectful world)
 
@@ -88,19 +89,19 @@ data Comp
   = CReturn Expr
   | CBind Text Comp Comp
   | CPerform Expr
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
-data Transparency = Transparent | Opaque deriving (Show, Eq)
+data Transparency = Transparent | Opaque deriving (Show, Read, Eq)
 
 data Import = Import
   { impModule :: Text
   , impAlias  :: Text
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 data Open = Open
   { openModule :: Text  -- Module alias to open from
   , openNames  :: [Text]  -- Specific names to bring into scope
-  } deriving (Show, Eq)
+  } deriving (Show, Read, Eq)
 
 -- Module definition
 
@@ -109,7 +110,7 @@ data Definition = Definition
   , defName         :: Text
   , defBody         :: Expr
   }
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 
 data Module = Module
@@ -118,4 +119,10 @@ data Module = Module
   , modOpens   :: [Open]  -- Open statements (explicit unqualified names)
   , modDefs    :: [Definition]
   }
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
+
+effectAnyName :: Text
+effectAnyName = T.pack "Effects::any"
+
+effectAnyExpr :: Expr
+effectAnyExpr = EVar effectAnyName

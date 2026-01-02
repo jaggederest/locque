@@ -33,6 +33,7 @@ data InstanceInfo = InstanceInfo
   { instDefName     :: Text
   , instClassName   :: Text
   , instType        :: Expr
+  , instTypeVars    :: [Text]
   , instMethods     :: Map.Map Text Expr
   , instMethodNames :: Map.Map Text Text
   , instTransparency :: Transparency
@@ -91,8 +92,11 @@ transformModuleWithEnvs projectRoot m@(Module name imports opens defs) = do
       localClassNames = Set.fromList (Map.keys localClassesMap)
       openAliases = buildOpenClassAliases localClassNames importEnvs opens
       classEnvForResolution = Map.union localClassesMap (envClasses importEnvs)
-      localFnsMap = collectLocalFns classEnvForResolution openAliases defs
       localInstancesMap = collectLocalInstances classEnvForResolution openAliases defs
+      localFnsMap =
+        Map.union
+          (collectLocalFns classEnvForResolution openAliases defs)
+          (collectInstanceFns classEnvForResolution openAliases localInstancesMap)
       localInfo = LocalInfo localClassesMap localFnsMap localInstancesMap
       importOpened = applyFnOpens importEnvs opens
       envForTransform = mergeEnvs (localInfoToEnvs localInfo) importOpened
@@ -141,8 +145,11 @@ loadDictImport projectRoot (Import modName alias) = do
       localClassNames = Set.fromList (Map.keys localClassesMap)
       openAliases = buildOpenClassAliases localClassNames importEnvs (modOpens parsed)
       classEnvForResolution = Map.union localClassesMap (envClasses importEnvs)
-      localFnsMap = collectLocalFns classEnvForResolution openAliases (modDefs parsed)
       localInstancesMap = collectLocalInstances classEnvForResolution openAliases (modDefs parsed)
+      localFnsMap =
+        Map.union
+          (collectLocalFns classEnvForResolution openAliases (modDefs parsed))
+          (collectInstanceFns classEnvForResolution openAliases localInstancesMap)
       localInfo = LocalInfo localClassesMap localFnsMap localInstancesMap
 
   pure (mergeEnvs (qualifyLocalInfo alias localInfo) importEnvs)
@@ -189,12 +196,33 @@ collectLocalInstances classEnv openAliases defs =
               { instDefName = name
               , instClassName = className'
               , instType = instTy
+              , instTypeVars = collectTypeVarOrder instTy
               , instMethods = methodMap
               , instMethodNames = methodNames
               , instTransparency = tr
               }
         in (Map.insert name instInfo acc, used')
       _ -> (acc, used)
+
+collectInstanceFns :: Map.Map Text ClassInfo -> Map.Map Text Text -> Map.Map Text InstanceInfo -> Map.Map Text FnSig
+collectInstanceFns classEnv openAliases instances =
+  Map.fromList (mapMaybe toSig methodEntries)
+  where
+    methodEntries =
+      [ (defName, methodExpr)
+      | inst <- Map.elems instances
+      , (methodName, methodExpr) <- Map.toList (instMethods inst)
+      , Just defName <- [Map.lookup methodName (instMethodNames inst)]
+      ]
+
+    toSig (name, body) =
+      case unwrapFunction body of
+        Just (params, constraints) ->
+          let resolved = map (resolveConstraint classEnv openAliases) constraints
+          in if null resolved
+              then Nothing
+              else Just (name, FnSig name params resolved)
+        Nothing -> Nothing
 
 buildOpenClassAliases :: Set.Set Text -> DictEnvs -> [Open] -> Map.Map Text Text
 buildOpenClassAliases localClassNames importEnvs opens =
@@ -343,7 +371,7 @@ transformExpr ctx expr = case expr of
     EForAll v (transformType dom) (transformType cod)
   EThereExists v dom cod ->
     EThereExists v (transformType dom) (transformType cod)
-  ECompType t -> ECompType (transformType t)
+  ECompType eff t -> ECompType (transformType eff) (transformType t)
   EEqual ty lhs rhs ->
     EEqual (transformType ty) (transformExpr ctx lhs) (transformExpr ctx rhs)
   EReflexive ty term ->
@@ -380,7 +408,14 @@ transformExpr ctx expr = case expr of
         params' = typeParams ++ methodParams ++ valueParams
         methodMap = Map.union methodMapLocal (ctxMethodMap ctx)
         bound' = ctxBound ctx `Set.union` Set.fromList (map paramName params')
-        ctx' = ctx { ctxMethodMap = methodMap, ctxBound = bound' }
+        recurSig = if null constraints'
+          then Nothing
+          else Just (FnSig "recur" params constraints')
+        ctx' = ctx
+          { ctxMethodMap = methodMap
+          , ctxBound = bound'
+          , ctxFns = maybe (ctxFns ctx) (\sig -> Map.insert "recur" sig (ctxFns ctx)) recurSig
+          }
         body' = transformFunctionBody ctx' body
     in EFunction params' [] ret body'
   ELet name val body ->
@@ -513,24 +548,46 @@ constraintArgs ctx sub (Constraint className ty) =
             in if length methodArgs == length methodNames
                 then map EVar methodArgs
                 else
-                  let inst = resolveInstance ctx className ty'
-                  in map (methodArg inst) (classMethods classInfo)
+                  let (inst, instSub) = resolveInstance ctx className ty'
+                  in map (methodArg inst instSub) (classMethods classInfo)
           _ ->
-            let inst = resolveInstance ctx className ty'
-            in map (methodArg inst) (classMethods classInfo)
+            let (inst, instSub) = resolveInstance ctx className ty'
+            in map (methodArg inst instSub) (classMethods classInfo)
   where
-    methodArg inst (methodName, _) =
+    methodArg inst instSub (methodName, _) =
       case Map.lookup methodName (instMethodNames inst) of
-        Just implName -> EVar implName
+        Just implName ->
+          let typeArgs = mapMaybe (`Map.lookup` instSub) (instTypeVars inst)
+              baseExpr = EVar implName
+              argsWithDicts = case lookupMethodSig inst implName methodName of
+                Nothing -> typeArgs
+                Just sig -> insertDictArgs ctx sig typeArgs
+          in if null argsWithDicts
+              then baseExpr
+              else EApp baseExpr argsWithDicts
         Nothing -> error $ "Instance missing method " ++ T.unpack methodName
+    lookupMethodSig inst implName methodName =
+      case Map.lookup implName (ctxFns ctx) of
+        Just sig -> Just sig
+        Nothing ->
+          case Map.lookup methodName (instMethods inst) of
+            Just expr ->
+              case unwrapFunction expr of
+                Just (params, constraints) ->
+                  let resolved = map (resolveConstraint (ctxClasses ctx) (ctxOpenClassAliases ctx)) constraints
+                  in if null resolved
+                      then Nothing
+                      else Just (FnSig implName params resolved)
+                Nothing -> Nothing
+            Nothing -> Nothing
 
-resolveInstance :: TransformCtx -> Text -> Expr -> InstanceInfo
+resolveInstance :: TransformCtx -> Text -> Expr -> (InstanceInfo, Map.Map Text Expr)
 resolveInstance ctx className ty =
   case Map.lookup className (ctxInstances ctx) of
     Nothing -> error $ "No instances found for class " ++ T.unpack className
     Just insts ->
-      case filter (\inst -> instType inst == ty) insts of
-        [inst] -> inst
+      case [ (inst, sub) | inst <- insts, Just sub <- [matchInstanceType (instType inst) ty] ] of
+        [(inst, sub)] -> (inst, sub)
         [] -> error $ "No matching instance for " ++ T.unpack className
           ++ " at type " ++ T.unpack (renderType ty)
         _ -> error $ "Ambiguous instances for " ++ T.unpack className
@@ -544,13 +601,222 @@ renderType expr = case expr of
     "for-all " <> v <> " as " <> renderType dom <> " to " <> renderType cod
   EThereExists v dom cod ->
     "there-exists " <> v <> " as " <> renderType dom <> " in " <> renderType cod
-  ECompType t -> "computation " <> renderType t
+  ECompType eff t ->
+    if isEffectAny eff
+      then "computation " <> renderType t
+      else "computation " <> renderType eff <> " " <> renderType t
   ELift ty fromLevel toLevel ->
     "lift " <> renderType ty <> " from Type" <> T.pack (show fromLevel)
       <> " to Type" <> T.pack (show toLevel)
   EApp f args ->
     renderType f <> " " <> T.intercalate " " (map renderType args)
   _ -> "<type>"
+
+stripType :: Expr -> Expr
+stripType expr = case expr of
+  EAnnot e _ -> stripType e
+  ETyped e _ -> stripType e
+  _ -> expr
+
+matchInstanceType :: Expr -> Expr -> Maybe (Map.Map Text Expr)
+matchInstanceType patternTy targetTy =
+  let typeVars = collectTypeVars patternTy
+  in matchTypes typeVars Map.empty (stripType patternTy) (stripType targetTy)
+
+matchTypes :: Set.Set Text -> Map.Map Text Expr -> Expr -> Expr -> Maybe (Map.Map Text Expr)
+matchTypes typeVars sub patternTy targetTy = case stripType patternTy of
+  EVar v ->
+    if Set.member v typeVars
+      then case Map.lookup v sub of
+        Nothing -> Just (Map.insert v (stripType targetTy) sub)
+        Just bound ->
+          if stripType bound == stripType targetTy
+            then Just sub
+            else Nothing
+      else case stripType targetTy of
+        EVar v' | v == v' -> Just sub
+        _ -> Nothing
+  ETypeConst _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
+  ETypeUniverse _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
+  ECompType eff t -> case stripType targetTy of
+    ECompType eff' t' ->
+      let sub' =
+            if isEffectAny eff || isEffectAny eff'
+              then Just sub
+              else matchTypes typeVars sub eff eff'
+      in case sub' of
+          Nothing -> Nothing
+          Just sub'' -> matchTypes typeVars sub'' t t'
+    _ -> Nothing
+  EForAll v dom cod -> case stripType targetTy of
+    EForAll v' dom' cod' ->
+      case matchTypes typeVars sub dom dom' of
+        Nothing -> Nothing
+        Just sub' ->
+          matchTypes typeVars sub' (renameBound v v' cod) cod'
+    _ -> Nothing
+  EThereExists v dom cod -> case stripType targetTy of
+    EThereExists v' dom' cod' ->
+      case matchTypes typeVars sub dom dom' of
+        Nothing -> Nothing
+        Just sub' ->
+          matchTypes typeVars sub' (renameBound v v' cod) cod'
+    _ -> Nothing
+  EApp f args -> case stripType targetTy of
+    EApp f' args' ->
+      if length args == length args'
+        then do
+          sub' <- matchTypes typeVars sub f f'
+          foldl (\acc (p, t) -> acc >>= \s -> matchTypes typeVars s p t) (Just sub') (zip args args')
+        else Nothing
+    _ -> Nothing
+  _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
+
+collectTypeVars :: Expr -> Set.Set Text
+collectTypeVars expr = go Set.empty expr
+  where
+    go acc e = case stripType e of
+      EVar v ->
+        if isTypeVarName v then Set.insert v acc else acc
+      ETypeConst _ -> acc
+      ETypeUniverse _ -> acc
+      ECompType eff t -> go (go acc eff) t
+      EForAll v dom cod ->
+        let acc' = go acc dom
+        in go (Set.delete v acc') cod
+      EThereExists v dom cod ->
+        let acc' = go acc dom
+        in go (Set.delete v acc') cod
+      EApp f args -> foldl go (go acc f) args
+      ELift ty _ _ -> go acc ty
+      EUp ty _ _ body -> go (go acc ty) body
+      EDown ty _ _ body -> go (go acc ty) body
+      EAnnot e' ty -> go (go acc e') ty
+      ETyped e' ty -> go (go acc e') ty
+      _ -> acc
+
+isTypeVarName :: Text -> Bool
+isTypeVarName name = T.length name == 1
+
+renameBound :: Text -> Text -> Expr -> Expr
+renameBound from to expr =
+  if from == to then expr else rename expr
+  where
+    rename e = case e of
+      EVar v | v == from -> EVar to
+      ELit _ -> e
+      EListLiteral elems -> EListLiteral (map rename elems)
+      ETypeConst _ -> e
+      ETypeUniverse _ -> e
+      EForAll v dom cod ->
+        let dom' = rename dom
+            cod' = if v == from then cod else rename cod
+        in EForAll v dom' cod'
+      EThereExists v dom cod ->
+        let dom' = rename dom
+            cod' = if v == from then cod else rename cod
+        in EThereExists v dom' cod'
+      ECompType eff t -> ECompType (rename eff) (rename t)
+      EEqual ty lhs rhs -> EEqual (rename ty) (rename lhs) (rename rhs)
+      EReflexive ty term -> EReflexive (rename ty) (rename term)
+      ERewrite family proof body -> ERewrite (rename family) (rename proof) (rename body)
+      EPack v dom cod witness body ->
+        let dom' = rename dom
+            cod' = if v == from then cod else rename cod
+        in EPack v dom' cod' (rename witness) (rename body)
+      EUnpack packed x y body ->
+        let packed' = rename packed
+            body' = if x == from || y == from then body else rename body
+        in EUnpack packed' x y body'
+      ELift ty fromLevel toLevel -> ELift (rename ty) fromLevel toLevel
+      EUp ty fromLevel toLevel body -> EUp (rename ty) fromLevel toLevel (rename body)
+      EDown ty fromLevel toLevel body -> EDown (rename ty) fromLevel toLevel (rename body)
+      EApp fn args -> EApp (rename fn) (map rename args)
+      EFunction params constraints ret body ->
+        let boundNames = map paramName params
+            params' = [Param name (rename ty) | Param name ty <- params]
+            constraints' = [Constraint cls (rename ty) | Constraint cls ty <- constraints]
+            ret' = rename ret
+            body' =
+              if from `elem` boundNames then body else renameBody body
+        in EFunction params' constraints' ret' body'
+      ELet name val body ->
+        let val' = rename val
+            body' = if name == from then body else rename body
+        in ELet name val' body'
+      ECompute comp -> ECompute (renameComp comp)
+      EMatch scrut scrutTy scrutName retTy cases ->
+        let scrut' = rename scrut
+            scrutTy' = rename scrutTy
+            retTy' = if scrutName == from then retTy else rename retTy
+            cases' = map renameCase cases
+        in EMatch scrut' scrutTy' scrutName retTy' cases'
+      EData params universe cases ->
+        let boundNames = map paramName params
+            params' = [Param name (rename ty) | Param name ty <- params]
+            universe' = rename universe
+            cases' = if from `elem` boundNames then cases else map renameDataCase cases
+        in EData params' universe' cases'
+      EAnnot e ty -> EAnnot (rename e) (rename ty)
+      ETyped e ty -> ETyped (rename e) (rename ty)
+      EDict className impls -> EDict className [ (n, rename e) | (n, e) <- impls ]
+      EDictAccess e method -> EDictAccess (rename e) method
+      ETypeClass param kind methods ->
+        let kind' = rename kind
+            methods' =
+              if param == from
+                then methods
+                else [ (n, rename ty) | (n, ty) <- methods ]
+        in ETypeClass param kind' methods'
+      EInstance cls instTy methods ->
+        EInstance cls (rename instTy) [ (n, rename e) | (n, e) <- methods ]
+    renameBody b = case b of
+      FunctionValue e -> FunctionValue (rename e)
+      FunctionCompute c -> FunctionCompute (renameComp c)
+    renameComp c = case c of
+      CReturn e -> CReturn (rename e)
+      CPerform e -> CPerform (rename e)
+      CBind name c1 c2 ->
+        let c1' = renameComp c1
+            c2' = if name == from then c2 else renameComp c2
+        in CBind name c1' c2'
+    renameCase (MatchCase ctor binders body) =
+      let boundNames = map paramName binders
+          binders' = [Param name (rename ty) | Param name ty <- binders]
+          body' = if from `elem` boundNames then body else rename body
+      in MatchCase ctor binders' body'
+    renameDataCase (DataCase name ty) = DataCase name (rename ty)
+
+collectTypeVarOrder :: Expr -> [Text]
+collectTypeVarOrder expr = fst (go [] Set.empty expr)
+  where
+    go acc seen e = case stripType e of
+      EVar v ->
+        if isTypeVarName v && Set.notMember v seen
+          then (acc ++ [v], Set.insert v seen)
+          else (acc, seen)
+      ETypeConst _ -> (acc, seen)
+      ETypeUniverse _ -> (acc, seen)
+      ECompType eff t ->
+        let (acc', seen') = go acc seen eff
+        in go acc' seen' t
+      EForAll v dom cod ->
+        let (acc', seen') = go acc seen dom
+            (acc'', seen'') = go acc' (Set.delete v seen') cod
+        in (acc'', seen'')
+      EThereExists v dom cod ->
+        let (acc', seen') = go acc seen dom
+            (acc'', seen'') = go acc' (Set.delete v seen') cod
+        in (acc'', seen'')
+      EApp f args ->
+        let (acc', seen') = go acc seen f
+        in foldl (\(a, s) arg -> go a s arg) (acc', seen') args
+      ELift ty _ _ -> go acc seen ty
+      EUp ty _ _ body -> let (acc', seen') = go acc seen ty in go acc' seen' body
+      EDown ty _ _ body -> let (acc', seen') = go acc seen ty in go acc' seen' body
+      EAnnot e' ty -> let (acc', seen') = go acc seen e' in go acc' seen' ty
+      ETyped e' ty -> let (acc', seen') = go acc seen e' in go acc' seen' ty
+      _ -> (acc, seen)
 
 typeConstName :: TypeConst -> Text
 typeConstName tc = case tc of
@@ -563,6 +829,11 @@ typeConstName tc = case tc of
   TCDictionary -> "Dictionary"
   TCListener -> "Listener"
   TCSocket -> "Socket"
+
+isEffectAny :: Expr -> Bool
+isEffectAny expr = case expr of
+  EVar name -> name == effectAnyName
+  _ -> False
 
 --------------------------------------------------------------------------------
 -- Method param construction
@@ -644,7 +915,7 @@ substType sub expr = case expr of
   EThereExists v dom cod ->
     let sub' = Map.delete v sub
     in EThereExists v (substType sub' dom) (substType sub' cod)
-  ECompType t -> ECompType (substType sub t)
+  ECompType eff t -> ECompType (substType sub eff) (substType sub t)
   ELift ty fromLevel toLevel -> ELift (substType sub ty) fromLevel toLevel
   EApp f args -> EApp (substType sub f) (map (substType sub) args)
   _ -> expr

@@ -1,0 +1,40 @@
+# Path refinements tests
+
+import assert as A
+import path as Path
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some end
+
+module test::path::refinements contains
+  define transparent segments-none as
+    match (Path::segments-nonempty "/") of-type (P::Option Path::NonEmptySegments) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored Path::NonEmptySegments as false
+    end
+
+  define transparent segments-some as
+    match (Path::segments-nonempty "a/b") of-type (P::Option Path::NonEmptySegments) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with ignored Path::NonEmptySegments as true
+    end
+
+  define transparent segments-length as
+    match (Path::segments-nonempty "a/b") of-type (P::Option Path::NonEmptySegments) as ignored returns Natural
+      case Option::none as 0
+      case Option::some with segs Path::NonEmptySegments as
+        P::length-list String (Path::segments-nonempty-value segs)
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean segments-none true)
+      , (assert-eq Boolean segments-some true)
+      , (assert-eq Natural segments-length 2)
+      ])
+  end
+end

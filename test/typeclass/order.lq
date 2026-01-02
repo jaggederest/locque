@@ -1,7 +1,7 @@
 # Tests for Order typeclasses
 # NOTE: Multi-arg typeclass methods are curried; application is left-associative.
-import prelude as P
 import assert as A
+import prelude as P
 import string as S
 import typeclass::order as Order
 import typeclass::equality as Eq

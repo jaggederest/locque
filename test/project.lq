@@ -1,87 +1,48 @@
 # Project checks for lib/test parity
 
+import arithmetic as Ar
 import assert as A
+import dictionary as Dict
 import file as File
 import list as L
 import prelude as P
 import string as S
+import typeclass::order as Order
+import typeclass::hash as Hash
 import typeclass::equality as Eq
 
-open S exposing Character end
-
 module test::project contains
+  define transparent upper-start as char-code-prim "A"
+  define transparent upper-end as char-code-prim "Z"
+
+  define transparent is-upper-code as
+    function code Natural returns Boolean value
+      match (Order::less-or-equal Natural upper-start code) of-type Boolean as ignored returns Boolean
+        case Boolean::false as false
+        case Boolean::true as Order::less-or-equal Natural code upper-end
+      end
+    end
+
+  define transparent has-uppercase-chars as
+    function chars (List String) returns Boolean value
+      match chars of-type (List String) as ignored returns Boolean
+        case List::empty as false
+        case List::cons with h String t (List String) as
+          match (is-upper-code (char-code-prim h)) of-type Boolean as ignored returns Boolean
+            case Boolean::true as true
+            case Boolean::false as recur t
+          end
+      end
+    end
+
   define transparent has-uppercase as
     function path String returns Boolean value
-      L::any Character
-        (function c Character returns Boolean value
-          S::class-contains S::upper-class c
-        end)
-        (S::to-list path)
-    end
-
-  define transparent entry-info as
-    function entry (Pair String Boolean) returns (Pair String (Pair Boolean Boolean)) value
-      let value path be File::walk-path entry in
-        let value is-dir be File::walk-is-directory entry in
-          let value is-lq be
-            match is-dir of-type Boolean as ignored returns Boolean
-              case Boolean::true as false
-              case Boolean::false as S::ends-with ".lq" path
-            end
-          in
-            let value has-upper be
-              match is-lq of-type Boolean as ignored returns Boolean
-                case Boolean::true as has-uppercase path
-                case Boolean::false as false
-              end
-            in
-              P::pair String (Pair Boolean Boolean) path (P::pair Boolean Boolean is-lq has-upper)
-            end
-          end
-        end
-      end
-    end
-
-  define transparent entry-infos as
-    function entries (List (Pair String Boolean)) returns (List (Pair String (Pair Boolean Boolean))) value
-      P::map (Pair String Boolean) (Pair String (Pair Boolean Boolean)) entry-info entries
-    end
-
-  define transparent info-path as
-    function info (Pair String (Pair Boolean Boolean)) returns String value
-      match info of-type (Pair String (Pair Boolean Boolean)) as ignored returns String
-        case Pair::pair with path String ignored (Pair Boolean Boolean) as path
-      end
-    end
-
-  define transparent info-is-lq as
-    function info (Pair String (Pair Boolean Boolean)) returns Boolean value
-      match info of-type (Pair String (Pair Boolean Boolean)) as ignored returns Boolean
-        case Pair::pair with ignored String flags (Pair Boolean Boolean) as
-          P::fst Boolean Boolean flags
-      end
-    end
-
-  define transparent info-has-uppercase as
-    function info (Pair String (Pair Boolean Boolean)) returns Boolean value
-      match info of-type (Pair String (Pair Boolean Boolean)) as ignored returns Boolean
-        case Pair::pair with ignored String flags (Pair Boolean Boolean) as
-          P::snd Boolean Boolean flags
-      end
-    end
-
-  define transparent lq-file-paths as
-    function infos (List (Pair String (Pair Boolean Boolean))) returns (List String) value
-      let value files be P::filter (Pair String (Pair Boolean Boolean)) info-is-lq infos in
-        P::map (Pair String (Pair Boolean Boolean)) String info-path files
-      end
+      has-uppercase-chars (string-to-list-prim path)
     end
 
   define transparent uppercase-paths as
-    function infos (List (Pair String (Pair Boolean Boolean))) returns (List String) value
-      let value files be P::filter (Pair String (Pair Boolean Boolean)) info-has-uppercase infos in
-        P::map (Pair String (Pair Boolean Boolean)) String info-path files
-      end
+    function paths (List String) returns (List String) value
+      P::filter String has-uppercase paths
     end
 
   define transparent uppercase-message as
@@ -90,18 +51,22 @@ module test::project contains
         (S::join-with ", " paths)
     end
 
-  define transparent drop-first-segment as
-    function path String returns String value
-      let value segments be S::split-on "/" path in
-        let value rest be P::tail String segments in
-          S::join-with "/" rest
-        end
+  define transparent strip-prefix as
+    function prefix String path String returns String value
+      match (S::starts-with prefix path) of-type Boolean as ignored returns String
+        case Boolean::true as
+          let value prefix-len be S::length prefix in
+            let value path-len be S::length path in
+              S::substring prefix-len (Ar::subtract path-len prefix-len) path
+            end
+          end
+        case Boolean::false as path
       end
     end
 
   define transparent lib-to-test as
     function lib-path String returns String value
-      S::concat "test/" (drop-first-segment lib-path)
+      S::concat "test/" (strip-prefix "lib/" lib-path)
     end
 
   define transparent missing-message as
@@ -110,40 +75,43 @@ module test::project contains
         (S::join-with ", " missing)
     end
 
+  define transparent path-entry as
+    function path String returns (Pair String Unit) value
+      P::pair String Unit path Unit::tt
+    end
+
+  define transparent paths-to-dict as
+    function paths (List String) returns (Dictionary String Unit) value
+      Dict::from-list String Unit
+        (P::map String (Pair String Unit) path-entry paths)
+    end
+
   define transparent is-missing as
-    function existing (List String) path String returns Boolean value
-      P::not (L::member String path existing)
+    function dict (Dictionary String Unit) path String returns Boolean value
+      P::not (Dict::member String Unit path dict)
     end
 
   define transparent missing-tests as
-    function expected (List String) existing (List String) returns (List String) value
+    function expected (List String) existing (Dictionary String Unit) returns (List String) value
       P::filter String (is-missing existing) expected
     end
 
   define transparent assert-lib-tests as
-    function lib-entries (List (Pair String Boolean))
-             test-entries (List (Pair String Boolean))
+    function lib-files (List String)
+             test-files (List String)
     returns computation Unit value
-      let value lib-infos be entry-infos lib-entries in
-        let value test-infos be entry-infos test-entries in
-          let value lib-files be lq-file-paths lib-infos in
-            let value test-files be lq-file-paths test-infos in
-              let value all-infos be P::append (Pair String (Pair Boolean Boolean)) lib-infos test-infos in
-                let value upper-all be uppercase-paths all-infos in
-                  let value expected be P::map String String lib-to-test lib-files in
-                    let value missing be missing-tests expected test-files in
-                      compute
-                        perform (P::sequence-unit
-                          [
-                            (A::assert-false (uppercase-message upper-all)
-                                                                                                                                                                                (P::not (L::is-empty String upper-all)))
-                          , (A::assert-false (missing-message missing)
-                                                                                                                                                                                  (P::not (L::is-empty String missing)))
-                          ])
-                      end
-                    end
-                  end
-                end
+      let value upper-all be P::append String (uppercase-paths lib-files) (uppercase-paths test-files) in
+        let value expected be P::map String String lib-to-test lib-files in
+          let value test-dict be paths-to-dict test-files in
+            let value missing be missing-tests expected test-dict in
+              compute
+                perform (P::sequence-unit
+                  [
+                    (A::assert-false (uppercase-message upper-all)
+                      (P::not (L::is-empty String upper-all)))
+                  , (A::assert-false (missing-message missing)
+                      (P::not (L::is-empty String missing)))
+                  ])
               end
             end
           end
@@ -152,9 +120,9 @@ module test::project contains
     end
 
   define transparent check-lib-tests as compute
-    bind lib-entries from perform (File::walk "lib") then
-      bind test-entries from perform (File::walk "test") then
-        perform (assert-lib-tests lib-entries test-entries)
+    bind lib-files from perform (File::walk-lq "lib" (of-type [] (List String))) then
+      bind test-files from perform (File::walk-lq "test" ["test/tmp"]) then
+        perform (assert-lib-tests lib-files test-files)
       end
     end
   end

@@ -15,6 +15,15 @@ module test::typeclass::monoid contains
         (assert-eq String (Monoid::empty-value String) "")
       , (assert-eq String (Monoid::combine String "a" (Monoid::empty-value String)) "a")
       , (assert-eq String (Monoid::combine String (Monoid::empty-value String) "b") "b")
+      , (assert-eq (List Natural)
+          (Monoid::empty-value (List Natural))
+          (of-type [] (List Natural)))
+      , (assert-eq (List Natural)
+          (Monoid::combine (List Natural) [1] (Monoid::empty-value (List Natural)))
+          [1])
+      , (assert-eq (List Natural)
+          (Monoid::combine (List Natural) (Monoid::empty-value (List Natural)) [2, 3])
+          [2, 3])
       ])
   end
 end

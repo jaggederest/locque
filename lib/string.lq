@@ -41,7 +41,7 @@ module string contains
 
   define transparent character as
     function s String returns Character value
-      unpack (P::decide-eq-nat (length s) 1) as ok proof in
+      unpack (Lg::decide-eq-nat (length s) 1) as ok proof in
         match ok of-type Boolean as ok returns Character
           case Boolean::false as P::error Character "Character expects length 1"
           case Boolean::true as
@@ -52,7 +52,7 @@ module string contains
 
   define transparent nonempty as
     function s String returns (P::Option NonEmptyString) value
-      unpack (P::decide-eq-nat (length s) 0) as is-zero proof in
+      unpack (Lg::decide-eq-nat (length s) 0) as is-zero proof in
         match is-zero of-type Boolean as is-zero returns (P::Option NonEmptyString)
           case Boolean::true as Option::none NonEmptyString
           case Boolean::false as
@@ -619,6 +619,13 @@ module string contains
   define transparent lower-class as
     CharacterClass::range lower-start-code lower-end-code
 
+  define transparent ascii-start-code as 0
+
+  define transparent ascii-end-code as 127
+
+  define transparent ascii-class as
+    CharacterClass::range ascii-start-code ascii-end-code
+
   define transparent char-is-digit as
     function c Character returns Boolean value
       class-contains digit-class c
@@ -632,6 +639,11 @@ module string contains
   define transparent char-is-lower as
     function c Character returns Boolean value
       class-contains lower-class c
+    end
+
+  define transparent char-is-ascii as
+    function c Character returns Boolean value
+      class-contains ascii-class c
     end
 
   define transparent char-is-letter as
@@ -675,6 +687,66 @@ module string contains
               end
           end
       end
+    end
+
+  define transparent ascii-predicate as
+    function c Character returns Type0 value
+      equal Boolean (char-is-ascii c) true
+    end
+
+  define transparent AsciiChar as
+    Lg::Refine Character ascii-predicate
+
+  define transparent ascii as
+    function c Character returns (P::Option AsciiChar) value
+      unpack (Lg::decide-eq-bool (char-is-ascii c) true) as ok proof in
+        match ok of-type Boolean as ok returns (P::Option AsciiChar)
+          case Boolean::false as Option::none AsciiChar
+          case Boolean::true as
+            Option::some AsciiChar
+              (pack v as Character in ascii-predicate v with c proof end)
+        end
+      end
+    end
+
+  define transparent ascii-value as
+    function c AsciiChar returns Character value
+      Lg::refine-value Character ascii-predicate c
+    end
+
+  define transparent ascii-string as
+    function c AsciiChar returns String value
+      character-string (ascii-value c)
+    end
+
+  define transparent lower-predicate as
+    function c Character returns Type0 value
+      equal Boolean (char-is-lower c) true
+    end
+
+  define transparent LowerChar as
+    Lg::Refine Character lower-predicate
+
+  define transparent lower as
+    function c Character returns (P::Option LowerChar) value
+      unpack (Lg::decide-eq-bool (char-is-lower c) true) as ok proof in
+        match ok of-type Boolean as ok returns (P::Option LowerChar)
+          case Boolean::false as Option::none LowerChar
+          case Boolean::true as
+            Option::some LowerChar
+              (pack v as Character in lower-predicate v with c proof end)
+        end
+      end
+    end
+
+  define transparent lower-value as
+    function c LowerChar returns Character value
+      Lg::refine-value Character lower-predicate c
+    end
+
+  define transparent lower-string as
+    function c LowerChar returns String value
+      character-string (lower-value c)
     end
 
   define transparent char-lt as

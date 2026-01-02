@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/natural/
 
 import test::natural::basics as basics
+import test::natural::refinements as refinements
 
 module test::natural contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , refinements::main
       ])
   end
 end

@@ -60,6 +60,10 @@ module SmythConfig contains
                       "Type mismatch")
                     (P::cons (Pair String String)
                       (P::pair String String
+                        "test/typecheck/effect_mismatch.lq"
+                        "Type mismatch")
+                      (P::cons (Pair String String)
+                      (P::pair String String
                         "test/typecheck/perform_bind_result_mismatch.lq"
                         "Type mismatch")
                       (P::cons (Pair String String)
@@ -115,12 +119,12 @@ module SmythConfig contains
                                             "test/typecheck/typeclass_no_instance.lq"
                                             "No matching instance for Show")
                                           (P::cons (Pair String String)
-                                            (P::pair String String
-                                              "test/errors/fuzzy_match_type.lq"
-                                              "Variable not in scope: Ar::addt")
+                                          (P::pair String String
+                                            "test/errors/fuzzy_match_type.lq"
+                                              "Did you mean: Ar::add")
                                             (P::cons (Pair String String)
                                               (P::pair String String
                                                 "test/errors/fuzzy_match_unqualified.lq"
-                                                "Variable not in scope: my-functoin")
-                                              (P::nil (Pair String String))))))))))))))))))))))))))
+                                                "Did you mean: my-function?")
+                                              (P::nil (Pair String String)))))))))))))))))))))))))))
 end

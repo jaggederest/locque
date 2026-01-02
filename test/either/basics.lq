@@ -3,6 +3,7 @@
 import assert as A
 import arithmetic as Ar
 import either as E
+import logic as L
 import prelude as P
 import typeclass::equality as Eq
 
@@ -18,6 +19,22 @@ module test::either::basics contains
 
   define transparent left1 as Either::left Natural Natural 1
   define transparent right5 as Either::right Natural Natural 5
+
+  define transparent not-eq-1-2 as
+    unpack (L::decide-eq-nat 1 2) as flag proof in
+      match flag of-type Boolean as flag returns (L::Not (equal Natural 1 2))
+        case Boolean::false as proof
+        case Boolean::true as P::error (L::Not (equal Natural 1 2)) "expected false"
+      end
+    end
+
+  define transparent decidable-left as
+    E::to-decidable (equal Natural 1 2)
+      (Either::left (L::Not (equal Natural 1 2)) (equal Natural 1 2) not-eq-1-2)
+
+  define transparent decidable-right as
+    E::to-decidable (equal Natural 1 1)
+      (Either::right (L::Not (equal Natural 1 1)) (equal Natural 1 1) (reflexive Natural 1))
 
   define transparent map-left-left as
     E::map-left Natural Natural Natural inc left1
@@ -81,13 +98,19 @@ module test::either::basics contains
                                                               (function y Natural returns Natural value y end)
                                                               bind-right-left) 1)
       , (assert-eq Natural (E::fold Natural Natural Natural
-                                                                (function x Natural returns Natural value x end)
-                                                                (function y Natural returns Natural value y end)
-                                                                swap-left) 1)
+                                                                  (function x Natural returns Natural value x end)
+                                                                  (function y Natural returns Natural value y end)
+                                                                  swap-left) 1)
       , (assert-eq Natural (E::fold Natural Natural Natural
                                                                   (function x Natural returns Natural value x end)
                                                                   (function y Natural returns Natural value y end)
                                                                   swap-right) 5)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 2) decidable-left)
+          false)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 1) decidable-right)
+          true)
       ])
   end
 end

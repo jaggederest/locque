@@ -13,7 +13,7 @@ import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import           GHC.Conc (getNumCapabilities, setNumCapabilities)
 import           Control.Concurrent.STM (atomically)
 import           Data.IORef
-import           Data.List (isPrefixOf)
+import           Data.List (isPrefixOf, isSuffixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -21,7 +21,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           Data.Char (ord, chr)
 import qualified Data.ByteString as BS
-import           System.FilePath ((</>), (<.>), takeExtension)
+import           System.FilePath ((</>), (<.>), takeExtension, pathSeparator)
 import           System.Directory
   ( copyFile
   , createDirectoryIfMissing
@@ -44,6 +44,7 @@ import           System.Exit (die, ExitCode(..))
 import           System.Posix.Process (exitImmediately)
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.IO (hPutStrLn, hFlush, stderr)
+import           GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import           System.Process (readCreateProcessWithExitCode, shell)
 import qualified System.Posix.Signals as Signals
 import           System.Timeout (timeout)
@@ -85,7 +86,7 @@ data Value
   | VTypeUniverse Int
   | VTypeForAll Text Expr Expr
   | VTypeThereExists Text Expr Expr
-  | VTypeComp Expr
+  | VTypeComp Expr Expr
   | VTypeLift Expr Int Int
   | VTypeEqual Value Value Value
   | VTypeApp Value [Value]
@@ -112,7 +113,7 @@ instance Show Value where
   show (VTypeUniverse n) = "Type" ++ show n
   show (VTypeForAll _ _ _) = "<for-all>"
   show (VTypeThereExists _ _ _) = "<there-exists>"
-  show (VTypeComp _) = "<computation-type>"
+  show (VTypeComp _ _) = "<computation-type>"
   show (VTypeLift _ _ _) = "<lift-type>"
   show (VTypeEqual _ _ _) = "<equal-type>"
   show (VTypeApp _ _) = "<type-app>"
@@ -179,6 +180,7 @@ primEnv = Map.fromList
   , (T.pack "copy-tree-prim", BVal (VPrim primCopyTree))
   , (T.pack "rename-path-prim", BVal (VPrim primRenamePath))
   , (T.pack "walk-prim", BVal (VPrim primWalk))
+  , (T.pack "walk-filter-prim", BVal (VPrim primWalkFilter))
   , (T.pack "stat-prim", BVal (VPrim primStat))
   , (T.pack "validate-prim", BVal (VPrim primValidate))
   , (T.pack "List::empty", BVal (VPrim primNil))
@@ -849,6 +851,50 @@ primWalk [VString path] =
     pure (VList (map toValue entries))
 primWalk _ = error "walk-prim expects 1 string arg"
 
+walkFromFiltered :: FilePath -> [FilePath] -> String -> IO [FilePath]
+walkFromFiltered dir skips suffix = do
+  entries <- listDirectory dir
+  let fullPaths = map (dir </>) entries
+  parts <- mapM (walkPathFiltered skips suffix) fullPaths
+  pure (concat parts)
+
+walkPathFiltered :: [FilePath] -> String -> FilePath -> IO [FilePath]
+walkPathFiltered skips suffix path = do
+  let skip = shouldSkip skips path
+  isDir <- doesDirectoryExist path
+  if isDir
+    then if skip then pure [] else walkFromFiltered path skips suffix
+    else do
+      isFile <- doesFileExist path
+      if isFile && suffix `isSuffixOf` path
+        then pure [path]
+        else pure []
+
+shouldSkip :: [FilePath] -> FilePath -> Bool
+shouldSkip skips path = any (\pfx -> isSkipPrefix pfx path) skips
+  where
+    isSkipPrefix pfx target =
+      target == pfx || (pfx ++ [pathSeparator]) `isPrefixOf` target
+
+primWalkFilter :: [Value] -> IO Value
+primWalkFilter [VString root, VString suffix, VList skips] =
+  pure $ VComp $ do
+    skipVals <- mapM expectString skips
+    let rootPath = T.unpack root
+        suffixStr = T.unpack suffix
+        skipPaths = map T.unpack skipVals
+    isDir <- doesDirectoryExist rootPath
+    isFile <- doesFileExist rootPath
+    entries <- if isDir
+      then if shouldSkip skipPaths rootPath
+        then pure []
+        else walkFromFiltered rootPath skipPaths suffixStr
+      else if isFile
+        then pure (if suffixStr `isSuffixOf` rootPath then [rootPath] else [])
+        else error "walk-filter-prim expects an existing path"
+    pure (VList (map (VString . T.pack) entries))
+primWalkFilter _ = error "walk-filter-prim expects (path, suffix, skip-prefixes)"
+
 primStat :: [Value] -> IO Value
 primStat [VString path] =
   pure $ VComp $ do
@@ -944,7 +990,7 @@ isTypeValue v = case v of
   VTypeUniverse _ -> True
   VTypeForAll _ _ _ -> True
   VTypeThereExists _ _ _ -> True
-  VTypeComp _ -> True
+  VTypeComp _ _ -> True
   VTypeLift _ _ _ -> True
   VTypeEqual _ _ _ -> True
   VTypeApp _ _ -> True
@@ -1037,7 +1083,7 @@ evalExpr env expr = case expr of
   ETypeUniverse n -> pure (VTypeUniverse n)
   EForAll v dom cod -> pure (VTypeForAll v dom cod)
   EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
-  ECompType t -> pure (VTypeComp t)
+  ECompType eff t -> pure (VTypeComp eff t)
   EEqual ty lhs rhs ->
     VTypeEqual <$> evalExpr env ty <*> evalExpr env lhs <*> evalExpr env rhs
   EReflexive _ _ -> pure VUnit
@@ -1130,7 +1176,17 @@ evalFunctionBody env body = case body of
   FunctionValue expr -> evalExpr env expr
   FunctionCompute comp -> pure (VComp (runComp env comp))
 
-evalMatch :: Env -> Expr -> Text -> [MatchCase] -> IO Value
+runtimeError :: HasCallStack => String -> a
+runtimeError msg =
+  error (msg ++ "\nCall stack:\n" ++ prettyCallStack callStack)
+
+describeValue :: Value -> String
+describeValue val = case val of
+  VClosure _ params _ -> "<closure params=" ++ show params ++ ">"
+  VPrim _ -> "<prim>"
+  _ -> show val
+
+evalMatch :: HasCallStack => Env -> Expr -> Text -> [MatchCase] -> IO Value
 evalMatch env scrut scrutName cases = do
   scrutVal <- evalExpr env scrut
   let envScrut = Map.insert scrutName (BVal scrutVal) env
@@ -1146,19 +1202,24 @@ evalMatch env scrut scrutName cases = do
       let total = dataParamCount + termParamCount
       in if length args == total
         then matchCtor ctorName (drop dataParamCount args) envScrut
-        else error ("match: scrutinee not fully applied: " ++ T.unpack ctorName)
-    _ -> error "match: unsupported scrutinee value"
+        else runtimeError ("match: scrutinee not fully applied: " ++ T.unpack ctorName)
+    _ ->
+      runtimeError
+        ("match: unsupported scrutinee value: " ++ describeValue scrutVal
+          ++ "\n  scrutinee expr: " ++ show scrut
+          ++ "\n  scrutinee binding: " ++ T.unpack scrutName
+          ++ "\n  cases: " ++ show (map matchCaseCtor cases))
   where
     matchCtor ctorName args envScrut = do
       case [ (binders, body) | MatchCase caseCtor binders body <- cases, caseCtor == ctorName ] of
         ((binders, body):_) -> do
           when (length binders /= length args) $
-            error ("match: case " ++ T.unpack ctorName ++ " expects " ++ show (length binders) ++ " binders")
+            runtimeError ("match: case " ++ T.unpack ctorName ++ " expects " ++ show (length binders) ++ " binders")
           let env' = foldl (\e (name, val) -> Map.insert name (BVal val) e)
                           envScrut
                           (zip (map paramName binders) args)
           evalExpr env' body
-        [] -> error ("match: missing case " ++ T.unpack ctorName)
+        [] -> runtimeError ("match: missing case " ++ T.unpack ctorName)
 
 runComp :: Env -> Comp -> IO Value
 runComp env comp = case comp of
@@ -1205,19 +1266,15 @@ loadImport projectRoot visiting (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  -- Type check the imported module (native typeclass support on original module)
-  tcResult <- TC.typeCheckModuleWithImports projectRoot contents parsed
-  annotated <- case tcResult of
+  -- Type check + normalize the imported module (native typeclass support on original module)
+  tcResult <- TC.typeCheckAndNormalizeWithImports projectRoot contents parsed
+  (annotated, normalized) <- case tcResult of
     Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
-    Right env -> do
+    Right (env, normalized) -> do
       transformed <- transformModuleWithEnvs projectRoot parsed
       case TC.annotateModule env transformed of
         Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
-        Right m -> pure m
-  normalizedResult <- TC.normalizeModuleWithImports projectRoot contents parsed
-  normalized <- case normalizedResult of
-    Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
-    Right m -> pure m
+        Right m -> pure (m, normalized)
 
   let Module _modName _ opens defs = annotated
       visiting' = Set.insert modName visiting

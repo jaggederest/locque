@@ -1,5 +1,31 @@
+import logic as Lg
 import prelude as P
 
+open P exposing Option::none Option::some end
+
 module pair::eq contains
-  define transparent decide-eq as P::decide-eq-pair
+  define transparent decide-eq as Lg::decide-eq-pair
+  define transparent decide-eq-flag as
+    function A Type0 B Type0
+             eqA (Lg::Decider A)
+             eqB (Lg::Decider B)
+             left (Pair A B)
+             right (Pair A B)
+    returns Boolean value
+      Lg::decidable-flag (equal (Pair A B) left right) (decide-eq A B eqA eqB left right)
+    end
+  define transparent decide-eq-proof as
+    function A Type0 B Type0
+             eqA (Lg::Decider A)
+             eqB (Lg::Decider B)
+             left (Pair A B)
+             right (Pair A B)
+    returns (P::Option (equal (Pair A B) left right)) value
+      unpack (decide-eq A B eqA eqB left right) as flag proof in
+        match flag of-type Boolean as flag returns (P::Option (equal (Pair A B) left right))
+          case Boolean::false as Option::none (equal (Pair A B) left right)
+          case Boolean::true as Option::some (equal (Pair A B) left right) proof
+        end
+      end
+    end
 end

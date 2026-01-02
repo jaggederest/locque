@@ -10,25 +10,22 @@ open A exposing assert-eq end
 open Eq exposing Equality end
 
 module test::shell::dump contains
-  define transparent test-dump-types as compute
+  define transparent test-dump-bundle as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump types lib/prelude.lq")
+      (S::shell "cd /Users/justin/Code/locque && smyth dump --multi lib/prelude.lq types core -- lib/assert.lq types-elaborated:assert-eq")
     then
-      perform
-        (assert-eq Boolean
-          (Str::has-substring "(of-type not (for-all (x Boolean) Boolean))" output)
-          true)
-    end
-  end
-
-  define transparent test-dump-core as compute
-    bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump core lib/prelude.lq")
-    then
-      perform
-        (assert-eq Boolean
-          (Str::has-substring "(define transparent not" output)
-          true)
+      perform (P::sequence-unit
+        [
+          (assert-eq Boolean
+            (Str::has-substring "(of-type not (for-all (x Boolean) Boolean))" output)
+            true)
+        , (assert-eq Boolean
+            (Str::has-substring "(define transparent not" output)
+            true)
+        , (assert-eq Boolean
+            (Str::has-substring "__req__Eq_Equality__eq" output)
+            true)
+        ])
     end
   end
 
@@ -39,11 +36,11 @@ module test::shell::dump contains
       perform (P::sequence-unit
         [
           (assert-eq Boolean
-                                                              (Str::has-substring "(for-all (x A) B)" output)
-                                                              true)
+            (Str::has-substring "(for-all (x A) B)" output)
+            true)
         , (assert-eq Boolean
-                                                                (Str::has-substring "Types::Function" output)
-                                                                false)
+            (Str::has-substring "Types::Function" output)
+            false)
         ])
     end
   end
@@ -55,34 +52,21 @@ module test::shell::dump contains
       perform (P::sequence-unit
         [
           (assert-eq Boolean
-                                                              (Str::has-substring "(Types::Function B C)" output)
-                                                              false)
+            (Str::has-substring "(for-all (x B) C)" output)
+            true)
         , (assert-eq Boolean
-                                                                (Str::has-substring "(for-all (x B) C)" output)
-                                                                true)
+            (Str::has-substring "Types::Function" output)
+            false)
         ])
-    end
-  end
-
-  define transparent test-dump-types-elaborated as compute
-    bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump types-elaborated lib/assert.lq assert-eq")
-    then
-      perform
-        (assert-eq Boolean
-          (Str::has-substring "__req__Eq_Equality__eq" output)
-          true)
     end
   end
 
   define transparent main as compute
     perform (P::sequence-unit
       [
-        test-dump-types
-      , test-dump-core
+        test-dump-bundle
       , test-dump-types-normalized
       , test-dump-types-normalized-either
-      , test-dump-types-elaborated
       ])
   end
 end

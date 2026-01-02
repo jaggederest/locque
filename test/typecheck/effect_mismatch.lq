@@ -1,0 +1,19 @@
+import effects as Effects
+
+open Effects exposing Effects::io Effects::pure end
+
+module test::typecheck::effect_mismatch contains
+  define transparent pure-action as
+    of-type
+      (compute return Unit::tt end)
+      (computation Effects::pure Unit)
+
+  define transparent accept-io as
+    function c (computation Effects::io Unit) returns computation Effects::io Unit value
+      c
+    end
+
+  define transparent main as compute
+    perform (accept-io pure-action)
+  end
+end

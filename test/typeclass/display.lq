@@ -1,6 +1,6 @@
 # Tests for Display typeclass
-import prelude as P
 import assert as A
+import prelude as P
 import typeclass::display as Display
 import typeclass::equality as Eq
 import string as S
@@ -28,6 +28,17 @@ module test::typeclass::display contains
   define transparent test-bool-true as display-value Boolean true
   define transparent test-bool-false as display-value Boolean false
 
+  # Test List display
+  define transparent test-list-empty as
+    display-value (List Natural) (of-type [] (List Natural))
+  define transparent test-list-nats as display-value (List Natural) [1, 2]
+
+  # Test Pair display
+  define transparent test-pair-basic as
+    display-value (Pair Natural Natural) (P::pair Natural Natural 1 2)
+  define transparent test-pair-words as
+    display-value (Pair String String) (P::pair String String "hi" "bye")
+
   # Test with variables (ETyped)
   define transparent test-nat-display-var as
     function n Natural returns String value
@@ -54,6 +65,10 @@ module test::typeclass::display contains
       , (A::assert-eq String test-str-hello "\"hello\"")
       , (A::assert-eq String test-bool-true "true")
       , (A::assert-eq String test-bool-false "false")
+      , (A::assert-eq String test-list-empty "[]")
+      , (A::assert-eq String test-list-nats "[1, 2]")
+      , (A::assert-eq String test-pair-basic "(1, 2)")
+      , (A::assert-eq String test-pair-words "(\"hi\", \"bye\")")
       , (A::assert-eq String (test-nat-display-var 99) "99")
       , (A::assert-eq String (test-str-display-var "world") "\"world\"")
       , (A::assert-eq String (test-bool-display-var true) "true")

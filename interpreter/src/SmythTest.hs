@@ -10,14 +10,18 @@ import qualified Data.Map.Strict as Map
 import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((</>), isAbsolute)
 import System.Directory (setCurrentDirectory)
-import Control.Exception (catch, SomeException)
+import Control.Exception (catch, SomeException, evaluate)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Char (toLower)
+import Data.IORef (IORef, newIORef, modifyIORef', readIORef)
+import System.Environment (lookupEnv)
 
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
 import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
 import SmythConfig (SmythConfig(..))
+import qualified RunCache as RC
 
 data TestError = TestError
   { errorFile :: FilePath
@@ -52,17 +56,20 @@ runTests :: SmythConfig -> [String] -> IO ()
 runTests config args = do
   -- Change to project root so all paths are relative to it
   setCurrentDirectory (projectRoot config)
+  timingEnv <- lookupEnv "LOCQUE_TIMING"
   let verbose = "--verbose" `elem` args
+      slow = "--slow" `elem` args
+      stageTiming = slow || isTimingEnabled timingEnv
       files = filter (\arg -> arg /= "--slow" && arg /= "--verbose") args
   case files of
-    [] -> runAllTests config verbose
-    _  -> runSelectedTests config verbose files
+    [] -> runAllTests config verbose stageTiming
+    _  -> runSelectedTests config verbose stageTiming files
 
-runAllTests :: SmythConfig -> Bool -> IO ()
-runAllTests config verbose = do
+runAllTests :: SmythConfig -> Bool -> Bool -> IO ()
+runAllTests config verbose stageTiming = do
   start <- getPOSIXTime
   let testFile = projectRoot config </> testRoot config </> "main.lq"
-  (assertions, baseErrors) <- runPositiveTestsWithCounts config [testFile]
+  (assertions, baseErrors) <- runPositiveTestsWithCounts config stageTiming [testFile]
   (expectedCount, expectedErrors) <- runExpectedFailures config
   let errors = baseErrors ++ expectedErrors
   end <- getPOSIXTime
@@ -87,9 +94,9 @@ runAllTests config verbose = do
           mapM_ printError errors
           exitFailure
 
-runPositiveTests :: SmythConfig -> Bool -> [FilePath] -> IO ()
-runPositiveTests config verbose files = do
-  (assertions, errors) <- runPositiveTestsWithCounts config files
+runPositiveTests :: SmythConfig -> Bool -> Bool -> [FilePath] -> IO ()
+runPositiveTests config verbose stageTiming files = do
+  (assertions, errors) <- runPositiveTestsWithCounts config stageTiming files
   if null errors
     then do
       if verbose
@@ -107,8 +114,8 @@ runPositiveTests config verbose files = do
           mapM_ printError errors
           exitFailure
 
-runSelectedTests :: SmythConfig -> Bool -> [FilePath] -> IO ()
-runSelectedTests config verbose files = do
+runSelectedTests :: SmythConfig -> Bool -> Bool -> [FilePath] -> IO ()
+runSelectedTests config verbose stageTiming files = do
   let root = projectRoot config
       errorMap =
         Map.fromList
@@ -124,7 +131,7 @@ runSelectedTests config verbose files = do
                   Nothing -> (expectedAcc, file : positiveAcc))
           ([], [])
           files
-  (assertions, posErrors) <- runPositiveTestsWithCounts config positiveFiles
+  (assertions, posErrors) <- runPositiveTestsWithCounts config stageTiming positiveFiles
   expectedResults <- mapM (runExpectedFailure root) expectedEntries
   let expectedErrors = catMaybes expectedResults
       expectedCount = length expectedEntries - length expectedErrors
@@ -148,16 +155,24 @@ runSelectedTests config verbose files = do
           mapM_ printError errors
           exitFailure
 
-runPositiveTestsWithCounts :: SmythConfig -> [FilePath] -> IO (Int, [TestError])
-runPositiveTestsWithCounts config files = do
-  results <- mapM (runPositiveTest (projectRoot config)) files
+runPositiveTestsWithCounts :: SmythConfig -> Bool -> [FilePath] -> IO (Int, [TestError])
+runPositiveTestsWithCounts config stageTiming files = do
+  results <- mapM (runPositiveTest (projectRoot config) stageTiming) files
   let assertions = sum [n | Right n <- results]
       errors = [e | Left e <- results]
   pure (assertions, errors)
 
-runPositiveTest :: FilePath -> FilePath -> IO (Either TestError Int)
-runPositiveTest projectRoot file = do
-  outcome <- runTestOutcome projectRoot file
+runPositiveTest :: FilePath -> Bool -> FilePath -> IO (Either TestError Int)
+runPositiveTest projectRoot stageTiming file = do
+  (outcome, timings) <-
+    if stageTiming
+      then runTestOutcomeTimed projectRoot file
+      else do
+        result <- runTestOutcome projectRoot file
+        pure (result, [])
+  if stageTiming
+    then printStageTimings file timings
+    else pure ()
   case outcome of
     Right count -> pure (Right count)
     Left failure ->
@@ -196,25 +211,111 @@ runTestOutcome projectRoot file = do
     Left parseErr -> pure $ Left (Failure ParseFailure (T.pack parseErr))
     Right m -> do
       result <- (do
-        tcResult <- TC.typeCheckModuleWithImports projectRoot contents m
-        case tcResult of
-          Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
-          Right env -> do
-            normalized <- TC.normalizeModuleWithImports projectRoot contents m
-            ctorArity <- case normalized of
+        (digest, importedEnv) <- TC.moduleDigestWithImports projectRoot contents m
+        cached <- RC.readRunCache projectRoot file digest
+        case cached of
+          Just entry -> do
+            count <- runModuleMain projectRoot (RC.cacheCtorArity entry) (RC.cacheAnnotated entry)
+            pure (Right count)
+          Nothing -> do
+            let tcResult = TC.typeCheckAndNormalizeWithEnv importedEnv m
+            case tcResult of
               Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
-              Right nm -> pure $ Right (ctorArityMap nm)
-            case ctorArity of
-              Left failure -> pure $ Left failure
-              Right arity -> do
+              Right (env, normalized) -> do
+                let arity = ctorArityMap normalized
                 m' <- transformModuleWithEnvs projectRoot m
                 case TC.annotateModule env m' of
                   Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
                   Right annotatedM -> do
+                    let cacheEntry = RC.RunCache
+                          { RC.cacheVersion = RC.cacheVersionCurrent
+                          , RC.cacheDigest = digest
+                          , RC.cacheAnnotated = annotatedM
+                          , RC.cacheCtorArity = arity
+                          }
+                    RC.writeRunCache projectRoot file cacheEntry
                     count <- runModuleMain projectRoot arity annotatedM
                     pure (Right count)
         ) `catch` handleTestException
       pure result
+
+data StageTiming = StageTiming
+  { stageName :: String
+  , stageMicros :: Integer
+  } deriving (Show)
+
+runTestOutcomeTimed :: FilePath -> FilePath -> IO (Either Failure Int, [StageTiming])
+runTestOutcomeTimed projectRoot file = do
+  timingsRef <- newIORef []
+  let record name action = do
+        (result, micros) <- timeAction action
+        modifyIORef' timingsRef (\acc -> acc ++ [StageTiming name micros])
+        pure result
+      recordZero name =
+        modifyIORef' timingsRef (\acc -> acc ++ [StageTiming name 0])
+  outcome <- (do
+    contents <- record "read" (TIO.readFile file)
+    parsed <- record "parse" (evaluate (parseMExprFile file contents))
+    case parsed of
+      Left parseErr -> pure $ Left (Failure ParseFailure (T.pack parseErr))
+      Right m -> do
+        (digest, importedEnv) <- record "digest" (TC.moduleDigestWithImports projectRoot contents m)
+        cached <- record "cache-read" (RC.readRunCache projectRoot file digest)
+        case cached of
+          Just entry -> do
+            recordZero "typecheck"
+            recordZero "normalize"
+            recordZero "transform"
+            recordZero "annotate"
+            recordZero "cache-write"
+            count <- record "run" (runModuleMain projectRoot (RC.cacheCtorArity entry) (RC.cacheAnnotated entry))
+            pure (Right count)
+          Nothing -> do
+            tcResult <- record "typecheck" (evaluate (TC.typeCheckAndNormalizeWithEnv importedEnv m))
+            recordZero "normalize"
+            case tcResult of
+              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
+              Right (env, normalized) -> do
+                let arity = ctorArityMap normalized
+                m' <- record "transform" (transformModuleWithEnvs projectRoot m)
+                annotRes <- record "annotate" (evaluate (TC.annotateModule env m'))
+                case annotRes of
+                  Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                  Right annotatedM -> do
+                    record "cache-write" $ do
+                      let cacheEntry = RC.RunCache
+                            { RC.cacheVersion = RC.cacheVersionCurrent
+                            , RC.cacheDigest = digest
+                            , RC.cacheAnnotated = annotatedM
+                            , RC.cacheCtorArity = arity
+                            }
+                      RC.writeRunCache projectRoot file cacheEntry
+                    count <- record "run" (runModuleMain projectRoot arity annotatedM)
+                    pure (Right count)
+    ) `catch` handleTestException
+  timings <- readIORef timingsRef
+  pure (outcome, timings)
+
+timeAction :: IO a -> IO (a, Integer)
+timeAction action = do
+  start <- getPOSIXTime
+  result <- action
+  end <- getPOSIXTime
+  let elapsedUs = floor ((end - start) * 1000000) :: Integer
+  pure (result, elapsedUs)
+
+printStageTimings :: FilePath -> [StageTiming] -> IO ()
+printStageTimings file timings = do
+  putStrLn $ "Stage timings (" ++ file ++ "):"
+  mapM_ (\(StageTiming name micros) ->
+    putStrLn ("  " ++ name ++ " " ++ show micros ++ "us")) timings
+
+isTimingEnabled :: Maybe String -> Bool
+isTimingEnabled = maybe False matches
+  where
+    matches raw =
+      let val = map toLower raw
+      in val == "1" || val == "true" || val == "yes" || val == "on"
 
 handleTestException :: SomeException -> IO (Either Failure Int)
 handleTestException e =

@@ -1,5 +1,6 @@
 module io contains
   define opaque print as print-prim
+  define opaque get-line as get-line-prim
   define opaque capture-output as capture-output-prim
   define opaque panic as panic-prim
 end

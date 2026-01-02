@@ -5,6 +5,7 @@ import natural as N
 import prelude as P
 import signal as Signal
 import string as S
+import typeclass::equality as Eq
 open P exposing Option::none Option::some end
 
 module shell::lhttp contains
@@ -23,7 +24,7 @@ module shell::lhttp contains
         case List::cons with h (Pair String String) t (List (Pair String String)) as
           match h of-type (Pair String String) as ignored returns (P::Option String)
             case Pair::pair with key String val String as
-              match (S::eq key name) of-type Boolean as ignored returns (P::Option String)
+              match (Eq::equals String key name) of-type Boolean as ignored returns (P::Option String)
                 case Boolean::true as Option::some String val
                 case Boolean::false as recur name t
               end

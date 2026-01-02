@@ -7,6 +7,7 @@ import path as Path
 import cli as Cli
 import natural as N
 import io as IO
+import typeclass::equality as Eq
 import typeclass::order as Order
 import type_aliases as Types
 import tools::tokenizer as Tokenizer
@@ -141,14 +142,14 @@ module tools::formatter contains
       let value total-ends be
         L::count String
           (function token String returns Boolean value
-            S::eq token "end"
+            Eq::equals String token "end"
           end)
           tokens
       in
         let value has-function be
           L::any String
             (function token String returns Boolean value
-              S::eq token "function"
+              Eq::equals String token "function"
             end)
             tokens
         in
@@ -186,14 +187,14 @@ module tools::formatter contains
                     let value only-ends be
                       L::all String
                         (function token String returns Boolean value
-                          S::eq token "end"
+                          Eq::equals String token "end"
                         end)
                         tokens
                     in
                       let value starts-then be
                         match tokens of-type (List String) as ignored returns Boolean
                           case List::empty as false
-                          case List::cons with h String t (List String) as S::eq h "then"
+                          case List::cons with h String t (List String) as Eq::equals String h "then"
                         end
                       in
                         let value skip-indent-check be
@@ -370,7 +371,7 @@ module tools::formatter contains
 
   define transparent is-lq as
     function path String returns Boolean value
-      S::eq (Path::ext path) "lq"
+      Eq::equals String (Path::ext path) "lq"
     end
 
   define transparent skip-patterns as
@@ -498,7 +499,7 @@ module tools::formatter contains
       L::any (Pair String String)
         (function flag (Pair String String) returns Boolean value
           match flag of-type (Pair String String) as ignored returns Boolean
-            case Pair::pair with key String val String as S::eq key name
+            case Pair::pair with key String val String as Eq::equals String key name
           end
         end)
         flags

@@ -6,6 +6,7 @@ import http::request as Req
 import http::response as Resp
 import net::tcp as TCP
 import natural as N
+import typeclass::equality as Eq
 import type_aliases as Types
 
 open P exposing Option::none Option::some end
@@ -37,8 +38,8 @@ module http::server contains
 
   define transparent is-get-root as
     function req Request returns Boolean value
-      match (S::eq (Req::method req) "GET") of-type Boolean as ignored returns Boolean
-        case Boolean::true as S::eq (Req::path req) "/"
+      match (Eq::equals String (Req::method req) "GET") of-type Boolean as ignored returns Boolean
+        case Boolean::true as Eq::equals String (Req::path req) "/"
         case Boolean::false as false
       end
     end
@@ -73,7 +74,7 @@ module http::server contains
     end
 
   define transparent serve-once as compute
-    bind line from perform P::get-line then
+    bind line from perform IO::get-line then
       bind ignored from perform (IO::print (Resp::render (handle-request-line line))) then
         return Unit::tt
       end

@@ -239,7 +239,7 @@ module test::prelude::basics contains
 
   define transparent match-sigma-comp as
     function A Type0 xs (List Natural) a (there-exists x as A in A) b (there-exists y as A in A) returns computation (there-exists z as A in A) value
-      match xs of-type (List Natural) as ignored returns computation there-exists z as A in A
+      match xs of-type (List Natural) as ignored returns computation (there-exists z as A in A)
         case List::empty as compute return a end
         case List::cons with h Natural t (List Natural) as compute return b end
       end

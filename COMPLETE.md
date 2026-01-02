@@ -49,6 +49,8 @@
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`).
 - [x] `smyth bench` with benchmark rollup (`test/bench.lq`) and thresholds.
 - [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
+- [x] Run cache in `tmp/locque/cache` for annotated modules + ctor arity; keyed by module digest; used by `smyth test/run`.
+- [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.
@@ -58,6 +60,7 @@
 - [x] there-exists intro/elim via `pack`/`unpack`.
 - [x] Definitional equality: iota reduction for `match` and `unpack`.
 - [x] Exhaustiveness checking for pattern matching.
+- [x] Effect-annotated computation types (`computation E T`) with `Effects::any` default for legacy `computation T`.
 
 ## Pattern Matching
 - [x] Type-specific primitives (current impl).
@@ -71,7 +74,14 @@
 - [x] Result/Option/Either data types in prelude.
 - [x] Simplify `assert` to use `assert-eq` without per-type wrappers.
 - [x] Generalize `list::drop-until` via `Equality`.
+- [x] Typeclass instances: `Equality`/`Hash`/`Display` for `List`/`Pair`, `Semigroup`/`Monoid` for `List`/`String`.
 - [x] Add `NonEmptyList`/`NonEmptyString` refinements with total accessors; re-export `Refine` via prelude; update tokenizer/formatter indent checks to use nonempty helpers.
+- [x] Proof toolkit: `Decider`, `decidable-*` combinators (and/or/not/map/flag), `congruence3`, `rewrite-to`/`rewrite-from`, `assert-decidable`.
+- [x] Proof-oriented conversions: `Option::to-decidable`, `Result::to-decidable`, `Either::to-decidable`, list/pair equality helpers (`decide-eq-flag`/`decide-eq-proof`).
+- [x] Refinements: `Natural::NonZero`/`Positive` and `Path::NonEmptySegments` helpers.
+- [x] String refinements: `AsciiChar`/`LowerChar` with constructors and accessors.
+- [x] Refactor stdlib/tests to use typeclass equality for string comparisons (formatter/webapp/http/shell).
+- [x] Move `get-line` to `io` and update call sites; move decidable equality wrappers into `logic`.
 
 ## Documentation
 - [x] Document `lift`/`up`/`down` in grammar and reference docs.

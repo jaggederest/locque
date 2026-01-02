@@ -1,3 +1,4 @@
+import prelude as P
 import string as S
 import type_aliases as Types
 
@@ -16,5 +17,12 @@ module typeclass::semigroup contains
 
   define transparent Semigroup-String as instance Semigroup String where
     append as S::concat
+  end
+
+  define transparent Semigroup-List as instance Semigroup (List A) where
+    append as
+      function A Type0 xs (List A) ys (List A) returns (List A) value
+        P::append A xs ys
+      end
   end
 end

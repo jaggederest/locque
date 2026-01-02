@@ -24,10 +24,10 @@ module test::shell::lhttp contains
     end
 
   define transparent sigint-command as
-    "cd /Users/justin/Code/locque && smyth run lib/shell/lhttp.lq -- --port 0 2>&1 & for i in 1 2 3 4 5; do pids=$(ps aux | grep \"smyth run lib/shell/lhttp.lq\" | grep -v grep | awk '{print $2}'); if [ -n \"$pids\" ]; then break; fi; sleep 0.2; done; if [ -z \"$pids\" ]; then echo __missing_pid__; exit 1; fi; kill -INT $pids; for i in 1 2 3 4 5; do pids=$(ps aux | grep \"smyth run lib/shell/lhttp.lq\" | grep -v grep | awk '{print $2}'); if [ -z \"$pids\" ]; then break; fi; sleep 0.2; done; if [ -n \"$pids\" ]; then echo __still_running__; kill -KILL $pids; sleep 0.1; fi"
+    "cd /Users/justin/Code/locque && pidfile=/tmp/locque_lhttp.pid; rm -f $pidfile; smyth run lib/shell/lhttp.lq --pid-file $pidfile --timeout 10000 -- --port 0 2>&1 & for i in 1 2 3 4 5; do if [ -s \"$pidfile\" ]; then break; fi; sleep 0.2; done; if [ ! -s \"$pidfile\" ]; then echo __missing_pid__; exit 1; fi; pid=$(cat \"$pidfile\"); kill -INT $pid; for i in 1 2 3 4 5; do if ! kill -0 $pid 2>/dev/null; then break; fi; sleep 0.2; done; if kill -0 $pid 2>/dev/null; then echo __still_running__; kill -KILL $pid; sleep 0.1; fi"
 
   define transparent sigterm-command as
-    "cd /Users/justin/Code/locque && smyth run lib/shell/lhttp.lq -- --port 0 2>&1 & for i in 1 2 3 4 5; do pids=$(ps aux | grep \"smyth run lib/shell/lhttp.lq\" | grep -v grep | awk '{print $2}'); if [ -n \"$pids\" ]; then break; fi; sleep 0.2; done; if [ -z \"$pids\" ]; then echo __missing_pid__; exit 1; fi; kill -TERM $pids; for i in 1 2 3 4 5; do pids=$(ps aux | grep \"smyth run lib/shell/lhttp.lq\" | grep -v grep | awk '{print $2}'); if [ -z \"$pids\" ]; then break; fi; sleep 0.2; done; if [ -n \"$pids\" ]; then echo __still_running__; kill -KILL $pids; sleep 0.1; fi"
+    "cd /Users/justin/Code/locque && pidfile=/tmp/locque_lhttp.pid; rm -f $pidfile; smyth run lib/shell/lhttp.lq --pid-file $pidfile --timeout 10000 -- --port 0 2>&1 & for i in 1 2 3 4 5; do if [ -s \"$pidfile\" ]; then break; fi; sleep 0.2; done; if [ ! -s \"$pidfile\" ]; then echo __missing_pid__; exit 1; fi; pid=$(cat \"$pidfile\"); kill -TERM $pid; for i in 1 2 3 4 5; do if ! kill -0 $pid 2>/dev/null; then break; fi; sleep 0.2; done; if kill -0 $pid 2>/dev/null; then echo __still_running__; kill -KILL $pid; sleep 0.1; fi"
 
   define transparent main as compute
     perform (P::sequence-unit

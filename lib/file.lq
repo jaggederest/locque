@@ -18,6 +18,7 @@ module file contains
   define transparent remove-directory as remove-directory-prim
 
   define transparent walk as walk-prim
+  define transparent walk-filter as walk-filter-prim
   define transparent walk-path as
     function entry (Pair String Boolean) returns String value
       match entry of-type (Pair String Boolean) as ignored returns String
@@ -29,6 +30,11 @@ module file contains
       match entry of-type (Pair String Boolean) as ignored returns Boolean
         case Pair::pair with path String isdir Boolean as isdir
       end
+    end
+
+  define transparent walk-lq as
+    function root String skip (List String) returns computation (List String) value
+      walk-filter root ".lq" skip
     end
 
   define transparent stat as stat-prim

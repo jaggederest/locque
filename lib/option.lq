@@ -1,3 +1,4 @@
+import logic as Lg
 import prelude as P
 import type_aliases as Types
 
@@ -79,6 +80,16 @@ module option contains
       match opt of-type (P::Option A) as ignored returns (P::Result A E)
         case Option::none as Result::err A E err
         case Option::some with x A as Result::ok A E x
+      end
+    end
+  define transparent to-decidable as
+    function P Type0
+             none-proof (Types::Thunk (Lg::Not P))
+             opt (P::Option P)
+    returns (Lg::Decidable P) value
+      match opt of-type (P::Option P) as ignored returns (Lg::Decidable P)
+        case Option::none as Lg::decidable-false P (none-proof Unit::tt)
+        case Option::some with proof P as Lg::decidable-true P proof
       end
     end
 end

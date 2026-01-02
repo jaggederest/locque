@@ -6,27 +6,56 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
+open P exposing Option::none Option::some end
 
 module test::pair::eq contains
   define transparent eq-true as
-    unpack
-      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
-        (P::pair Natural Boolean 1 true)
-        (P::pair Natural Boolean 1 true))
-      as b ignored in b end
+    PairEq::decide-eq-flag Natural Boolean L::decide-eq-nat L::decide-eq-bool
+      (P::pair Natural Boolean 1 true)
+      (P::pair Natural Boolean 1 true)
 
   define transparent eq-false as
-    unpack
-      (PairEq::decide-eq Natural Boolean L::decide-eq-nat L::decide-eq-bool
+    PairEq::decide-eq-flag Natural Boolean L::decide-eq-nat L::decide-eq-bool
+      (P::pair Natural Boolean 1 true)
+      (P::pair Natural Boolean 2 true)
+
+  define transparent eq-proof-some as
+    match
+      (PairEq::decide-eq-proof Natural Boolean L::decide-eq-nat L::decide-eq-bool
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 1 true))
+      of-type (P::Option (equal (Pair Natural Boolean)
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 1 true))) as ignored
+    returns Boolean
+      case Option::none as false
+      case Option::some with ignored (equal (Pair Natural Boolean)
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 1 true)) as true
+    end
+
+  define transparent eq-proof-none as
+    match
+      (PairEq::decide-eq-proof Natural Boolean L::decide-eq-nat L::decide-eq-bool
         (P::pair Natural Boolean 1 true)
         (P::pair Natural Boolean 2 true))
-      as b ignored in b end
+      of-type (P::Option (equal (Pair Natural Boolean)
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 2 true))) as ignored
+    returns Boolean
+      case Option::none as true
+      case Option::some with ignored (equal (Pair Natural Boolean)
+        (P::pair Natural Boolean 1 true)
+        (P::pair Natural Boolean 2 true)) as false
+    end
 
   define transparent main as compute
     perform (P::sequence-unit
       [
         (assert-eq Boolean eq-true true)
       , (assert-eq Boolean eq-false false)
+      , (assert-eq Boolean eq-proof-some true)
+      , (assert-eq Boolean eq-proof-none true)
       ])
   end
 end

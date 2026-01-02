@@ -2,6 +2,7 @@
 
 import assert as A
 import arithmetic as Ar
+import logic as L
 import option as Opt
 import prelude as P
 import result as Res
@@ -54,6 +55,22 @@ module test::result::basics contains
   define transparent to-option-err as
     Res::to-option Natural String err1
 
+  define transparent not-eq-1-2 as
+    unpack (L::decide-eq-nat 1 2) as flag proof in
+      match flag of-type Boolean as flag returns (L::Not (equal Natural 1 2))
+        case Boolean::false as proof
+        case Boolean::true as P::error (L::Not (equal Natural 1 2)) "expected false"
+      end
+    end
+
+  define transparent decidable-ok as
+    Res::to-decidable (equal Natural 1 1)
+      (Result::ok (equal Natural 1 1) (L::Not (equal Natural 1 1)) (reflexive Natural 1))
+
+  define transparent decidable-err as
+    Res::to-decidable (equal Natural 1 2)
+      (Result::err (equal Natural 1 2) (L::Not (equal Natural 1 2)) not-eq-1-2)
+
   define transparent main as compute
     perform (P::sequence-unit
       [
@@ -72,6 +89,12 @@ module test::result::basics contains
                                                                   end)
                                                                   err1)
                                                                 4)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 1) decidable-ok)
+          true)
+      , (assert-eq Boolean
+          (L::decidable-flag (equal Natural 1 2) decidable-err)
+          false)
       ])
   end
 end

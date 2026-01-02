@@ -1,0 +1,59 @@
+# Decidable combinators tests
+
+import assert as A
+import logic as L
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::logic::decidable contains
+  define transparent nat-true as L::decide-eq-nat 5 5
+  define transparent nat-false as L::decide-eq-nat 5 6
+
+  define transparent not-true as
+    L::decidable-not (equal Natural 5 5) nat-true
+
+  define transparent and-true as
+    L::decidable-and (equal Natural 5 5) (equal Natural 6 6)
+      nat-true
+      (L::decide-eq-nat 6 6)
+
+  define transparent and-false as
+    L::decidable-and (equal Natural 5 5) (equal Natural 5 6)
+      nat-true
+      nat-false
+
+  define transparent or-true as
+    L::decidable-or (equal Natural 5 6) (equal Natural 5 5)
+      nat-false
+      nat-true
+
+  define transparent map-id as
+    L::decidable-map
+      (equal Natural 5 5)
+      (equal Natural 5 5)
+      nat-true
+      (function proof (equal Natural 5 5) returns equal Natural 5 5 value proof end)
+      (function not-proof (L::Not (equal Natural 5 5)) returns L::Not (equal Natural 5 5) value not-proof end)
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (L::decidable-flag (equal Natural 5 5) nat-true) true)
+      , (assert-eq Boolean (L::decidable-flag (equal Natural 5 6) nat-false) false)
+      , (assert-eq Boolean (L::decidable-flag (L::Not (equal Natural 5 5)) not-true) false)
+      , (assert-eq Boolean
+          (L::decidable-flag (L::And (equal Natural 5 5) (equal Natural 6 6)) and-true)
+          true)
+      , (assert-eq Boolean
+          (L::decidable-flag (L::And (equal Natural 5 5) (equal Natural 5 6)) and-false)
+          false)
+      , (assert-eq Boolean
+          (L::decidable-flag (L::Or (equal Natural 5 6) (equal Natural 5 5)) or-true)
+          true)
+      , (assert-eq Boolean (L::decidable-flag (equal Natural 5 5) map-id) true)
+      ])
+  end
+end

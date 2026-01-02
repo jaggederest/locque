@@ -43,6 +43,30 @@ module test::logic::lemmas contains
         (reflexive Natural 3))
       (equal Natural (Ar::add 2 3) (Ar::add 2 3))
 
+  define transparent add3 as
+    function x Natural returns (for-all y as Natural to for-all z as Natural to Natural) value
+      function y Natural returns (for-all z as Natural to Natural) value
+        function z Natural returns Natural value
+          Ar::add (Ar::add x y) z
+        end
+      end
+    end
+
+  define transparent cong3-lemma as
+    of-type
+      (L::congruence3 Natural Natural Natural Natural
+        add3
+        1
+        1
+        2
+        2
+        3
+        3
+        (reflexive Natural 1)
+        (reflexive Natural 2)
+        (reflexive Natural 3))
+      (equal Natural (add3 1 2 3) (add3 1 2 3))
+
   define transparent is-one as
     function n Natural returns Type0 value
       equal Natural n 1
@@ -81,6 +105,26 @@ module test::logic::lemmas contains
         (reflexive Natural 3)
         3)
       Natural
+
+  define transparent rewrite-to-lemma as
+    of-type
+      (L::rewrite-to Natural
+        (function n Natural returns Type0 value equal Natural n 3 end)
+        3
+        3
+        (reflexive Natural 3)
+        (reflexive Natural 3))
+      (equal Natural 3 3)
+
+  define transparent rewrite-from-lemma as
+    of-type
+      (L::rewrite-from Natural
+        (function n Natural returns Type0 value equal Natural n 3 end)
+        3
+        3
+        (reflexive Natural 3)
+        (reflexive Natural 3))
+      (equal Natural 3 3)
 
   define transparent main as compute
     return tt

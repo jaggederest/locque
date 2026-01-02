@@ -1,0 +1,27 @@
+import prelude as P
+import assert as Assert
+import effects as Effects
+
+open Effects exposing Effects Effects::any Effects::pure Effects::io Effects::ffi end
+
+module test::effects::basics contains
+  define transparent effect-code as
+    function e Effects returns Natural value
+      match e of-type Effects as ignored returns Natural
+        case Effects::any as 0
+        case Effects::pure as 1
+        case Effects::io as 2
+        case Effects::ffi as 3
+      end
+    end
+
+  define transparent main as compute
+    bind ignored from perform (Assert::assert-eq Natural (effect-code Effects::any) 0) then
+      bind ignored from perform (Assert::assert-eq Natural (effect-code Effects::pure) 1) then
+        bind ignored from perform (Assert::assert-eq Natural (effect-code Effects::io) 2) then
+          perform (Assert::assert-eq Natural (effect-code Effects::ffi) 3)
+        end
+      end
+    end
+  end
+end

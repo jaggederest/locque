@@ -1,0 +1,60 @@
+# Natural refinements tests
+
+import assert as A
+import natural as N
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some end
+
+module test::natural::refinements contains
+  define transparent nonzero-none as
+    match (N::nonzero 0) of-type (P::Option N::NonZero) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored N::NonZero as false
+    end
+
+  define transparent nonzero-some as
+    match (N::nonzero 2) of-type (P::Option N::NonZero) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with ignored N::NonZero as true
+    end
+
+  define transparent nonzero-value as
+    match (N::nonzero 2) of-type (P::Option N::NonZero) as ignored returns Natural
+      case Option::none as 0
+      case Option::some with nz N::NonZero as N::nonzero-value nz
+    end
+
+  define transparent positive-none as
+    match (N::positive 0) of-type (P::Option N::Positive) as ignored returns Boolean
+      case Option::none as true
+      case Option::some with ignored N::Positive as false
+    end
+
+  define transparent positive-some as
+    match (N::positive 3) of-type (P::Option N::Positive) as ignored returns Boolean
+      case Option::none as false
+      case Option::some with ignored N::Positive as true
+    end
+
+  define transparent positive-value as
+    match (N::positive 3) of-type (P::Option N::Positive) as ignored returns Natural
+      case Option::none as 0
+      case Option::some with nz N::Positive as N::positive-value nz
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean nonzero-none true)
+      , (assert-eq Boolean nonzero-some true)
+      , (assert-eq Natural nonzero-value 2)
+      , (assert-eq Boolean positive-none true)
+      , (assert-eq Boolean positive-some true)
+      , (assert-eq Natural positive-value 3)
+      ])
+  end
+end

@@ -1,3 +1,4 @@
+import prelude as P
 import string as S
 import type_aliases as Types
 
@@ -26,5 +27,16 @@ module typeclass::monoid contains
         S::concat x y
       end
     empty as ""
+  end
+
+  define transparent Monoid-List as instance Monoid (List A) where
+    append as
+      function A Type0 xs (List A) ys (List A) returns (List A) value
+        P::append A xs ys
+      end
+    empty as
+      function A Type0 returns (List A) value
+        List::empty A
+      end
   end
 end

@@ -1,0 +1,22 @@
+import prelude as P
+import effects as Effects
+
+open Effects exposing Effects::io end
+
+module test::typecheck::effects contains
+  define transparent io-action as
+    of-type
+      (compute return Unit::tt end)
+      (computation Effects::io Unit)
+
+  define transparent accept-io as
+    function c (computation Effects::io Unit) returns computation Effects::io Unit value
+      c
+    end
+
+  define transparent main as compute
+    bind ignored from perform (accept-io io-action) then
+      return 0
+    end
+  end
+end

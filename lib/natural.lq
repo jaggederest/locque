@@ -1,4 +1,5 @@
 import arithmetic as Ar
+import logic as Lg
 import prelude as P
 import string as S
 import typeclass::order as Order
@@ -14,6 +15,56 @@ module natural contains
   define transparent to-string as
     function n Natural returns String value
       nat-to-string-prim n
+    end
+
+  define transparent nonzero-predicate as
+    function n Natural returns Type0 value
+      Lg::Not (equal Natural n 0)
+    end
+
+  define transparent NonZero as
+    Lg::Refine Natural nonzero-predicate
+
+  define transparent positive-predicate as
+    function n Natural returns Type0 value
+      Lg::Not (equal Natural n 0)
+    end
+
+  define transparent Positive as
+    Lg::Refine Natural positive-predicate
+
+  define transparent nonzero as
+    function n Natural returns (P::Option NonZero) value
+      unpack (Lg::decide-eq-nat n 0) as is-zero proof in
+        match is-zero of-type Boolean as is-zero returns (P::Option NonZero)
+          case Boolean::true as Option::none NonZero
+          case Boolean::false as
+            Option::some NonZero
+              (pack x as Natural in nonzero-predicate x with n proof end)
+        end
+      end
+    end
+
+  define transparent nonzero-value as
+    function n NonZero returns Natural value
+      Lg::refine-value Natural nonzero-predicate n
+    end
+
+  define transparent positive as
+    function n Natural returns (P::Option Positive) value
+      unpack (Lg::decide-eq-nat n 0) as is-zero proof in
+        match is-zero of-type Boolean as is-zero returns (P::Option Positive)
+          case Boolean::true as Option::none Positive
+          case Boolean::false as
+            Option::some Positive
+              (pack x as Natural in positive-predicate x with n proof end)
+        end
+      end
+    end
+
+  define transparent positive-value as
+    function n Positive returns Natural value
+      Lg::refine-value Natural positive-predicate n
     end
 
   define transparent digit-value as

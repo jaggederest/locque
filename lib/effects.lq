@@ -1,0 +1,8 @@
+module effects contains
+  define transparent Effects as data in Type0
+    case Effects::any of-type Effects
+    case Effects::pure of-type Effects
+    case Effects::io of-type Effects
+    case Effects::ffi of-type Effects
+  end
+end

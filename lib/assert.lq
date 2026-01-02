@@ -1,3 +1,4 @@
+import logic as Lg
 import prelude as P
 import typeclass::equality as Eq
 
@@ -24,6 +25,17 @@ module assert contains
           match cond of-type Boolean as ignored returns (computation Unit)
             case Boolean::false as assert-hit
             case Boolean::true as P::error (computation Unit) msg
+          end
+      end
+    end
+
+  define transparent assert-decidable as
+    function P Type0 msg String decision (Lg::Decidable P) returns computation Unit value
+      compute
+        perform
+          match (Lg::decidable-flag P decision) of-type Boolean as ignored returns (computation Unit)
+            case Boolean::true as assert-hit
+            case Boolean::false as P::error (computation Unit) msg
           end
       end
     end

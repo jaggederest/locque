@@ -14,6 +14,9 @@ module test::typeclass::semigroup contains
       [
         (assert-eq String (Semi::combine String "hello" "world") "helloworld")
       , (assert-eq String (Semi::combine String "" "x") "x")
+      , (assert-eq (List Natural)
+          (Semi::combine (List Natural) [1, 2] [3])
+          [1, 2, 3])
       ])
   end
 end

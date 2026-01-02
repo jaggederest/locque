@@ -37,21 +37,42 @@ module typeclass::equality contains
     end
   end
 
-  # STUB: Equality for List
-  # Requires instance constraints (not yet implemented in Locque)
-  # When available, implement as:
-  #   define transparent Equality-List as instance Equality A => Equality (List A) where
-  #     eq as function xs (List A) ys (List A) returns Boolean value
-  #       ...element-wise comparison...
-  #     end
-  #   end
+  define transparent Equality-List as instance Equality (List A) where
+    eq as
+      function A Type0 xs (List A) ys (List A) requires Equality A returns Boolean value
+        match xs of-type (List A) as ignored returns Boolean
+          case List::empty as
+            match ys of-type (List A) as ignored returns Boolean
+              case List::empty as true
+              case List::cons with h A t (List A) as false
+            end
+          case List::cons with hx A tx (List A) as
+            match ys of-type (List A) as ignored returns Boolean
+              case List::empty as false
+              case List::cons with hy A ty (List A) as
+                match (eq hx hy) of-type Boolean as ignored returns Boolean
+                  case Boolean::false as false
+                  case Boolean::true as recur A tx ty
+                end
+            end
+        end
+      end
+  end
 
-  # STUB: Equality for Pair
-  # Requires instance constraints (not yet implemented in Locque)
-  # When available, implement as:
-  #   define transparent Equality-Pair as instance (Equality A, Equality B) => Equality (Pair A B) where
-  #     eq as function p1 (Pair A B) p2 (Pair A B) returns Boolean value
-  #       ...component-wise comparison...
-  #     end
-  #   end
+  define transparent Equality-Pair as instance Equality (Pair A A) where
+    eq as
+      function A Type0 left (Pair A A) right (Pair A A) requires Equality A returns Boolean value
+        match left of-type (Pair A A) as ignored returns Boolean
+          case Pair::pair with left-a A left-b A as
+            match right of-type (Pair A A) as ignored returns Boolean
+              case Pair::pair with right-a A right-b A as
+                match (eq left-a right-a) of-type Boolean as ignored returns Boolean
+                  case Boolean::false as false
+                  case Boolean::true as eq left-b right-b
+                end
+            end
+        end
+      end
+  end
+
 end

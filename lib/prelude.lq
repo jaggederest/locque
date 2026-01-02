@@ -169,12 +169,6 @@ module prelude contains
         case Pair::pair with a A b A as [a, b]
       end
     end
-  define transparent decide-eq-nat as decide-eq-nat-prim
-  define transparent decide-eq-string as decide-eq-string-prim
-  define transparent decide-eq-bool as decide-eq-bool-prim
-  define transparent decide-eq-pair as decide-eq-pair-prim
-  define transparent decide-eq-list as decide-eq-list-prim
-  define transparent get-line as get-line-prim
 
   define transparent id as
     function A Type0 x A returns A value

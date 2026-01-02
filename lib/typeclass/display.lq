@@ -3,6 +3,7 @@
 # Similar to Haskell's Show typeclass.
 
 import natural as N
+import prelude as P
 import string as S
 import type_aliases as Types
 
@@ -14,6 +15,11 @@ module typeclass::display contains
 
   define transparent display-kind as
     Types::TypeFunction Type0
+
+  define transparent display-value as
+    function A Type0 x A requires Display A returns String value
+      display x
+    end
 
   # Instance: Natural
   define transparent Display-Natural as instance Display Natural where
@@ -39,21 +45,37 @@ module typeclass::display contains
     end
   end
 
-  # STUB: Display for List
-  # Requires instance constraints (not yet implemented in Locque)
-  # When available, implement as:
-  #   define transparent Display-List as instance Display A => Display (List A) where
-  #     display as function xs (List A) returns String value
-  #       ...join displayed elements...
-  #     end
-  #   end
+  define transparent display-list as
+    function A Type0 xs (List A) requires Display A returns String value
+      let value parts be P::map A String (display-value A) xs in
+        S::concat "[" (S::concat (S::join-with ", " parts) "]")
+      end
+    end
 
-  # STUB: Display for Pair
-  # Requires instance constraints (not yet implemented in Locque)
-  # When available, implement as:
-  #   define transparent Display-Pair as instance (Display A, Display B) => Display (Pair A B) where
-  #     display as function p (Pair A B) returns String value
-  #       ...display both elements...
-  #     end
-  #   end
+  define transparent Display-List as instance Display (List A) where
+    display as
+      function A Type0 xs (List A) requires Display A returns String value
+        display-list A xs
+      end
+  end
+
+  define transparent display-pair as
+    function A Type0 pair (Pair A A)
+    requires Display A
+    returns String value
+      match pair of-type (Pair A A) as ignored returns String
+        case Pair::pair with left A right A as
+          S::concat "("
+            (S::concat (display-value A left)
+              (S::concat ", " (S::concat (display-value A right) ")")))
+      end
+    end
+
+  define transparent Display-Pair as instance Display (Pair A A) where
+    display as
+      function A Type0 pair (Pair A A) requires Display A returns String value
+        display-pair A pair
+      end
+  end
+
 end
