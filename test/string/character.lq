@@ -7,15 +7,14 @@ import typeclass::equality as Eq
 
 open A exposing assert-eq end
 open Eq exposing Equality end
-open S exposing Character end
 
 module test::string::character contains
   define transparent main as compute
     perform (P::sequence-unit
       [
-        (assert-eq Natural (P::length-list Character (S::to-list "hi")) 2)
+        (assert-eq Natural (P::length-list S::Character (S::to-list "hi")) 2)
       , (assert-eq String
-          (S::character-string (P::head Character (S::to-list "hi")))
+          (S::character-string (P::head S::Character (S::to-list "hi")))
           "h")
       , (assert-eq String
           (S::from-list [S::character "a", S::character "b"])

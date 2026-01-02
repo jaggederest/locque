@@ -1,3 +1,4 @@
+import logic as Lg
 import type_aliases as Types
 
 module prelude contains
@@ -13,6 +14,10 @@ module prelude contains
 
   define transparent Dictionary-kind as
     Types::BinaryTypeFunction Type0 Type0
+
+  define transparent Refine as Lg::Refine
+  define transparent refine-value as Lg::refine-value
+  define transparent refine-with as Lg::refine-with
 
   define transparent Option as data A Type0 in Type0
     case Option::none of-type Option A

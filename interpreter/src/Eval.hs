@@ -1176,12 +1176,13 @@ runComp env comp = case comp of
 -- Import loading
 
 loadImports :: FilePath -> Module -> IO Env
-loadImports projectRoot (Module _ imports _ _) = do
-  envs <- mapM (loadImport projectRoot) imports
-  pure $ Map.unions (primEnv : envs)
+loadImports projectRoot (Module _ imports _ _) =
+  loadImportsWith projectRoot Set.empty imports
 
-loadImport :: FilePath -> Import -> IO Env
-loadImport projectRoot (Import modName alias) = do
+loadImport :: FilePath -> Set.Set Text -> Import -> IO Env
+loadImport projectRoot visiting (Import modName alias) = do
+  when (modName `Set.member` visiting) $
+    error $ "Import cycle detected: " ++ T.unpack modName
   let modPath = modNameToPath modName
       -- If module path starts with "test/", use projectRoot directly
       -- Otherwise, use projectRoot </> "lib"
@@ -1219,7 +1220,8 @@ loadImport projectRoot (Import modName alias) = do
     Right m -> pure m
 
   let Module _modName _ opens defs = annotated
-  envImports <- loadImports projectRoot annotated
+      visiting' = Set.insert modName visiting
+  envImports <- loadImportsWith projectRoot visiting' (modImports annotated)
   -- Process opens to bring in unqualified names from open statements
   let envWithOpens = processOpens opens envImports
 
@@ -1249,6 +1251,11 @@ loadImport projectRoot (Import modName alias) = do
     defCtorNames def = case defBody def of
       EData _ _ cases -> map dataCaseName cases
       _ -> []
+
+loadImportsWith :: FilePath -> Set.Set Text -> [Import] -> IO Env
+loadImportsWith projectRoot visiting imports = do
+  envs <- mapM (loadImport projectRoot visiting) imports
+  pure $ Map.unions (primEnv : envs)
 
 ctorArityMap :: Module -> CtorArityMap
 ctorArityMap (Module _ _ _ defs) =

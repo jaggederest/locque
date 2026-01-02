@@ -1,0 +1,9 @@
+# Import cycle test (A -> B -> A)
+
+import test::typecheck::import_cycle_b as B
+
+module test::typecheck::import_cycle_a contains
+  define transparent main as compute
+    return tt
+  end
+end

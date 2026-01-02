@@ -1,4 +1,3 @@
-import prelude as P
 import type_aliases as Types
 
 module logic contains
@@ -21,7 +20,108 @@ module logic contains
         end)
     end
 
-  define transparent decide-eq-nat as P::decide-eq-nat
-  define transparent decide-eq-string as P::decide-eq-string
-  define transparent decide-eq-bool as P::decide-eq-bool
+  define transparent Refine as
+    function A Type0 P (for-all x as A to Type0) returns Type0 value
+      Types::Exists A P
+    end
+
+  define transparent refine-value as
+    function A Type0 P (for-all x as A to Type0) ref (Refine A P) returns A value
+      unpack ref as x ignored in x end
+    end
+
+  define transparent refine-with as
+    function A Type0 P (for-all x as A to Type0) B Type0
+             ref (Refine A P)
+             f (for-all x as A to for-all proof as P x to B)
+    returns B value
+      unpack ref as x proof in f x proof end
+    end
+
+  define transparent transport as
+    function A Type0
+             P (for-all x as A to Type0)
+             x A
+             y A
+             proof (equal A x y)
+             witness (P x)
+    returns (P y) value
+      rewrite P proof as witness
+    end
+
+  define transparent symmetry as
+    function A Type0 x A y A proof (equal A x y) returns equal A y x value
+      transport A
+        (function t A returns Type0 value equal A t x end)
+        x
+        y
+        proof
+        (reflexive A x)
+    end
+
+  define transparent transitivity as
+    function A Type0 x A y A z A
+             proof-xy (equal A x y)
+             proof-yz (equal A y z)
+    returns equal A x z value
+      transport A
+        (function t A returns Type0 value equal A x t end)
+        y
+        z
+        proof-yz
+        proof-xy
+    end
+
+  define transparent congruence as
+    function A Type0 B Type0
+             f (for-all x as A to B)
+             x A
+             y A
+             proof (equal A x y)
+    returns equal B (f x) (f y) value
+      transport A
+        (function t A returns Type0 value equal B (f x) (f t) end)
+        x
+        y
+        proof
+        (reflexive B (f x))
+    end
+
+  define transparent congruence2 as
+    function A Type0 B Type0 C Type0
+             f (for-all x as A to for-all y as B to C)
+             x1 A
+             x2 A
+             y1 B
+             y2 B
+             proof-x (equal A x1 x2)
+             proof-y (equal B y1 y2)
+    returns equal C (f x1 y1) (f x2 y2) value
+      let value step-x be
+        congruence A C
+          (function x A returns C value
+            f x y1
+          end)
+          x1
+          x2
+          proof-x
+      in
+        transitivity C
+          (f x1 y1)
+          (f x2 y1)
+          (f x2 y2)
+          step-x
+          (congruence B C
+            (function y B returns C value
+              f x2 y
+            end)
+            y1
+            y2
+            proof-y)
+      end
+    end
+
+  define transparent decide-eq-nat as decide-eq-nat-prim
+  define transparent decide-eq-string as decide-eq-string-prim
+  define transparent decide-eq-bool as decide-eq-bool-prim
 end

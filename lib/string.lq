@@ -1,6 +1,7 @@
 import prelude as P
 import arithmetic as Ar
 import list as L
+import logic as Lg
 import typeclass::equality as Eq
 import typeclass::order as Order
 import type_aliases as Types
@@ -22,11 +23,21 @@ module string contains
       P::length-list String (string-to-list-prim s)
     end
 
+  define transparent nonempty-predicate as
+    function s String returns Type0 value
+      Lg::Not (equal Natural (length s) 0)
+    end
+
+  define transparent NonEmptyString as
+    Lg::Refine String nonempty-predicate
+
+  define transparent character-predicate as
+    function c String returns Type0 value
+      equal Natural (length c) 1
+    end
+
   define transparent Character as
-    Types::Exists String
-      (function c String returns Type0 value
-        equal Natural (length c) 1
-      end)
+    Lg::Refine String character-predicate
 
   define transparent character as
     function s String returns Character value
@@ -34,14 +45,31 @@ module string contains
         match ok of-type Boolean as ok returns Character
           case Boolean::false as P::error Character "Character expects length 1"
           case Boolean::true as
-            pack c as String in equal Natural (length c) 1 with s proof end
+            pack c as String in character-predicate c with s proof end
         end
       end
     end
 
+  define transparent nonempty as
+    function s String returns (P::Option NonEmptyString) value
+      unpack (P::decide-eq-nat (length s) 0) as is-zero proof in
+        match is-zero of-type Boolean as is-zero returns (P::Option NonEmptyString)
+          case Boolean::true as Option::none NonEmptyString
+          case Boolean::false as
+            Option::some NonEmptyString
+              (pack x as String in nonempty-predicate x with s proof end)
+        end
+      end
+    end
+
+  define transparent nonempty-value as
+    function s NonEmptyString returns String value
+      P::refine-value String nonempty-predicate s
+    end
+
   define transparent character-string as
     function c Character returns String value
-      unpack c as s ignored in s end
+      Lg::refine-value String character-predicate c
     end
 
   define transparent char-code as
@@ -519,9 +547,19 @@ module string contains
       P::head Character (to-list s)
     end
 
+  define transparent head-nonempty as
+    function s NonEmptyString returns Character value
+      head (nonempty-value s)
+    end
+
   define transparent tail as
     function s String returns String value
       from-list (P::tail Character (to-list s))
+    end
+
+  define transparent tail-nonempty as
+    function s NonEmptyString returns String value
+      tail (nonempty-value s)
     end
 
   define transparent code-in-range as

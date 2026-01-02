@@ -1,9 +1,11 @@
 import prelude as P
 import arithmetic as Ar
+import logic as Lg
 import typeclass::equality as Eq
 import type_aliases as Types
 
 open Eq exposing Equality eq end
+open P exposing Option::none Option::some end
 
 module list contains
   define transparent drop-until as
@@ -101,6 +103,62 @@ module list contains
         case List::empty as true
         case List::cons with h A t (List A) as false
       end
+    end
+
+  define transparent nonempty-predicate as
+    function A Type0 returns (for-all xs as (List A) to Type0) value
+      function xs (List A) returns Type0 value
+        match xs of-type (List A) as ignored returns Type0
+          case List::empty as Lg::False
+          case List::cons with h A t (List A) as Unit
+        end
+      end
+    end
+
+  define transparent NonEmptyList as
+    function A Type0 returns Type0 value
+      Lg::Refine (List A) (nonempty-predicate A)
+    end
+
+  define transparent nonempty as
+    function A Type0 xs (List A) returns (P::Option (NonEmptyList A)) value
+      match xs of-type (List A) as ignored returns (P::Option (NonEmptyList A))
+        case List::empty as Option::none (NonEmptyList A)
+        case List::cons with h A t (List A) as
+          Option::some (NonEmptyList A)
+            (pack ys as (List A) in nonempty-predicate A ys with (List::cons A h t) Unit::tt end)
+      end
+    end
+
+  define transparent nonempty-value as
+    function A Type0 xs (NonEmptyList A) returns (List A) value
+      P::refine-value (List A) (nonempty-predicate A) xs
+    end
+
+  define transparent head-nonempty as
+    function A Type0 xs (NonEmptyList A) returns A value
+      match (nonempty-value A xs) of-type (List A) as ignored returns A
+        case List::empty as P::error A "head-nonempty expects non-empty list"
+        case List::cons with h A t (List A) as h
+      end
+    end
+
+  define transparent tail-nonempty as
+    function A Type0 xs (NonEmptyList A) returns (List A) value
+      match (nonempty-value A xs) of-type (List A) as ignored returns (List A)
+        case List::empty as P::error (List A) "tail-nonempty expects non-empty list"
+        case List::cons with h A t (List A) as t
+      end
+    end
+
+  define transparent last-nonempty as
+    function A Type0 xs (NonEmptyList A) returns A value
+      last A (nonempty-value A xs)
+    end
+
+  define transparent init-nonempty as
+    function A Type0 xs (NonEmptyList A) returns (List A) value
+      init A (nonempty-value A xs)
     end
 
   define transparent length as

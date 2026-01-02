@@ -2130,25 +2130,13 @@ annotateModule _env m = Right m
 -- Import loading
 
 loadTypeImports :: FilePath -> Module -> IO TCEnv
-loadTypeImports projectRoot (Module _ imports _ _) = do
-  envs <- mapM (loadTypeImport projectRoot) imports
-  let mergedTypes = Map.unions (tcTypes emptyEnv : map tcTypes envs)
-      mergedDefs = Map.unions (tcDefs emptyEnv : map tcDefs envs)
-      mergedClasses = Map.unions (tcClasses emptyEnv : map tcClasses envs)
-      mergedInstances = Map.unionsWith (++) (tcInstances emptyEnv : map tcInstances envs)
-      mergedData = Map.unions (tcData emptyEnv : map tcData envs)
-      mergedCtors = Map.unions (tcCtors emptyEnv : map tcCtors envs)
-  pure emptyEnv
-    { tcTypes = mergedTypes
-    , tcDefs = mergedDefs
-    , tcClasses = mergedClasses
-    , tcInstances = mergedInstances
-    , tcData = mergedData
-    , tcCtors = mergedCtors
-    }
+loadTypeImports projectRoot (Module _ imports _ _) =
+  loadTypeImportsWith projectRoot Set.empty imports
 
-loadTypeImport :: FilePath -> Import -> IO TCEnv
-loadTypeImport projectRoot (Import modName alias) = do
+loadTypeImport :: FilePath -> Set.Set Text -> Import -> IO TCEnv
+loadTypeImport projectRoot visiting (Import modName alias) = do
+  when (modName `Set.member` visiting) $
+    error $ "Import cycle detected: " ++ T.unpack modName
   let modPath = modNameToPath modName
       basePath = if "test/" `isPrefixOf` modPath
                  then projectRoot </> modPath
@@ -2171,7 +2159,8 @@ loadTypeImport projectRoot (Import modName alias) = do
     _      -> error $ "Unknown file extension: " ++ path
 
   let Module _ _ opens defs = parsed
-  envImports <- loadTypeImports projectRoot parsed
+      visiting' = Set.insert modName visiting
+  envImports <- loadTypeImportsWith projectRoot visiting' (modImports parsed)
   let envWithOpens = processOpens opens envImports
   case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
     Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
@@ -2201,12 +2190,31 @@ loadTypeImport projectRoot (Import modName alias) = do
       EData _ _ _ -> True
       _ -> False
 
+loadTypeImportsWith :: FilePath -> Set.Set Text -> [Import] -> IO TCEnv
+loadTypeImportsWith projectRoot visiting imports = do
+  envs <- mapM (loadTypeImport projectRoot visiting) imports
+  let mergedTypes = Map.unions (tcTypes emptyEnv : map tcTypes envs)
+      mergedDefs = Map.unions (tcDefs emptyEnv : map tcDefs envs)
+      mergedClasses = Map.unions (tcClasses emptyEnv : map tcClasses envs)
+      mergedInstances = Map.unionsWith (++) (tcInstances emptyEnv : map tcInstances envs)
+      mergedData = Map.unions (tcData emptyEnv : map tcData envs)
+      mergedCtors = Map.unions (tcCtors emptyEnv : map tcCtors envs)
+  pure emptyEnv
+    { tcTypes = mergedTypes
+    , tcDefs = mergedDefs
+    , tcClasses = mergedClasses
+    , tcInstances = mergedInstances
+    , tcData = mergedData
+    , tcCtors = mergedCtors
+    }
+
 insertQualified :: Text -> TCEnv -> Set.Set Text -> TCEnv -> Text -> TCEnv
 insertQualified alias envSelf localNames env name =
   case Map.lookup name (tcTypes envSelf) of
     Just scheme ->
       let qualified = qualifyName alias name
-          envWithType = env { tcTypes = Map.insert qualified scheme (tcTypes env) }
+          scheme' = qualifyDefBody alias localNames scheme
+          envWithType = env { tcTypes = Map.insert qualified scheme' (tcTypes env) }
       in case Map.lookup name (tcDefs envSelf) of
           Just (tr, body) ->
             let body' = qualifyDefBody alias localNames body

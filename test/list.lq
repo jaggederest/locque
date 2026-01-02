@@ -4,6 +4,7 @@ import prelude as P
 
 import test::list::basics as basics
 import test::list::eq as eq
+import test::list::nonempty as nonempty
 
 module test::list contains
   define transparent main as compute
@@ -11,6 +12,7 @@ module test::list contains
       [
         basics::main
       , eq::main
+      , nonempty::main
       ])
   end
 end

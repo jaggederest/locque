@@ -4,6 +4,7 @@ import prelude as P
 
 import test::string::basic as basic
 import test::string::character as character
+import test::string::nonempty as nonempty
 import test::string::url_decode as url_decode
 
 module test::string contains
@@ -12,6 +13,7 @@ module test::string contains
       [
         basic::main
       , character::main
+      , nonempty::main
       , url_decode::main
       ])
   end

@@ -3,16 +3,19 @@ import string as S
 import list as L
 
 open S exposing Character end
+open P exposing Option::none Option::some end
 
 module tools::tokenizer contains
   define transparent string-token as "<string>"
 
   define transparent flush-token as
     function current (List Character) tokens (List String) returns (List String) value
-      match current of-type (List Character) as ignored returns (List String)
-        case List::empty as tokens
-        case List::cons with ignored Character ignored-tail (List Character) as
-          P::cons String (S::from-list (L::reverse Character current)) tokens
+      match (L::nonempty Character current) of-type (P::Option (L::NonEmptyList Character)) as ignored returns (List String)
+        case Option::none as tokens
+        case Option::some with nonempty (L::NonEmptyList Character) as
+          P::cons String
+            (S::from-list (L::reverse Character (L::nonempty-value Character nonempty)))
+            tokens
       end
     end
 

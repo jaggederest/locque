@@ -1,0 +1,36 @@
+# NonEmptyList tests
+
+import assert as A
+import list as L
+import option as Opt
+import prelude as P
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some end
+
+module test::list::nonempty contains
+  define transparent nonempty-sample as
+    L::nonempty Natural [1, 2]
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean
+          (Opt::is-none (L::NonEmptyList Natural) (L::nonempty Natural (List::empty Natural)))
+          true)
+      , (match nonempty-sample of-type (P::Option (L::NonEmptyList Natural)) as ignored returns (computation Unit)
+          case Option::none as P::error (computation Unit) "expected nonempty list"
+          case Option::some with xs (L::NonEmptyList Natural) as
+            P::sequence-unit
+              [
+                (assert-eq Natural (L::head-nonempty Natural xs) 1)
+              , (assert-eq Natural (L::last-nonempty Natural xs) 2)
+              , (assert-eq Natural (P::length-list Natural (L::tail-nonempty Natural xs)) 1)
+              , (assert-eq Natural (P::length-list Natural (L::init-nonempty Natural xs)) 1)
+              ]
+        end)
+      ])
+  end
+end

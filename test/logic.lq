@@ -1,9 +1,11 @@
 # Logic test rollup
 
 import test::logic::basics as basics
+import test::logic::lemmas as lemmas
+import prelude as P
 
 module test::logic contains
   define transparent main as compute
-    perform basics::main
+    perform (P::sequence-unit [basics::main, lemmas::main])
   end
 end

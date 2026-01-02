@@ -1,0 +1,34 @@
+# NonEmptyString tests
+
+import assert as A
+import option as Opt
+import prelude as P
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some end
+
+module test::string::nonempty contains
+  define transparent nonempty-sample as
+    S::nonempty "hi"
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean
+          (Opt::is-none S::NonEmptyString (S::nonempty ""))
+          true)
+      , (match nonempty-sample of-type (P::Option S::NonEmptyString) as ignored returns (computation Unit)
+          case Option::none as P::error (computation Unit) "expected nonempty string"
+          case Option::some with s S::NonEmptyString as
+            P::sequence-unit
+              [
+                (assert-eq String (S::character-string (S::head-nonempty s)) "h")
+              , (assert-eq String (S::tail-nonempty s) "i")
+              ]
+        end)
+      ])
+  end
+end

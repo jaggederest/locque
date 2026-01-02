@@ -71,6 +71,7 @@
 - [x] Result/Option/Either data types in prelude.
 - [x] Simplify `assert` to use `assert-eq` without per-type wrappers.
 - [x] Generalize `list::drop-until` via `Equality`.
+- [x] Add `NonEmptyList`/`NonEmptyString` refinements with total accessors; re-export `Refine` via prelude; update tokenizer/formatter indent checks to use nonempty helpers.
 
 ## Documentation
 - [x] Document `lift`/`up`/`down` in grammar and reference docs.
