@@ -19,6 +19,7 @@ emitModule coreModule =
     moduleHeader =
       [ "{-# LANGUAGE OverloadedStrings #-}"
       , "module LocqueGen where"
+      , "import Prelude hiding (String)"
       , "import LocqueRuntime"
       , ""
       ]
@@ -127,31 +128,66 @@ renderComp comp =
     EMatch value cases ->
       "case "
         <> renderValue value
-        <> " of\n"
-        <> T.unlines (map renderCase cases)
+        <> " of "
+        <> renderCaseBlock (map renderCase cases)
 
 renderCase :: ErasedCase -> Text
 renderCase (ErasedCase ctor binders body) =
-  "  "
-    <> renderPattern ctor binders
+  renderPattern ctor binders
     <> " -> "
     <> renderComp body
 
+renderCaseBlock :: [Text] -> Text
+renderCaseBlock cases =
+  "{ " <> T.intercalate " ; " cases <> " }"
+
+renderValueCase :: ErasedValueCase -> Text
+renderValueCase (ErasedValueCase ctor binders body) =
+  renderPattern ctor binders
+    <> " -> "
+    <> renderValue body
+
 renderPattern :: Name -> [Name] -> Text
 renderPattern ctor binders =
-  case builtinPattern ctor binders of
+  let binderNames = renderBinderNames binders
+   in case builtinPattern ctor binderNames of
     Just pat -> pat
     Nothing ->
-      T.intercalate " " (hsCtorName ctor : map hsVarName binders)
+      T.intercalate " " (hsCtorName ctor : binderNames)
+
+renderBinderNames :: [Name] -> [Text]
+renderBinderNames binders =
+  reverse (snd (foldl step ([], []) binders))
+  where
+    step (seen, acc) name =
+      let raw = unName name
+          rendered = hsVarName name
+      in if raw == "ignored" || rendered `elem` seen
+          then (seen, "_" : acc)
+          else (rendered : seen, rendered : acc)
 
 renderValue :: ErasedValue -> Text
 renderValue value =
   case value of
     EVar name -> renderBuiltinVar name
     ELit lit -> renderLiteral lit
-    ELam name body -> "(\\" <> hsVarName name <> " -> " <> renderComp body <> ")"
+    EErased -> "()"
+    ELam name body -> "(\\" <> hsVarName name <> " -> " <> renderValue body <> ")"
+    EAppValue fn arg -> renderValueAtom fn <> " " <> renderValueAtom arg
     EConstructor name args -> renderConstructor name args
     ECompute comp -> renderComp comp
+    ELetValue name val body ->
+      "let "
+        <> hsVarName name
+        <> " = "
+        <> renderValue val
+        <> " in "
+        <> renderValue body
+    EMatchValue scrut cases ->
+      "case "
+        <> renderValue scrut
+        <> " of "
+        <> renderCaseBlock (map renderValueCase cases)
 
 renderValueAtom :: ErasedValue -> Text
 renderValueAtom value =
@@ -168,6 +204,7 @@ isAtomicValue value =
   case value of
     EVar _ -> True
     ELit _ -> True
+    EErased -> True
     EConstructor name args -> builtinCtorIsAtomic name args
     _ -> False
 
@@ -185,15 +222,22 @@ renderConstructor :: Name -> [ErasedValue] -> Text
 renderConstructor name args =
   case (name, args) of
     (Name "List::empty", []) -> "[]"
+    (Name "List::cons", []) -> "(:)"
     (Name "List::cons", [headValue, tailValue]) ->
       "(" <> renderValueAtom headValue <> " : " <> renderValueAtom tailValue <> ")"
+    (Name "Pair::pair", []) -> "(,)"
     (Name "Pair::pair", [leftValue, rightValue]) ->
       "(" <> renderValue leftValue <> ", " <> renderValue rightValue <> ")"
     (Name "Option::none", []) -> "Nothing"
+    (Name "Option::some", []) -> "Just"
     (Name "Option::some", [value]) -> "Just " <> renderValueAtom value
+    (Name "Either::left", []) -> "Left"
     (Name "Either::left", [value]) -> "Left " <> renderValueAtom value
+    (Name "Either::right", []) -> "Right"
     (Name "Either::right", [value]) -> "Right " <> renderValueAtom value
+    (Name "Result::ok", []) -> "Right"
     (Name "Result::ok", [value]) -> "Right " <> renderValueAtom value
+    (Name "Result::err", []) -> "Left"
     (Name "Result::err", [value]) -> "Left " <> renderValueAtom value
     _ ->
       let ctorName = hsCtorName name
@@ -207,12 +251,62 @@ renderBuiltinVar (Name name) =
   case name of
     "add-nat-prim" -> "addNatPrim"
     "sub-nat-prim" -> "subNatPrim"
+    "mul-nat-prim" -> "mulNatPrim"
+    "div-nat-prim" -> "divNatPrim"
+    "mod-nat-prim" -> "modNatPrim"
+    "lt-nat-prim" -> "ltNatPrim"
+    "le-nat-prim" -> "leNatPrim"
+    "gt-nat-prim" -> "gtNatPrim"
+    "ge-nat-prim" -> "geNatPrim"
     "eq-nat-prim" -> "eqNatPrim"
+    "decide-eq-nat-prim" -> "decideEqNatPrim"
     "eq-string-prim" -> "eqStringPrim"
+    "decide-eq-string-prim" -> "decideEqStringPrim"
+    "decide-eq-bool-prim" -> "decideEqBoolPrim"
+    "decide-eq-pair-prim" -> "decideEqPairPrim"
+    "decide-eq-list-prim" -> "decideEqListPrim"
     "concat-string-prim" -> "concatStringPrim"
+    "string-length-prim" -> "stringLengthPrim"
+    "string-to-list-prim" -> "stringToListPrim"
+    "char-code-prim" -> "charCodePrim"
+    "char-from-code-prim" -> "charFromCodePrim"
     "error-prim" -> "errorPrim"
     "print-prim" -> "printPrim"
+    "capture-output-prim" -> "captureOutputPrim"
+    "forever-prim" -> "foreverPrim"
+    "assert-hit-prim" -> "assertHitPrim"
     "get-line-prim" -> "getLinePrim"
+    "cli-args-prim" -> "cliArgsPrim"
+    "current-directory-prim" -> "currentDirectoryPrim"
+    "read-file-prim" -> "readFilePrim"
+    "write-file-prim" -> "writeFilePrim"
+    "append-file-prim" -> "appendFilePrim"
+    "copy-file-prim" -> "copyFilePrim"
+    "copy-tree-prim" -> "copyTreePrim"
+    "rename-path-prim" -> "renamePathPrim"
+    "list-dir-prim" -> "listDirPrim"
+    "path-exists-prim" -> "pathExistsPrim"
+    "is-directory-prim" -> "isDirectoryPrim"
+    "is-file-prim" -> "isFilePrim"
+    "make-directory-prim" -> "makeDirectoryPrim"
+    "remove-file-prim" -> "removeFilePrim"
+    "remove-directory-prim" -> "removeDirectoryPrim"
+    "walk-prim" -> "walkPrim"
+    "walk-filter-prim" -> "walkFilterPrim"
+    "stat-prim" -> "statPrim"
+    "natural-to-peano-prim" -> "naturalToPeanoPrim"
+    "nat-to-string-prim" -> "natToStringPrim"
+    "on-signal-prim" -> "onSignalPrim"
+    "tcp-listen-prim" -> "tcpListenPrim"
+    "tcp-accept-prim" -> "tcpAcceptPrim"
+    "tcp-recv-prim" -> "tcpRecvPrim"
+    "tcp-send-prim" -> "tcpSendPrim"
+    "tcp-close-prim" -> "tcpClosePrim"
+    "tcp-close-listener-prim" -> "tcpCloseListenerPrim"
+    "tcp-select-listener-prim" -> "tcpSelectListenerPrim"
+    "tcp-select-socket-prim" -> "tcpSelectSocketPrim"
+    "sleep-prim" -> "sleepPrim"
+    "timeout-prim" -> "timeoutPrim"
     "panic-prim" -> "panicPrim"
     "Boolean::true" -> "True"
     "Boolean::false" -> "False"
@@ -319,20 +413,20 @@ ensureLower text =
       | isLower char -> text
       | otherwise -> "v_" <> text
 
-builtinPattern :: Name -> [Name] -> Maybe Text
+builtinPattern :: Name -> [Text] -> Maybe Text
 builtinPattern (Name name) binders =
   case (name, binders) of
     ("List::empty", []) -> Just "[]"
     ("List::cons", [headName, tailName]) ->
-      Just (hsVarName headName <> " : " <> hsVarName tailName)
+      Just (headName <> " : " <> tailName)
     ("Pair::pair", [leftName, rightName]) ->
-      Just ("(" <> hsVarName leftName <> ", " <> hsVarName rightName <> ")")
+      Just ("(" <> leftName <> ", " <> rightName <> ")")
     ("Option::none", []) -> Just "Nothing"
-    ("Option::some", [valueName]) -> Just ("Just " <> hsVarName valueName)
-    ("Either::left", [valueName]) -> Just ("Left " <> hsVarName valueName)
-    ("Either::right", [valueName]) -> Just ("Right " <> hsVarName valueName)
-    ("Result::ok", [valueName]) -> Just ("Right " <> hsVarName valueName)
-    ("Result::err", [valueName]) -> Just ("Left " <> hsVarName valueName)
+    ("Option::some", [valueName]) -> Just ("Just " <> valueName)
+    ("Either::left", [valueName]) -> Just ("Left " <> valueName)
+    ("Either::right", [valueName]) -> Just ("Right " <> valueName)
+    ("Result::ok", [valueName]) -> Just ("Right " <> valueName)
+    ("Result::err", [valueName]) -> Just ("Left " <> valueName)
     ("Boolean::true", []) -> Just "True"
     ("Boolean::false", []) -> Just "False"
     ("Unit::tt", []) -> Just "()"

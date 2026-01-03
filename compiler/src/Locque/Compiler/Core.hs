@@ -27,9 +27,13 @@ data CoreType
 data CoreValue
   = VVar Name
   | VLit CoreLiteral
-  | VLam Name CoreType CoreComp
+  | VErased
+  | VLam Name CoreType CoreValue
+  | VApp CoreValue CoreValue
   | VConstructor Name [CoreValue]
   | VCompute CoreComp
+  | VLet Name CoreValue CoreValue
+  | VMatch CoreValue [CoreValueCase]
   deriving (Show, Read, Eq)
 
 data CoreComp
@@ -45,6 +49,12 @@ data CoreCase = CoreCase
   { caseCtor :: Name
   , caseBinders :: [Name]
   , caseBody :: CoreComp
+  } deriving (Show, Read, Eq)
+
+data CoreValueCase = CoreValueCase
+  { valueCaseCtor :: Name
+  , valueCaseBinders :: [Name]
+  , valueCaseBody :: CoreValue
   } deriving (Show, Read, Eq)
 
 data CoreCtor = CoreCtor

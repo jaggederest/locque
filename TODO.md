@@ -27,6 +27,7 @@
 ### Milestones (incremental)
 - M8: Debug build mode (optional): keep source map/selected type annotations.
 - M9: Dictionary lowering (EDict/EDictAccess) into runtime representation for codegen.
+- Lowering cleanup: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
 
 ### Project decisions (locked)
 - Typed CBPV Core IR; no ANF for now.

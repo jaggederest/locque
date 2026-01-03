@@ -150,13 +150,23 @@ coreValueFromSExpr expr =
       Right (VLit (LitBoolean value))
     SList [SAtom (AtomName "vlit-unit")] ->
       Right (VLit LitUnit)
-    SList [SAtom (AtomName "vlambda"), SAtom (AtomName name), tyExpr, compExpr] ->
-      VLam (Name name) <$> coreTypeFromSExpr tyExpr <*> coreCompFromSExpr compExpr
+    SList [SAtom (AtomName "verased")] ->
+      Right VErased
+    SList [SAtom (AtomName "vlambda"), SAtom (AtomName name), tyExpr, valueExpr] ->
+      VLam (Name name) <$> coreTypeFromSExpr tyExpr <*> coreValueFromSExpr valueExpr
+    SList [SAtom (AtomName "vapp"), fnExpr, argExpr] ->
+      VApp <$> coreValueFromSExpr fnExpr <*> coreValueFromSExpr argExpr
     SList (SAtom (AtomName "vctor") : SAtom (AtomName name) : args) -> do
       values <- traverse coreValueFromSExpr args
       pure (VConstructor (Name name) values)
     SList [SAtom (AtomName "vcompute"), compExpr] ->
       VCompute <$> coreCompFromSExpr compExpr
+    SList [SAtom (AtomName "vlet"), SAtom (AtomName name), valueExpr, bodyExpr] ->
+      VLet (Name name) <$> coreValueFromSExpr valueExpr <*> coreValueFromSExpr bodyExpr
+    SList (SAtom (AtomName "vmatch") : valueExpr : caseExprs) -> do
+      scrut <- coreValueFromSExpr valueExpr
+      cases <- traverse coreValueCaseFromSExpr caseExprs
+      pure (VMatch scrut cases)
     _ -> Left "expected value s-expr"
 
 coreCompFromSExpr :: SExpr -> Either Text CoreComp
@@ -204,6 +214,15 @@ coreCaseFromSExpr expr =
       body <- coreCompFromSExpr bodyExpr
       pure (CoreCase (Name ctor) binders body)
     _ -> Left "expected case s-expr"
+
+coreValueCaseFromSExpr :: SExpr -> Either Text CoreValueCase
+coreValueCaseFromSExpr expr =
+  case expr of
+    SList [SAtom (AtomName "vcase"), SAtom (AtomName ctor), bindersExpr, bodyExpr] -> do
+      binders <- parseBinders bindersExpr
+      body <- coreValueFromSExpr bodyExpr
+      pure (CoreValueCase (Name ctor) binders body)
+    _ -> Left "expected value case s-expr"
 
 coreCtorFromSExpr :: SExpr -> Either Text CoreCtor
 coreCtorFromSExpr expr =

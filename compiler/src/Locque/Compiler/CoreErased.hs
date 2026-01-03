@@ -26,9 +26,13 @@ data ErasedCtor = ErasedCtor
 data ErasedValue
   = EVar Name
   | ELit CoreLiteral
-  | ELam Name ErasedComp
+  | EErased
+  | ELam Name ErasedValue
+  | EAppValue ErasedValue ErasedValue
   | EConstructor Name [ErasedValue]
   | ECompute ErasedComp
+  | ELetValue Name ErasedValue ErasedValue
+  | EMatchValue ErasedValue [ErasedValueCase]
   deriving (Show, Read, Eq)
 
 data ErasedComp
@@ -44,4 +48,10 @@ data ErasedCase = ErasedCase
   { erasedCaseCtor :: Name
   , erasedCaseBinders :: [Name]
   , erasedCaseBody :: ErasedComp
+  } deriving (Show, Read, Eq)
+
+data ErasedValueCase = ErasedValueCase
+  { erasedValueCaseCtor :: Name
+  , erasedValueCaseBinders :: [Name]
+  , erasedValueCaseBody :: ErasedValue
   } deriving (Show, Read, Eq)

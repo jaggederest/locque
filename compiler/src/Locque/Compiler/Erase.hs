@@ -34,9 +34,15 @@ eraseValue value =
   case value of
     VVar name -> EVar name
     VLit lit -> ELit lit
-    VLam name _ body -> ELam name (eraseComp body)
+    VErased -> EErased
+    VLam name _ body -> ELam name (eraseValue body)
+    VApp fn arg -> EAppValue (eraseValue fn) (eraseValue arg)
     VConstructor name args -> EConstructor name (map eraseValue args)
     VCompute comp -> ECompute (eraseComp comp)
+    VLet name val body ->
+      ELetValue name (eraseValue val) (eraseValue body)
+    VMatch scrut cases ->
+      EMatchValue (eraseValue scrut) (map eraseValueCase cases)
 
 eraseComp :: CoreComp -> ErasedComp
 eraseComp comp =
@@ -54,3 +60,7 @@ eraseComp comp =
 eraseCase :: CoreCase -> ErasedCase
 eraseCase (CoreCase ctor binders body) =
   ErasedCase ctor binders (eraseComp body)
+
+eraseValueCase :: CoreValueCase -> ErasedValueCase
+eraseValueCase (CoreValueCase ctor binders body) =
+  ErasedValueCase ctor binders (eraseValue body)

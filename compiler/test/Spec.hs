@@ -24,7 +24,14 @@ main = hspec $ do
             VLam
               (Name "x")
               TyNatural
-              (CReturn (VVar (Name "x")))
+              (VVar (Name "x"))
+      parseCoreValue (renderCoreValue value) `shouldBe` Right value
+
+    it "round-trips an application value" $ do
+      let value =
+            VApp
+              (VVar (Name "f"))
+              (VLit (LitNatural 1))
       parseCoreValue (renderCoreValue value) `shouldBe` Right value
 
     it "round-trips a constructor value" $ do
@@ -32,6 +39,29 @@ main = hspec $ do
             VConstructor
               (Name "Option::some")
               [VLit (LitNatural 1)]
+      parseCoreValue (renderCoreValue value) `shouldBe` Right value
+
+    it "round-trips a let value" $ do
+      let value =
+            VLet
+              (Name "x")
+              (VLit (LitNatural 1))
+              (VVar (Name "x"))
+      parseCoreValue (renderCoreValue value) `shouldBe` Right value
+
+    it "round-trips a match value" $ do
+      let value =
+            VMatch
+              (VVar (Name "flag"))
+              [ CoreValueCase
+                  (Name "Boolean::true")
+                  []
+                  (VLit (LitNatural 1))
+              , CoreValueCase
+                  (Name "Boolean::false")
+                  []
+                  (VLit (LitNatural 0))
+              ]
       parseCoreValue (renderCoreValue value) `shouldBe` Right value
 
     it "round-trips a match computation" $ do
@@ -63,9 +93,12 @@ main = hspec $ do
             VLam
               (Name "x")
               TyNatural
-              (CReturn (VVar (Name "x")))
+              (VVar (Name "x"))
       eraseValue input
-        `shouldBe` ELam (Name "x") (EReturn (EVar (Name "x")))
+        `shouldBe` ELam (Name "x") (EVar (Name "x"))
+
+    it "erases explicit erased values" $ do
+      eraseValue VErased `shouldBe` EErased
 
     it "erases data field types to ctor arity" $ do
       let dataDecl =
@@ -171,13 +204,16 @@ genCoreValue size
       oneof
         [ VVar <$> genName
         , VLit <$> genLiteral
+        , pure VErased
         ]
   | otherwise =
       frequency
         [ (3, VVar <$> genName)
         , (3, VLit <$> genLiteral)
+        , (1, pure VErased)
         , (2, VConstructor <$> genName <*> genValueList)
-        , (1, VLam <$> genName <*> genType (size - 1) <*> genCoreComp (size - 1))
+        , (1, VLam <$> genName <*> genType (size - 1) <*> genCoreValue (size - 1))
+        , (1, VApp <$> genCoreValue (size - 1) <*> genCoreValue (size - 1))
         , (1, VCompute <$> genCoreComp (size - 1))
         ]
   where

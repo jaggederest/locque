@@ -32,12 +32,19 @@ renderCoreValue value =
   case value of
     VVar name -> sexp "vvar" [renderName name]
     VLit lit -> renderLiteral lit
+    VErased -> sexp "verased" []
     VLam name ty body ->
-      sexp "vlambda" [renderName name, renderCoreType ty, renderCoreComp body]
+      sexp "vlambda" [renderName name, renderCoreType ty, renderCoreValue body]
+    VApp fn arg ->
+      sexp "vapp" [renderCoreValue fn, renderCoreValue arg]
     VConstructor name args ->
       sexp "vctor" (renderName name : map renderCoreValue args)
     VCompute comp ->
       sexp "vcompute" [renderCoreComp comp]
+    VLet name val body ->
+      sexp "vlet" [renderName name, renderCoreValue val, renderCoreValue body]
+    VMatch scrut cases ->
+      sexp "vmatch" (renderCoreValue scrut : map renderCoreValueCase cases)
 
 renderCoreComp :: CoreComp -> Text
 renderCoreComp comp =
@@ -85,6 +92,10 @@ renderCoreCtor (CoreCtor name fields) =
 renderCoreCase :: CoreCase -> Text
 renderCoreCase (CoreCase ctor binders body) =
   sexp "ccase" [renderName ctor, renderBinders binders, renderCoreComp body]
+
+renderCoreValueCase :: CoreValueCase -> Text
+renderCoreValueCase (CoreValueCase ctor binders body) =
+  sexp "vcase" [renderName ctor, renderBinders binders, renderCoreValue body]
 
 renderLiteral :: CoreLiteral -> Text
 renderLiteral lit =

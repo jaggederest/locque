@@ -65,20 +65,33 @@ runCompile config args = do
           createDirectoryIfMissing True (takeDirectory outPath)
           TIO.writeFile genPath hsOutput
           TIO.writeFile mainPath (wrapperSource "LocqueGen")
-          compileResult <-
-            readCreateProcessWithExitCode
-              (proc "ghc"
+          let packageFlags =
+                [ "-package", "text"
+                , "-package", "filepath"
+                , "-package", "bytestring"
+                , "-package", "directory"
+                , "-package", "time"
+                , "-package", "unix"
+                , "-package", "network"
+                , "-package", "stm"
+                ]
+          let ghcArgs =
                 [ "-i" <> compilerSrc
                 , "-i" <> genDir
                 , "-odir"
                 , buildDir
                 , "-hidir"
                 , buildDir
-                , "-o"
-                , outPath
-                , mainPath
-                , genPath
-                ])
+                ]
+                  <> packageFlags
+                  <> [ "-o"
+                     , outPath
+                     , mainPath
+                     , genPath
+                     ]
+          compileResult <-
+            readCreateProcessWithExitCode
+              (proc "ghc" ghcArgs)
               ""
           case compileResult of
             (ExitFailure code, out, err) ->
