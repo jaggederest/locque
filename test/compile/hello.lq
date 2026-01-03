@@ -1,0 +1,5 @@
+module test::compile::hello contains
+  define transparent main as compute
+    perform (print-prim "hello")
+  end
+end

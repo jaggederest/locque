@@ -13,7 +13,7 @@ import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException, evaluate)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Char (toLower)
-import Data.IORef (IORef, newIORef, modifyIORef', readIORef)
+import Data.IORef (newIORef, modifyIORef', readIORef)
 import System.Environment (lookupEnv)
 
 import Parser (parseMExprFile)
@@ -92,26 +92,6 @@ runAllTests config verbose stageTiming = do
           exitFailure
         else do
           putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed (" ++ show elapsedUs ++ "us)\n"
-          mapM_ printError errors
-          exitFailure
-
-runPositiveTests :: SmythConfig -> Bool -> Bool -> [FilePath] -> IO ()
-runPositiveTests config verbose stageTiming files = do
-  (assertions, errors) <- runPositiveTestsWithCounts config stageTiming files
-  if null errors
-    then do
-      if verbose
-        then exitSuccess
-        else do
-          putStrLn $ "✓ All tests passed (" ++ show assertions ++ " assertions)"
-          exitSuccess
-    else do
-      if verbose
-        then do
-          mapM_ printError errors
-          exitFailure
-        else do
-          putStrLn $ "✗ " ++ show (length errors) ++ " test(s) failed\n"
           mapM_ printError errors
           exitFailure
 

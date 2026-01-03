@@ -1,0 +1,7 @@
+module test::compile::sequence contains
+  define transparent main as compute
+    bind ignored from perform (print-prim "first") then
+      perform (print-prim "second")
+    end
+  end
+end

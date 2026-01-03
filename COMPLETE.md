@@ -60,6 +60,8 @@
 - [x] M1: Erasure pass (types/proofs/refinements → runtime data only), preserving match/binders and module name.
 - [x] M2: LocqueRuntime shim (Comp/run/bind/return/perform), builtin type aliases, minimal primitive wrappers, tests.
 - [x] M3: Core → Haskell codegen (single module/entrypoint; imports LocqueRuntime; maps builtins).
+- [x] M4: `smyth emit-hs` CLI (outputs .hs via codegen; supports `--out-dir`).
+- [x] M5: Golden tests (compile/run hello + sequence; compare output vs interpreter).
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.

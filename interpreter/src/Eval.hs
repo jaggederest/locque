@@ -7,8 +7,8 @@ module Eval
 
 import           AST
 import           Control.Exception (catch, IOException, SomeException, throwIO, try, fromException)
-import           Control.Monad (when, void)
-import           Control.Concurrent (ThreadId, forkIO, myThreadId, throwTo, threadDelay)
+import           Control.Monad (when)
+import           Control.Concurrent (forkIO, myThreadId, throwTo, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import           GHC.Conc (getNumCapabilities, setNumCapabilities)
 import           Control.Concurrent.STM (atomically)
@@ -20,7 +20,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           Data.Char (ord, chr)
-import qualified Data.ByteString as BS
 import           System.FilePath ((</>), (<.>), takeExtension, pathSeparator)
 import           System.Directory
   ( copyFile
@@ -915,8 +914,8 @@ primStat _ = error "stat-prim expects 1 string arg"
 primShell :: [Value] -> IO Value
 primShell [VString cmd] = do
   pure (VComp (do
-    (_exitCode, stdout, stderr) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
-    pure $ VString (T.pack (stdout ++ stderr))))
+    (_exitCode, stdout, stderrText) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
+    pure $ VString (T.pack (stdout ++ stderrText))))
 primShell _ = error "shell-prim expects 1 string arg (command)"
 
 primCons :: [Value] -> IO Value

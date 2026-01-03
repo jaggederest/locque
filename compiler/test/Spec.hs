@@ -13,6 +13,7 @@ import Locque.Compiler.Erase
 import Locque.Compiler.CoreParse
 import Locque.Compiler.CorePretty
 import Locque.Compiler.Codegen
+import Locque.Compiler.Emit
 import qualified LocqueRuntime as RT
 
 main :: IO ()
@@ -153,6 +154,14 @@ main = hspec $ do
       let rendered = emitModule (CoreModule (Name "Test") [CoreData dataDecl])
       rendered `shouldSatisfy` T.isInfixOf "data Box a"
       rendered `shouldSatisfy` T.isInfixOf "Box_box a"
+
+  describe "Emit path helpers" $ do
+    it "writes next to input by default" $ do
+      emitHsPath Nothing "src/example.lq" `shouldBe` "src/example.hs"
+
+    it "writes to output directory when provided" $ do
+      emitHsPath (Just "tmp/locque/gen") "src/example.lq"
+        `shouldBe` "tmp/locque/gen/example.hs"
 
 -- Generators
 

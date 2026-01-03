@@ -161,10 +161,7 @@ renderValueAtom value =
 
 renderCompAtom :: ErasedComp -> Text
 renderCompAtom comp =
-  case comp of
-    EReturn _ -> renderComp comp
-    EPerform _ -> renderComp comp
-    _ -> "(" <> renderComp comp <> ")"
+  "(" <> renderComp comp <> ")"
 
 isAtomicValue :: ErasedValue -> Bool
 isAtomicValue value =
@@ -208,6 +205,15 @@ renderConstructor name args =
 renderBuiltinVar :: Name -> Text
 renderBuiltinVar (Name name) =
   case name of
+    "add-nat-prim" -> "addNatPrim"
+    "sub-nat-prim" -> "subNatPrim"
+    "eq-nat-prim" -> "eqNatPrim"
+    "eq-string-prim" -> "eqStringPrim"
+    "concat-string-prim" -> "concatStringPrim"
+    "error-prim" -> "errorPrim"
+    "print-prim" -> "printPrim"
+    "get-line-prim" -> "getLinePrim"
+    "panic-prim" -> "panicPrim"
     "Boolean::true" -> "True"
     "Boolean::false" -> "False"
     "Unit::tt" -> "()"
