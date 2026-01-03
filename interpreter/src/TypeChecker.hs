@@ -1886,7 +1886,11 @@ checkExprRec env structParams allowed allowRecur expr = case expr of
       else lift (Left (RecursionError noLoc "recur is only allowed in value recursion"))
   EApp (EVar "recur") args -> do
     if allowRecur
-      then checkRecurCall structParams allowed args
+      then do
+        -- Check for direct non-termination: passing unchanged structural params
+        detectDirectNonTermination structParams args
+        -- Main structural recursion check
+        checkRecurCall structParams allowed args
       else lift (Left (RecursionError noLoc "recur is only allowed in value recursion"))
     mapM_ (checkExprRec env structParams allowed allowRecur) args
   EListLiteral elems ->
@@ -1972,20 +1976,78 @@ checkCompRec env structParams allowed allowRecur comp = case comp of
   CPerform e1 ->
     checkExprRec env structParams allowed allowRecur e1
 
+-- | Detect obvious non-termination: passing an unchanged structural parameter
+-- to recur. This provides a more specific error message than the general
+-- "not structurally smaller" error.
+detectDirectNonTermination :: [StructParam] -> [Expr] -> TypeCheckM ()
+detectDirectNonTermination structParams args = do
+  let -- Check each argument at a structural position
+      violations = catMaybes $ zipWith checkViolation structParams [0..]
+      checkViolation sp idx
+        | idx < length args = case args !! idx of
+            EVar v | v == structName sp ->
+              Just ("Parameter '" <> structName sp <> "' passed unchanged to recur. " <>
+                    "You must pattern match on '" <> structName sp <>
+                    "' and pass a subterm (like the tail of a list).")
+            _ -> Nothing
+        | otherwise = Nothing
+  case violations of
+    (firstViolation:_) -> lift (Left (RecursionError noLoc firstViolation))
+    [] -> pure ()
+
+-- | Check that a recur call uses structurally smaller arguments
+-- This is the core of termination checking for recursive functions.
+-- A recur call is valid if at least one structural parameter decreases
+-- (is replaced by a variable from a pattern match on that parameter's data type).
 checkRecurCall :: [StructParam] -> Set.Set Text -> [Expr] -> TypeCheckM ()
 checkRecurCall structParams allowed args = do
   let indices = map structIndex structParams
       validIndices = filter (< length args) indices
-      ok = any (\idx -> case args !! idx of
-                          EVar v | v `Set.member` allowed -> True
-                          _ -> False) validIndices
+      -- Check each structural position for a decreasing argument
+      checkArg idx = case args !! idx of
+        EVar v | v `Set.member` allowed -> True
+        _ -> False
+      -- Valid if any structural argument decreases
+      anyDecreasing = any checkArg validIndices
+      -- Collect info for error messages
+      structNames = map structName structParams
+
   if null structParams
-    then lift (Left (RecursionError noLoc "recur requires a data parameter to decrease"))
+    then lift (Left (RecursionError noLoc
+      "recur requires at least one data type parameter to ensure termination"))
     else if null validIndices
-      then lift (Left (RecursionError noLoc "recur must be applied to the structural argument"))
-      else if ok
+      then lift (Left (RecursionError noLoc
+        ("recur must receive arguments for structural parameters: " <>
+         T.intercalate ", " structNames)))
+      else if anyDecreasing
         then pure ()
-        else lift (Left (RecursionError noLoc "recur must use a structurally smaller argument"))
+        else do
+          -- Build a helpful error message showing what went wrong
+          let badArgs = catMaybes $ zipWith (\sp idx ->
+                if idx < length args
+                  then Just (structName sp, structData sp, args !! idx)
+                  else Nothing)
+                structParams (map structIndex structParams)
+              showArg (name, dt, expr) =
+                "  - parameter '" <> name <> "' (type " <> dt <>
+                ") received: " <> exprToText expr <>
+                " (not structurally smaller)"
+              exprToText (EVar v) = v
+              exprToText (EApp (EVar f) _) = f <> " ..."
+              exprToText (ELit (LNatural n)) = T.pack (show n)
+              exprToText _ = "<expression>"
+              helpText = "In recursive calls, at least one structural parameter must be " <>
+                         "replaced by a direct subterm from pattern matching.\n" <>
+                         "Allowed smaller values: " <>
+                         T.intercalate ", " (Set.toList allowed)
+          lift (Left (RecursionError noLoc
+            ("recur must use a structurally smaller argument\n" <>
+             T.unlines (map showArg badArgs) <>
+             helpText)))
+
+-- | Helper for catMaybes
+catMaybes :: [Maybe a] -> [a]
+catMaybes = foldr (\x acc -> case x of Just v -> v : acc; Nothing -> acc) []
 
 --------------------------------------------------------------------------------
 -- Type inference/checking

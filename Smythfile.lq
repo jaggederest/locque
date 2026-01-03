@@ -101,30 +101,42 @@ module SmythConfig contains
                                     (P::cons (Pair String String)
                                       (P::pair String String
                                         "test/typecheck/recursion_non_decreasing.lq"
-                                        "Recursion error: recur must use a structurally smaller argument")
+                                        "Recursion error: Parameter 'xs' passed unchanged to recur")
                                       (P::cons (Pair String String)
                                         (P::pair String String
-                                          "test/typecheck/vec_bad_motive.lq"
-                                          "Type mismatch")
+                                          "test/typecheck/recursion_in_compute.lq"
+                                          "Recursion error: recur is only allowed in value recursion")
                                         (P::cons (Pair String String)
                                           (P::pair String String
-                                            "test/typecheck/vec_bad_binder.lq"
-                                            "Type mismatch")
+                                            "test/typecheck/recursion_no_struct_param.lq"
+                                            "Recursion error: recur requires at least one data type parameter")
                                           (P::cons (Pair String String)
-                                        (P::pair String String
-                                          "test/typecheck/rewrite_non_equality.lq"
-                                          "Expected equality type")
-                                        (P::cons (Pair String String)
-                                          (P::pair String String
-                                            "test/typecheck/typeclass_no_instance.lq"
-                                            "No matching instance for Show")
-                                          (P::cons (Pair String String)
-                                          (P::pair String String
-                                            "test/errors/fuzzy_match_type.lq"
-                                              "Did you mean: Ar::add")
+                                            (P::pair String String
+                                              "test/typecheck/recursion_bare_recur.lq"
+                                              "Recursion error: recur must be applied")
                                             (P::cons (Pair String String)
                                               (P::pair String String
-                                                "test/errors/fuzzy_match_unqualified.lq"
-                                                "Did you mean: my-function?")
-                                              (P::nil (Pair String String)))))))))))))))))))))))))))
+                                                "test/typecheck/vec_bad_motive.lq"
+                                                "Type mismatch")
+                                              (P::cons (Pair String String)
+                                                (P::pair String String
+                                                  "test/typecheck/vec_bad_binder.lq"
+                                                  "Type mismatch")
+                                                (P::cons (Pair String String)
+                                                  (P::pair String String
+                                                    "test/typecheck/rewrite_non_equality.lq"
+                                                    "Expected equality type")
+                                                  (P::cons (Pair String String)
+                                                    (P::pair String String
+                                                      "test/typecheck/typeclass_no_instance.lq"
+                                                      "No matching instance for Show")
+                                                    (P::cons (Pair String String)
+                                                      (P::pair String String
+                                                        "test/errors/fuzzy_match_type.lq"
+                                                        "Did you mean: Ar::add")
+                                                      (P::cons (Pair String String)
+                                                        (P::pair String String
+                                                          "test/errors/fuzzy_match_unqualified.lq"
+                                                          "Did you mean: my-function?")
+                                                        (P::nil (Pair String String))))))))))))))))))))))))))))))))
 end

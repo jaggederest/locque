@@ -1,0 +1,10 @@
+# Invalid recursion: recur must be applied, cannot be used bare
+
+import prelude as P
+
+module test::typecheck::recursion_bare_recur contains
+  define transparent bad-bare as
+    function xs (List Natural) returns (for-all ys as (List Natural) to Natural) value
+      recur
+    end
+end
