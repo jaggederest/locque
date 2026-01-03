@@ -6,7 +6,6 @@
 - Stdlib is stable; refinements/proofs and effect typing remain the main growth areas.
 
 ## Priority (next up)
-- Compiler: dictionary lowering (EDict/EDictAccess) into runtime representation for compiled output (close M9).
 - Compiler: debug build mode (optional) with source-map + selected type annotations.
 - Compiler: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
 - Compiler: add a compiled test runner/harness (smyth compile-test) to enforce parity vs interpreter.
@@ -34,7 +33,6 @@
 ## Compiler (Haskell backend bootstrap)
 ### Milestones (incremental)
 - M8: Debug build mode (optional): keep source map/selected type annotations.
-- M9: Dictionary lowering (EDict/EDictAccess) into runtime representation for codegen.
 - Lowering cleanup: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
 
 ### Project decisions (locked)

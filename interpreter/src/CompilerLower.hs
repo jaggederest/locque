@@ -187,8 +187,14 @@ lowerExpr typeNames ctorNames ctorArity typeVars expr =
     AST.EDown _ty _from _to body -> lowerExpr typeNames ctorNames ctorArity typeVars body
     AST.ETypeClass {} -> VErased
     AST.EInstance {} -> VErased
-    AST.EDict _ _ -> VErased
-    AST.EDictAccess _ _ -> VErased
+    AST.EDict _ impls ->
+      lowerDict typeNames ctorNames ctorArity typeVars impls
+    AST.EDictAccess dictExpr method ->
+      VApp
+        (VApp
+          (VVar (Name "dict-access-prim"))
+          (lowerExpr typeNames ctorNames ctorArity typeVars dictExpr))
+        (VLit (LitString method))
 
 lowerFunction :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> [AST.Param] -> AST.FunctionBody -> CoreValue
 lowerFunction typeNames ctorNames ctorArity typeVars params body =
@@ -242,6 +248,27 @@ lowerListLiteral typeNames ctorNames ctorArity typeVars elems =
           [lowerExpr typeNames ctorNames ctorArity typeVars elemValue, acc])
     (VConstructor (Name "List::empty") [])
     elems
+
+lowerDict :: Set.Set T.Text
+          -> Set.Set T.Text
+          -> Map.Map T.Text Int
+          -> Set.Set T.Text
+          -> [(T.Text, AST.Expr)]
+          -> CoreValue
+lowerDict typeNames ctorNames ctorArity typeVars entries =
+  foldr
+    (\(methodName, implExpr) acc ->
+        VConstructor
+          (Name "List::cons")
+          [ VConstructor
+              (Name "Pair::pair")
+              [ VLit (LitString methodName)
+              , lowerExpr typeNames ctorNames ctorArity typeVars implExpr
+              ]
+          , acc
+          ])
+    (VConstructor (Name "List::empty") [])
+    entries
 
 lowerLiteral :: AST.Literal -> CoreLiteral
 lowerLiteral lit =

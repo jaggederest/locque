@@ -245,21 +245,21 @@ renderConstructor name@(Name raw) args =
     ("List::empty", []) -> "[]"
     ("List::cons", []) -> "(:)"
     ("List::cons", [headValue, tailValue]) ->
-      "(" <> renderValueAtomCoerced headValue <> " : " <> renderValueAtomCoerced tailValue <> ")"
+      "(" <> renderValueAtom headValue <> " : " <> renderValueAtom tailValue <> ")"
     ("Pair::pair", []) -> "(,)"
     ("Pair::pair", [leftValue, rightValue]) ->
-      "(" <> renderValueCoerced leftValue <> ", " <> renderValueCoerced rightValue <> ")"
+      "(" <> renderValueAtom leftValue <> ", " <> renderValueAtom rightValue <> ")"
     ("Option::none", []) -> "Nothing"
     ("Option::some", []) -> "Just"
-    ("Option::some", [value]) -> "Just " <> renderValueAtomCoerced value
+    ("Option::some", [value]) -> "Just " <> renderValueAtom value
     ("Either::left", []) -> "Left"
-    ("Either::left", [value]) -> "Left " <> renderValueAtomCoerced value
+    ("Either::left", [value]) -> "Left " <> renderValueAtom value
     ("Either::right", []) -> "Right"
-    ("Either::right", [value]) -> "Right " <> renderValueAtomCoerced value
+    ("Either::right", [value]) -> "Right " <> renderValueAtom value
     ("Result::ok", []) -> "Right"
-    ("Result::ok", [value]) -> "Right " <> renderValueAtomCoerced value
+    ("Result::ok", [value]) -> "Right " <> renderValueAtom value
     ("Result::err", []) -> "Left"
-    ("Result::err", [value]) -> "Left " <> renderValueAtomCoerced value
+    ("Result::err", [value]) -> "Left " <> renderValueAtom value
     _ ->
       let ctorName = hsCtorName name
           renderedArgs = map renderValueAtomCoerced args
@@ -334,6 +334,7 @@ renderBuiltinVar (Name name) =
     "dictionary-remove-prim" -> "dictionaryRemovePrim"
     "dictionary-size-prim" -> "dictionarySizePrim"
     "dictionary-to-list-prim" -> "dictionaryToListPrim"
+    "dict-access-prim" -> "dictAccessPrim"
     "shell-prim" -> "shellPrim"
     "time-now-prim" -> "timeNowPrim"
     "validate-prim" -> "validatePrim"

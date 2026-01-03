@@ -73,6 +73,7 @@ module LocqueRuntime
   , dictionaryRemovePrim
   , dictionarySizePrim
   , dictionaryToListPrim
+  , dictAccessPrim
   , onSignalPrim
   , tcpListenPrim
   , tcpAcceptPrim
@@ -695,6 +696,15 @@ dictionarySizePrim (Dictionary _ size) =
 dictionaryToListPrim :: Dictionary k v -> List (Pair k v)
 dictionaryToListPrim (Dictionary buckets _) =
   concatMap snd (Map.toList buckets)
+
+dictAccessPrim :: List (Pair String a) -> String -> a
+dictAccessPrim entries name =
+  case entries of
+    [] -> P.error ("dict-access-prim: method not found: " ++ T.unpack name)
+    (key, value) : rest ->
+      if key == name
+        then value
+        else dictAccessPrim rest name
 
 insertBucket :: (k -> k -> Bool) -> k -> v -> List (Pair k v) -> (Bool, List (Pair k v))
 insertBucket eqFn key val entries =
