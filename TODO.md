@@ -25,9 +25,6 @@
 
 ## Compiler (Haskell backend bootstrap)
 ### Milestones (incremental)
-- M2: Runtime shim (`LocqueRuntime`): `newtype Comp a = Comp (IO a)`, bind/perform/return, primitive wrappers.
-- M6: Cache-friendly build: reuse existing run cache for compiled artifacts (optional).
-- M7: `smyth compile` wrapper (ghc build, binary output, args passthrough).
 - M8: Debug build mode (optional): keep source map/selected type annotations.
 
 ### Project decisions (locked)

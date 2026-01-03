@@ -11,6 +11,7 @@ import SmythDependencies (runDependencies)
 import SmythDump (runDump)
 import SmythEmit (runEmit)
 import SmythFormat (runFormat)
+import SmythCompile (runCompile)
 import SmythTest (runTests)
 import SmythRun (RunOptions(..), defaultRunOptions, runFileWithOptions)
 import Text.Read (readMaybe)
@@ -24,6 +25,7 @@ main = do
     ("bench" : benchArgs) -> runBenchCommand benchArgs
     ("count" : countArgs) -> runCountCommand countArgs
     ("dependencies" : depArgs) -> runDependenciesCommand depArgs
+    ("compile" : compileArgs) -> runCompileCommand compileArgs
     ("emit-hs" : emitArgs) -> runEmitCommand emitArgs
     ("dump" : dumpArgs) -> runDumpCommand dumpArgs
     ("format" : formatArgs) -> runFormatCommand formatArgs
@@ -129,6 +131,17 @@ runDependenciesCommand args = do
       config <- loadSmythConfig root
       runDependencies config args
 
+runCompileCommand :: [String] -> IO ()
+runCompileCommand args = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Nothing -> do
+      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+      exitFailure
+    Just root -> do
+      config <- loadSmythConfig root
+      runCompile config args
+
 runEmitCommand :: [String] -> IO ()
 runEmitCommand args = do
   maybeRoot <- findSmythfile
@@ -174,6 +187,7 @@ printHelp = do
   putStrLn "  smyth bench <file>  Run a specific benchmark file"
   putStrLn "  smyth count         Count .lq lines in lib/ and test/"
   putStrLn "  smyth dependencies  Print lib/ module dependencies as a tree"
+  putStrLn "  smyth compile [--out <path>] <file> [-- <args>]  Compile a .lq/.lqs file to a native binary"
   putStrLn "  smyth dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]"
   putStrLn "  smyth dump --multi <file> <mode[:name]>... [-- <file> <mode[:name]>...]"
   putStrLn "  smyth emit-hs [--out-dir <dir>] <file>    Emit Haskell for a .lq/.lqs file"

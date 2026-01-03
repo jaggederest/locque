@@ -30,6 +30,7 @@ import Parser (parseMExprFile)
 import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (loadSmythConfig)
 import SmythRun (runFileNoExit)
+import SmythCompile (CompileOptions(..), defaultCompileOutPath, parseCompileArgs)
 import qualified TypeChecker as TC
 import qualified Locque.Compiler.Core as Core
 
@@ -41,6 +42,15 @@ main = hspec $ do
 
     it "matches interpreter output for sequencing" $ do
       runGolden "test/compile/sequence.lq"
+
+  describe "Compile argument helpers" $ do
+    it "parses an output override" $ do
+      parseCompileArgs ["--out", "bin/app", "test/compile/hello.lq"]
+        `shouldBe` Right (CompileOptions (Just "bin/app"), "test/compile/hello.lq")
+
+    it "computes the default output path" $ do
+      defaultCompileOutPath "/repo" "test/compile/hello.lq"
+        `shouldBe` "/repo/tmp/locque/bin/hello"
 
 runGolden :: FilePath -> IO ()
 runGolden relPath = do
