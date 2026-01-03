@@ -12,7 +12,7 @@ open Eq exposing Equality end
 module test::shell::dump contains
   define transparent test-dump-bundle as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump --multi lib/prelude.lq types core -- lib/assert.lq types-elaborated:assert-eq")
+      (S::shell "smyth dump --multi lib/prelude.lq types core -- lib/assert.lq types-elaborated:assert-eq")
     then
       perform (P::sequence-unit
         [
@@ -31,7 +31,7 @@ module test::shell::dump contains
 
   define transparent test-dump-types-normalized as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/prelude.lq map")
+      (S::shell "smyth dump types-normalized lib/prelude.lq map")
     then
       perform (P::sequence-unit
         [
@@ -47,7 +47,7 @@ module test::shell::dump contains
 
   define transparent test-dump-types-normalized-either as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth dump types-normalized lib/either.lq map-right")
+      (S::shell "smyth dump types-normalized lib/either.lq map-right")
     then
       perform (P::sequence-unit
         [

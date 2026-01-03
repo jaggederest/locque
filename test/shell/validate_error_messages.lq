@@ -13,7 +13,7 @@ open Eq exposing Equality end
 module test::shell::validate_error_messages contains
   define transparent test-unqualified-fuzzy-match as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_unqualified.lq 2>&1")
+      (S::shell "smyth run test/errors/fuzzy_match_unqualified.lq 2>&1")
     then
       perform
         (assert-eq Boolean
@@ -24,7 +24,7 @@ module test::shell::validate_error_messages contains
 
   define transparent test-qualified-fuzzy-match as compute
     bind output from perform
-      (S::shell "cd /Users/justin/Code/locque && smyth run test/errors/fuzzy_match_type.lq 2>&1")
+      (S::shell "smyth run test/errors/fuzzy_match_type.lq 2>&1")
     then
       perform
         (assert-eq Boolean

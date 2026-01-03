@@ -4,7 +4,7 @@
 
 set -e
 
-PROJECT_ROOT="/Users/justin/Code/locque"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "Validating error message tests..."
