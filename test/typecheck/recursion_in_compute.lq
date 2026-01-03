@@ -1,0 +1,13 @@
+# Invalid recursion: recur is only allowed in value recursion, not computations
+
+import prelude as P
+import io as IO
+
+module test::typecheck::recursion_in_compute contains
+  define transparent bad-compute as
+    function xs (List Natural) returns computation Unit compute
+      bind ignored from perform (IO::print "hello") then
+        return (recur xs)
+      end
+    end
+end

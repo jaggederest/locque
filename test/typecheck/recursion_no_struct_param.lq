@@ -1,0 +1,10 @@
+# Invalid recursion: recur requires at least one data type parameter
+
+import prelude as P
+
+module test::typecheck::recursion_no_struct_param contains
+  define transparent bad-no-struct as
+    function x Natural y Natural returns Natural value
+      recur (add-nat-prim x 1) y
+    end
+end

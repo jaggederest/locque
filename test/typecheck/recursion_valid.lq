@@ -1,0 +1,51 @@
+# Valid structural recursion - should type check successfully
+
+import prelude as P
+import arithmetic as Ar
+
+module test::typecheck::recursion_valid contains
+  # Simple structural recursion on a list
+  define transparent sum-list as
+    function xs (List Natural) returns Natural value
+      match xs of-type (List Natural) as ignored returns Natural
+        case List::empty as 0
+        case List::cons with h Natural t (List Natural) as
+          Ar::add h (recur t)
+      end
+    end
+
+  # Multiple parameters, structural decrease on one
+  define transparent length-with-acc as
+    function A Type0 xs (List A) acc Natural returns Natural value
+      match xs of-type (List A) as ignored returns Natural
+        case List::empty as acc
+        case List::cons with h A t (List A) as
+          recur A t (Ar::add acc 1)
+      end
+    end
+
+  # Nested pattern matching with structural recursion
+  define transparent last-or-default as
+    function A Type0 default A xs (List A) returns A value
+      match xs of-type (List A) as ignored returns A
+        case List::empty as default
+        case List::cons with h A t (List A) as
+          match t of-type (List A) as ignored returns A
+            case List::empty as h
+            case List::cons with h2 A t2 (List A) as recur A default t
+          end
+      end
+    end
+
+  # Let-bound structural subterm
+  define transparent map-with-let as
+    function A Type0 B Type0 f (for-all x as A to B) xs (List A) returns (List B) value
+      match xs of-type (List A) as ignored returns (List B)
+        case List::empty as P::nil B
+        case List::cons with h A t (List A) as
+          let value rest be recur A B f t in
+            P::cons B (f h) rest
+          end
+      end
+    end
+end
