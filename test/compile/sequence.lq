@@ -1,7 +1,27 @@
+import assert as A
+import list as L
+import prelude as P
+import string as Str
+import test::helpers as TH
+
+open A exposing assert-eq end
+
 module test::compile::sequence contains
   define transparent main as compute
-    bind ignored from perform (print-prim "first") then
-      perform (print-prim "second")
-    end
+    perform
+      (TH::with-output Unit
+        (compute
+          bind ignored from perform (print-prim "first") then
+            perform (print-prim "second")
+          end
+        end)
+        (function output (List String) ignored Unit returns computation Unit compute
+          perform (P::sequence-unit
+            [
+              (assert-eq Natural (P::length-list String output) 2)
+            , (assert-eq String (L::nth String 0 output) "first")
+            , (assert-eq String (L::nth String 1 output) "second")
+            ])
+        end))
   end
 end

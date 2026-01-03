@@ -1,12 +1,16 @@
 import prelude as P
 
 import test::compile::edge_cases as edge_cases
+import test::compile::hello as hello
+import test::compile::sequence as sequence
 
 module test::compile contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         edge_cases::main
+      , hello::main
+      , sequence::main
       ])
   end
 end
