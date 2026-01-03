@@ -64,6 +64,7 @@
 - [x] M5: Golden tests (compile/run hello + sequence; compare output vs interpreter).
 - [x] M6: Reuse run cache for `emit-hs` (skip typecheck/transform when cached).
 - [x] M7: `smyth compile` wrapper (ghc build, binary output, optional arg passthrough with `--`).
+- [x] Compiled test suite runs via `smyth compile test/main.lq` and `tmp/locque/bin/main`.
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.

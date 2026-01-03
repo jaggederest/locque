@@ -1,7 +1,15 @@
 # Locque TODO
 
+## Strategic assessment
+- Compiler backend now builds and runs the full test suite; next risk is semantics drift (dictionary values, erased types).
+- Short term focus should stay on compiler correctness/observability before deeper type system features.
+- Stdlib is stable; refinements/proofs and effect typing remain the main growth areas.
+
 ## Priority (next up)
-- Compiler bootstrap: Haskell backend via typed CBPV Core IR (emit-hs first, compile later).
+- Compiler: dictionary lowering (EDict/EDictAccess) into runtime representation for compiled output (close M9).
+- Compiler: debug build mode (optional) with source-map + selected type annotations.
+- Compiler: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
+- Compiler: add a compiled test runner/harness (smyth compile-test) to enforce parity vs interpreter.
 - Webapp: consider refined todo IDs (e.g., `Natural` with `is-positive`) when predicate helpers land.
 - HTTP request/response: add refinement hooks for valid requests and response status (future).
 - Default instances: consider `Default (Refine A P)` once proof automation exists.
@@ -18,7 +26,7 @@
 - Net/TCP: consider `ValidPort` refinement for safe APIs.
 
 ## Stdlib follow-ups (Applicative/Monad)
-- Add `traverse`/`sequence` for `List` using `Applicative` (plus `sequence-unit` helpers).
+- Add `traverse`/`sequence` for `List` using `Applicative` (beyond the existing computation sequence helpers).
 - Add `Option`/`Either`/`Result`/`List` convenience wrappers (`pure`, `apply`, `and-then`) aligned with new typeclasses.
 - Consider `Dictionary` functorial map (value mapping) and possible `Functor` instance.
 - Consider `computation` monad helpers (effect-indexed) once effect polymorphism is formalized.
@@ -41,6 +49,7 @@
 - Show code context once parser locations updated.
 
 ## Performance
+- Typecheck profiling + targeted caching or parallelism once we have a stable baseline.
 
 ## Language features (future)
 - Definitional equality: eta reduction for functions.

@@ -18,9 +18,12 @@ emitModule coreModule =
   where
     moduleHeader =
       [ "{-# LANGUAGE OverloadedStrings #-}"
+      , "{-# LANGUAGE EmptyCase #-}"
+      , "{-# LANGUAGE EmptyDataDecls #-}"
       , "module LocqueGen where"
       , "import Prelude hiding (String)"
       , "import LocqueRuntime"
+      , "import Unsafe.Coerce (unsafeCoerce)"
       , ""
       ]
 
@@ -36,9 +39,12 @@ emitDecl decl =
       , ""
       ]
     CoreData dataDecl ->
-      [ emitDataDecl dataDecl
-      , ""
-      ]
+      if isBuiltinDataDecl dataDecl
+        then []
+        else
+          [ emitDataDecl dataDecl
+          , ""
+          ]
 
 emitValueBinding :: Name -> ErasedValue -> Text
 emitValueBinding name value =
@@ -50,11 +56,17 @@ emitCompBinding name comp =
 
 emitDataDecl :: CoreDataDecl -> Text
 emitDataDecl (CoreDataDecl name params ctors) =
-  "data "
-    <> hsTypeName name
-    <> renderTypeParams params
-    <> " = "
-    <> T.intercalate " | " (map emitCtor ctors)
+  case ctors of
+    [] ->
+      "data "
+        <> hsTypeName name
+        <> renderTypeParams params
+    _ ->
+      "data "
+        <> hsTypeName name
+        <> renderTypeParams params
+        <> " = "
+        <> T.intercalate " | " (map emitCtor ctors)
   where
     renderTypeParams [] = ""
     renderTypeParams names =
@@ -107,7 +119,7 @@ renderType ty =
 renderComp :: ErasedComp -> Text
 renderComp comp =
   case comp of
-    EReturn value -> "compReturn " <> renderValueAtom value
+    EReturn value -> "compReturn " <> renderValueAtomCoerced value
     EBind name left right ->
       "compBind "
         <> renderCompAtom left
@@ -116,8 +128,8 @@ renderComp comp =
         <> " -> "
         <> renderComp right
         <> ")"
-    EPerform value -> "perform " <> renderValueAtom value
-    EApp fn arg -> renderValueAtom fn <> " " <> renderValueAtom arg
+    EPerform value -> "perform " <> renderValueAtomCoerced value
+    EApp fn arg -> renderValueAtom fn <> " " <> renderValueAtomCoerced arg
     ELet name value body ->
       "let "
         <> hsVarName name
@@ -127,7 +139,7 @@ renderComp comp =
         <> renderComp body
     EMatch value cases ->
       "case "
-        <> renderValue value
+        <> renderValueCoerced value
         <> " of "
         <> renderCaseBlock (map renderCase cases)
 
@@ -144,8 +156,9 @@ renderCaseBlock cases =
 renderValueCase :: ErasedValueCase -> Text
 renderValueCase (ErasedValueCase ctor binders body) =
   renderPattern ctor binders
-    <> " -> "
+    <> " -> unsafeCoerce ("
     <> renderValue body
+    <> ")"
 
 renderPattern :: Name -> [Name] -> Text
 renderPattern ctor binders =
@@ -171,9 +184,9 @@ renderValue value =
   case value of
     EVar name -> renderBuiltinVar name
     ELit lit -> renderLiteral lit
-    EErased -> "()"
+    EErased -> "(unsafeCoerce ())"
     ELam name body -> "(\\" <> hsVarName name <> " -> " <> renderValue body <> ")"
-    EAppValue fn arg -> renderValueAtom fn <> " " <> renderValueAtom arg
+    EAppValue fn arg -> renderValueAtom fn <> " " <> renderValueAtomCoerced arg
     EConstructor name args -> renderConstructor name args
     ECompute comp -> renderComp comp
     ELetValue name val body ->
@@ -185,7 +198,7 @@ renderValue value =
         <> renderValue body
     EMatchValue scrut cases ->
       "case "
-        <> renderValue scrut
+        <> renderValueCoerced scrut
         <> " of "
         <> renderCaseBlock (map renderValueCase cases)
 
@@ -194,6 +207,14 @@ renderValueAtom value =
   if isAtomicValue value
     then renderValue value
     else "(" <> renderValue value <> ")"
+
+renderValueCoerced :: ErasedValue -> Text
+renderValueCoerced value =
+  "unsafeCoerce (" <> renderValue value <> ")"
+
+renderValueAtomCoerced :: ErasedValue -> Text
+renderValueAtomCoerced value =
+  "(unsafeCoerce (" <> renderValueAtom value <> "))"
 
 renderCompAtom :: ErasedComp -> Text
 renderCompAtom comp =
@@ -210,7 +231,7 @@ isAtomicValue value =
 
 builtinCtorIsAtomic :: Name -> [ErasedValue] -> Bool
 builtinCtorIsAtomic (Name name) args =
-  case (name, args) of
+  case (ctorBaseName name, args) of
     ("Option::none", []) -> True
     ("List::empty", []) -> True
     ("Boolean::true", []) -> True
@@ -219,29 +240,29 @@ builtinCtorIsAtomic (Name name) args =
     _ -> False
 
 renderConstructor :: Name -> [ErasedValue] -> Text
-renderConstructor name args =
-  case (name, args) of
-    (Name "List::empty", []) -> "[]"
-    (Name "List::cons", []) -> "(:)"
-    (Name "List::cons", [headValue, tailValue]) ->
-      "(" <> renderValueAtom headValue <> " : " <> renderValueAtom tailValue <> ")"
-    (Name "Pair::pair", []) -> "(,)"
-    (Name "Pair::pair", [leftValue, rightValue]) ->
-      "(" <> renderValue leftValue <> ", " <> renderValue rightValue <> ")"
-    (Name "Option::none", []) -> "Nothing"
-    (Name "Option::some", []) -> "Just"
-    (Name "Option::some", [value]) -> "Just " <> renderValueAtom value
-    (Name "Either::left", []) -> "Left"
-    (Name "Either::left", [value]) -> "Left " <> renderValueAtom value
-    (Name "Either::right", []) -> "Right"
-    (Name "Either::right", [value]) -> "Right " <> renderValueAtom value
-    (Name "Result::ok", []) -> "Right"
-    (Name "Result::ok", [value]) -> "Right " <> renderValueAtom value
-    (Name "Result::err", []) -> "Left"
-    (Name "Result::err", [value]) -> "Left " <> renderValueAtom value
+renderConstructor name@(Name raw) args =
+  case (ctorBaseName raw, args) of
+    ("List::empty", []) -> "[]"
+    ("List::cons", []) -> "(:)"
+    ("List::cons", [headValue, tailValue]) ->
+      "(" <> renderValueAtomCoerced headValue <> " : " <> renderValueAtomCoerced tailValue <> ")"
+    ("Pair::pair", []) -> "(,)"
+    ("Pair::pair", [leftValue, rightValue]) ->
+      "(" <> renderValueCoerced leftValue <> ", " <> renderValueCoerced rightValue <> ")"
+    ("Option::none", []) -> "Nothing"
+    ("Option::some", []) -> "Just"
+    ("Option::some", [value]) -> "Just " <> renderValueAtomCoerced value
+    ("Either::left", []) -> "Left"
+    ("Either::left", [value]) -> "Left " <> renderValueAtomCoerced value
+    ("Either::right", []) -> "Right"
+    ("Either::right", [value]) -> "Right " <> renderValueAtomCoerced value
+    ("Result::ok", []) -> "Right"
+    ("Result::ok", [value]) -> "Right " <> renderValueAtomCoerced value
+    ("Result::err", []) -> "Left"
+    ("Result::err", [value]) -> "Left " <> renderValueAtomCoerced value
     _ ->
       let ctorName = hsCtorName name
-          renderedArgs = map renderValueAtom args
+          renderedArgs = map renderValueAtomCoerced args
        in case renderedArgs of
             [] -> ctorName
             _ -> ctorName <> " " <> T.intercalate " " renderedArgs
@@ -307,26 +328,37 @@ renderBuiltinVar (Name name) =
     "tcp-select-socket-prim" -> "tcpSelectSocketPrim"
     "sleep-prim" -> "sleepPrim"
     "timeout-prim" -> "timeoutPrim"
+    "dictionary-empty-prim" -> "dictionaryEmptyPrim"
+    "dictionary-insert-prim" -> "dictionaryInsertPrim"
+    "dictionary-lookup-prim" -> "dictionaryLookupPrim"
+    "dictionary-remove-prim" -> "dictionaryRemovePrim"
+    "dictionary-size-prim" -> "dictionarySizePrim"
+    "dictionary-to-list-prim" -> "dictionaryToListPrim"
+    "shell-prim" -> "shellPrim"
+    "time-now-prim" -> "timeNowPrim"
+    "validate-prim" -> "validatePrim"
     "panic-prim" -> "panicPrim"
-    "Boolean::true" -> "True"
-    "Boolean::false" -> "False"
-    "Unit::tt" -> "()"
-    "List::empty" -> "[]"
-    "List::cons" -> "(:)"
-    "Pair::pair" -> "(,)"
-    "Option::none" -> "Nothing"
-    "Option::some" -> "Just"
-    "Either::left" -> "Left"
-    "Either::right" -> "Right"
-    "Result::ok" -> "Right"
-    "Result::err" -> "Left"
-    _ -> hsVarName (Name name)
+    _ ->
+      case ctorBaseName name of
+        "Boolean::true" -> "True"
+        "Boolean::false" -> "False"
+        "Unit::tt" -> "()"
+        "List::empty" -> "[]"
+        "List::cons" -> "(:)"
+        "Pair::pair" -> "(,)"
+        "Option::none" -> "Nothing"
+        "Option::some" -> "Just"
+        "Either::left" -> "Left"
+        "Either::right" -> "Right"
+        "Result::ok" -> "Right"
+        "Result::err" -> "Left"
+        _ -> hsVarName (Name name)
 
 renderLiteral :: CoreLiteral -> Text
 renderLiteral lit =
   case lit of
     LitNatural nat -> T.pack (show nat)
-    LitString text -> "\"" <> escapeString text <> "\""
+    LitString text -> "(\"" <> escapeString text <> "\" :: String)"
     LitBoolean value -> if value then "True" else "False"
     LitUnit -> "()"
 
@@ -345,12 +377,14 @@ escapeChar char =
 
 hsTypeConName :: Name -> Text
 hsTypeConName name@(Name raw) =
-  case raw of
+  case baseName raw of
     "List" -> "List"
     "Pair" -> "Pair"
+    "Dictionary" -> "Dictionary"
     "Option" -> "Option"
     "Either" -> "Either"
     "Result" -> "Result"
+    "Boolean" -> "Boolean"
     _ -> hsTypeName name
 
 hsTypeName :: Name -> Text
@@ -415,7 +449,7 @@ ensureLower text =
 
 builtinPattern :: Name -> [Text] -> Maybe Text
 builtinPattern (Name name) binders =
-  case (name, binders) of
+  case (ctorBaseName name, binders) of
     ("List::empty", []) -> Just "[]"
     ("List::cons", [headName, tailName]) ->
       Just (headName <> " : " <> tailName)
@@ -431,3 +465,20 @@ builtinPattern (Name name) binders =
     ("Boolean::false", []) -> Just "False"
     ("Unit::tt", []) -> Just "()"
     _ -> Nothing
+
+baseName :: Text -> Text
+baseName raw =
+  case reverse (T.splitOn "::" raw) of
+    (name:_) -> name
+    [] -> raw
+
+ctorBaseName :: Text -> Text
+ctorBaseName raw =
+  case reverse (T.splitOn "::" raw) of
+    (ctorName:parentName:_) -> parentName <> "::" <> ctorName
+    (only:_) -> only
+    [] -> raw
+
+isBuiltinDataDecl :: CoreDataDecl -> Bool
+isBuiltinDataDecl (CoreDataDecl (Name raw) _ _) =
+  baseName raw `elem` ["Option", "Either", "Result"]

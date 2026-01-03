@@ -5,11 +5,13 @@ module LocqueRuntime
   , compBind
   , perform
   , Unit
+  , Boolean
   , Natural
   , String
   , Character
   , List
   , Pair
+  , Dictionary
   , Listener
   , Socket
   , Option
@@ -46,8 +48,10 @@ module LocqueRuntime
   , getLinePrim
   , cliArgsPrim
   , currentDirectoryPrim
+  , timeNowPrim
   , readFilePrim
   , writeFilePrim
+  , shellPrim
   , appendFilePrim
   , copyFilePrim
   , copyTreePrim
@@ -62,6 +66,13 @@ module LocqueRuntime
   , walkPrim
   , walkFilterPrim
   , statPrim
+  , validatePrim
+  , dictionaryEmptyPrim
+  , dictionaryInsertPrim
+  , dictionaryLookupPrim
+  , dictionaryRemovePrim
+  , dictionarySizePrim
+  , dictionaryToListPrim
   , onSignalPrim
   , tcpListenPrim
   , tcpAcceptPrim
@@ -85,6 +96,7 @@ import Control.Exception (SomeException, fromException, try, throwIO)
 import Data.Char (chr, ord)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (isPrefixOf, isSuffixOf)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -100,6 +112,7 @@ import System.Directory
   , getCurrentDirectory
   , getFileSize
   , getModificationTime
+  , getTemporaryDirectory
   , listDirectory
   , removeDirectoryRecursive
   , removeFile
@@ -110,20 +123,25 @@ import System.Environment (getArgs)
 import System.Exit (ExitCode(..))
 import System.FilePath (pathSeparator, (</>))
 import System.IO.Unsafe (unsafePerformIO)
+import System.IO (hClose, openTempFile)
 import System.Posix.Process (exitImmediately)
 import System.Posix.Signals (Signal)
 import qualified System.Posix.Signals as Signals
+import System.Process (proc, readCreateProcessWithExitCode, shell)
 import System.Timeout (timeout)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX (getPOSIXTime, utcTimeToPOSIXSeconds)
+import Unsafe.Coerce (unsafeCoerce)
 
 newtype Comp a = Comp { runComp :: IO a }
 
 type Unit = ()
+type Boolean = Bool
 type Natural = Integer
 type String = Text
 type Character = Text
 type List a = [a]
 type Pair a b = (a, b)
+data Dictionary k v = Dictionary (Map.Map Integer [(k, v)]) Int
 newtype Listener = Listener NS.Socket
 newtype Socket = Socket NS.Socket
 type Option a = P.Maybe a
@@ -172,16 +190,16 @@ geNatPrim = (P.>=)
 eqNatPrim :: Natural -> Natural -> P.Bool
 eqNatPrim = (P.==)
 
-decideEqNatPrim :: Natural -> Natural -> (P.Bool, Unit)
+decideEqNatPrim :: Natural -> Natural -> (P.Bool, proof)
 decideEqNatPrim left right = decisionResult (left P.== right)
 
 eqStringPrim :: String -> String -> P.Bool
 eqStringPrim = (P.==)
 
-decideEqStringPrim :: String -> String -> (P.Bool, Unit)
+decideEqStringPrim :: String -> String -> (P.Bool, proof)
 decideEqStringPrim left right = decisionResult (left P.== right)
 
-decideEqBoolPrim :: P.Bool -> P.Bool -> (P.Bool, Unit)
+decideEqBoolPrim :: P.Bool -> P.Bool -> (P.Bool, proof)
 decideEqBoolPrim left right = decisionResult (left P.== right)
 
 decideEqPairPrim
@@ -189,7 +207,7 @@ decideEqPairPrim
   -> (b -> b -> (P.Bool, proofB))
   -> (a, b)
   -> (a, b)
-  -> (P.Bool, Unit)
+  -> (P.Bool, proof)
 decideEqPairPrim eqA eqB (a1, b1) (a2, b2) =
   let (okA, _) = eqA a1 a2
    in if okA
@@ -202,7 +220,7 @@ decideEqListPrim
   :: (a -> a -> (P.Bool, proof))
   -> [a]
   -> [a]
-  -> (P.Bool, Unit)
+  -> (P.Bool, proofOut)
 decideEqListPrim eqA = go
   where
     go [] [] = decisionResult True
@@ -282,6 +300,12 @@ currentDirectoryPrim = Comp $ do
   dir <- getCurrentDirectory
   pure (T.pack dir)
 
+timeNowPrim :: Comp Natural
+timeNowPrim = Comp $ do
+  t <- getPOSIXTime
+  let micros = floor (t * 1000000)
+  pure micros
+
 readFilePrim :: String -> Comp String
 readFilePrim path =
   Comp (TIO.readFile (T.unpack path))
@@ -289,6 +313,12 @@ readFilePrim path =
 writeFilePrim :: String -> String -> Comp Unit
 writeFilePrim path contents =
   Comp (TIO.writeFile (T.unpack path) contents >> pure ())
+
+shellPrim :: String -> Comp String
+shellPrim cmd =
+  Comp $ do
+    (_exitCode, stdoutText, stderrText) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
+    pure (T.pack (stdoutText ++ stderrText))
 
 appendFilePrim :: String -> String -> Comp Unit
 appendFilePrim path contents =
@@ -516,8 +546,8 @@ panicPrim :: String -> Comp a
 panicPrim message =
   Comp (P.ioError (P.userError (T.unpack message)))
 
-decisionResult :: P.Bool -> (P.Bool, Unit)
-decisionResult ok = (ok, ())
+decisionResult :: P.Bool -> (P.Bool, proof)
+decisionResult ok = (ok, unsafeCoerce ())
 
 copyTree :: FilePath -> FilePath -> IO ()
 copyTree src dest = do
@@ -612,6 +642,112 @@ runBlocking action = do
   case result of
     Left (ex :: SomeException) -> throwIO ex
     Right val -> pure val
+
+dictionaryEmptyPrim :: Dictionary k v
+dictionaryEmptyPrim = Dictionary Map.empty 0
+
+dictionaryInsertPrim
+  :: (k -> Natural)
+  -> (k -> k -> Bool)
+  -> k
+  -> v
+  -> Dictionary k v
+  -> Dictionary k v
+dictionaryInsertPrim hashFn eqFn key val (Dictionary buckets size) =
+  let h = hashFn key
+      bucket = Map.findWithDefault [] h buckets
+      (found, bucket') = insertBucket eqFn key val bucket
+      size' = if found then size else size + 1
+      buckets' = Map.insert h bucket' buckets
+  in Dictionary buckets' size'
+
+dictionaryLookupPrim
+  :: (k -> Natural)
+  -> (k -> k -> Bool)
+  -> k
+  -> Dictionary k v
+  -> Option v
+dictionaryLookupPrim hashFn eqFn key (Dictionary buckets _) =
+  let h = hashFn key
+      bucket = Map.findWithDefault [] h buckets
+  in lookupBucket eqFn key bucket
+
+dictionaryRemovePrim
+  :: (k -> Natural)
+  -> (k -> k -> Bool)
+  -> k
+  -> Dictionary k v
+  -> Dictionary k v
+dictionaryRemovePrim hashFn eqFn key (Dictionary buckets size) =
+  let h = hashFn key
+      bucket = Map.findWithDefault [] h buckets
+      (removed, bucket') = removeBucket eqFn key bucket
+      size' = if removed then max 0 (size - 1) else size
+      buckets' = if null bucket'
+        then Map.delete h buckets
+        else Map.insert h bucket' buckets
+  in Dictionary buckets' size'
+
+dictionarySizePrim :: Dictionary k v -> Natural
+dictionarySizePrim (Dictionary _ size) =
+  fromIntegral size
+
+dictionaryToListPrim :: Dictionary k v -> List (Pair k v)
+dictionaryToListPrim (Dictionary buckets _) =
+  concatMap snd (Map.toList buckets)
+
+insertBucket :: (k -> k -> Bool) -> k -> v -> List (Pair k v) -> (Bool, List (Pair k v))
+insertBucket eqFn key val entries =
+  case entries of
+    [] -> (False, [(key, val)])
+    (k, v):rest ->
+      if eqFn key k
+        then (True, (key, val) : rest)
+        else
+          let (found, rest') = insertBucket eqFn key val rest
+          in (found, (k, v) : rest')
+
+lookupBucket :: (k -> k -> Bool) -> k -> List (Pair k v) -> Option v
+lookupBucket eqFn key entries =
+  case entries of
+    [] -> Nothing
+    (k, v):rest ->
+      if eqFn key k
+        then Just v
+        else lookupBucket eqFn key rest
+
+removeBucket :: (k -> k -> Bool) -> k -> List (Pair k v) -> (Bool, List (Pair k v))
+removeBucket eqFn key entries =
+  case entries of
+    [] -> (False, [])
+    (k, v):rest ->
+      if eqFn key k
+        then (True, rest)
+        else
+          let (found, rest') = removeBucket eqFn key rest
+          in (found, (k, v) : rest')
+
+validatePrim :: String -> Bool
+validatePrim source =
+  unsafePerformIO $ do
+    let normalized =
+          if T.isSuffixOf (T.pack "\n") source
+            then source
+            else source <> T.pack "\n"
+    tempDir <- getTemporaryDirectory
+    (path, handle) <- openTempFile tempDir "locque_validate.lq"
+    TIO.hPutStr handle normalized
+    hClose handle
+    let outPath = path <> ".lqs"
+    (exitCode, _out, _err) <-
+      readCreateProcessWithExitCode
+        (proc "locque-interpreter" ["emit-lqs", path, outPath])
+        ""
+    _ <- try (removeFile path) :: IO (Either SomeException ())
+    _ <- try (removeFile outPath) :: IO (Either SomeException ())
+    pure (case exitCode of
+      ExitSuccess -> True
+      ExitFailure _ -> False)
 
 outputCapture :: IORef [List String]
 outputCapture = unsafePerformIO (newIORef [])
