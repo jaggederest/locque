@@ -7,8 +7,11 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 import Locque.Compiler.Core
+import Locque.Compiler.CoreErased as Erased
+import Locque.Compiler.Erase
 import Locque.Compiler.CoreParse
 import Locque.Compiler.CorePretty
+import qualified LocqueRuntime as RT
 
 main :: IO ()
 main = hspec $ do
@@ -50,6 +53,68 @@ main = hspec $ do
     prop "round-trips small computations" $
       forAll (genCoreComp 3) $ \comp ->
         parseCoreComp (renderCoreComp comp) === Right comp
+
+  describe "Core erasure" $ do
+    it "erases lambda types" $ do
+      let input =
+            VLam
+              (Name "x")
+              TyNatural
+              (CReturn (VVar (Name "x")))
+      eraseValue input
+        `shouldBe` ELam (Name "x") (EReturn (EVar (Name "x")))
+
+    it "erases data field types to ctor arity" $ do
+      let dataDecl =
+            CoreDataDecl
+              (Name "Option")
+              [Name "A"]
+              [ CoreCtor (Name "Option::some") [TyVar (Name "A")]
+              , CoreCtor (Name "Option::none") []
+              ]
+      eraseDataDecl dataDecl
+        `shouldBe` ErasedDataDecl
+          (Name "Option")
+          [ ErasedCtor (Name "Option::some") 1
+          , ErasedCtor (Name "Option::none") 0
+          ]
+
+    it "preserves match binder names" $ do
+      let comp =
+            CMatch
+              (VVar (Name "xs"))
+              [ CoreCase
+                  (Name "List::cons")
+                  [Name "head", Name "tail"]
+                  (CReturn (VVar (Name "head")))
+              ]
+      eraseComp comp
+        `shouldBe` EMatch
+          (EVar (Name "xs"))
+          [ ErasedCase
+              (Name "List::cons")
+              [Name "head", Name "tail"]
+              (EReturn (EVar (Name "head")))
+          ]
+
+    it "preserves module name" $ do
+      let input = CoreModule (Name "Example") []
+      eraseModule input `shouldBe` ErasedModule (Name "Example") []
+
+  describe "LocqueRuntime" $ do
+    it "binds computations in order" $ do
+      let comp =
+            RT.compBind (RT.compReturn (1 :: RT.Natural)) $ \value ->
+              RT.compReturn (RT.addNatPrim value 1)
+      RT.runComp comp `shouldReturn` (2 :: RT.Natural)
+
+    it "clamps natural subtraction to zero" $ do
+      RT.subNatPrim 2 5 `shouldBe` (0 :: RT.Natural)
+
+    it "compares and concatenates strings" $ do
+      let hello = RT.concatStringPrim "he" "llo"
+      RT.eqStringPrim hello "hello" `shouldBe` True
+      RT.stringLengthPrim hello `shouldBe` (5 :: RT.Natural)
 
 -- Generators
 

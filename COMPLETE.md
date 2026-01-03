@@ -57,6 +57,8 @@
 
 ## Compiler (Haskell backend bootstrap)
 - [x] M0: Core IR AST + pretty-printer + parser round-trips + conversion stubs (typed CBPV Core).
+- [x] M1: Erasure pass (types/proofs/refinements → runtime data only), preserving match/binders and module name.
+- [x] M2: LocqueRuntime shim (Comp/run/bind/return/perform), builtin type aliases, minimal primitive wrappers, tests.
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.

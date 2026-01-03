@@ -12,9 +12,12 @@ synopsis:            Compiler core IR for locque
 library
   hs-source-dirs:      src
   exposed-modules:     Locque.Compiler.Core,
+                       Locque.Compiler.CoreErased,
                        Locque.Compiler.CorePretty,
                        Locque.Compiler.CoreParse,
-                       Locque.Compiler.Convert
+                       Locque.Compiler.Erase,
+                       Locque.Compiler.Convert,
+                       LocqueRuntime
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns
   build-depends:

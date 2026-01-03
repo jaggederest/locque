@@ -25,7 +25,6 @@
 
 ## Compiler (Haskell backend bootstrap)
 ### Milestones (incremental)
-- M1: Erasure pass (types/proofs/refinements → runtime data only); preserve match scrutinee info.
 - M2: Runtime shim (`LocqueRuntime`): `newtype Comp a = Comp (IO a)`, bind/perform/return, primitive wrappers.
 - M3: Core → Haskell codegen (single module/entrypoint; import `LocqueRuntime`; map builtins).
 - M4: CLI: `smyth emit-hs <file>` (writes .hs next to input or in tmp/locque/gen).
