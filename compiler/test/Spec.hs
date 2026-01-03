@@ -2,6 +2,7 @@
 
 module Main where
 
+import qualified Data.Text as T
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -11,6 +12,7 @@ import Locque.Compiler.CoreErased as Erased
 import Locque.Compiler.Erase
 import Locque.Compiler.CoreParse
 import Locque.Compiler.CorePretty
+import Locque.Compiler.Codegen
 import qualified LocqueRuntime as RT
 
 main :: IO ()
@@ -115,6 +117,42 @@ main = hspec $ do
       let hello = RT.concatStringPrim "he" "llo"
       RT.eqStringPrim hello "hello" `shouldBe` True
       RT.stringLengthPrim hello `shouldBe` (5 :: RT.Natural)
+
+  describe "Core → Haskell codegen" $ do
+    it "emits a module header and runtime import" $ do
+      let rendered = emitModule (CoreModule (Name "Test") [])
+      rendered `shouldSatisfy` T.isInfixOf "module LocqueGen where"
+      rendered `shouldSatisfy` T.isInfixOf "import LocqueRuntime"
+
+    it "maps builtins for constructors and lists" $ do
+      let decl =
+            CoreDef
+              (Name "value")
+              TyNatural
+              (VConstructor
+                (Name "Option::some")
+                [VLit (LitNatural 1)])
+      let listDecl =
+            CoreDef
+              (Name "list")
+              (TyCon (Name "List") [TyNatural])
+              (VConstructor
+                (Name "List::cons")
+                [VLit (LitNatural 1), VConstructor (Name "List::empty") []])
+      let rendered = emitModule (CoreModule (Name "Test") [decl, listDecl])
+      rendered `shouldSatisfy` T.isInfixOf "Just 1"
+      rendered `shouldSatisfy` T.isInfixOf "["
+      rendered `shouldSatisfy` T.isInfixOf ":"
+
+    it "emits data declarations with constructor fields" $ do
+      let dataDecl =
+            CoreDataDecl
+              (Name "Box")
+              [Name "A"]
+              [CoreCtor (Name "Box::box") [TyVar (Name "A")]]
+      let rendered = emitModule (CoreModule (Name "Test") [CoreData dataDecl])
+      rendered `shouldSatisfy` T.isInfixOf "data Box a"
+      rendered `shouldSatisfy` T.isInfixOf "Box_box a"
 
 -- Generators
 

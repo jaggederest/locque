@@ -15,6 +15,7 @@ library
                        Locque.Compiler.CoreErased,
                        Locque.Compiler.CorePretty,
                        Locque.Compiler.CoreParse,
+                       Locque.Compiler.Codegen,
                        Locque.Compiler.Erase,
                        Locque.Compiler.Convert,
                        LocqueRuntime

@@ -26,8 +26,7 @@
 ## Compiler (Haskell backend bootstrap)
 ### Milestones (incremental)
 - M2: Runtime shim (`LocqueRuntime`): `newtype Comp a = Comp (IO a)`, bind/perform/return, primitive wrappers.
-- M3: Core → Haskell codegen (single module/entrypoint; import `LocqueRuntime`; map builtins).
-- M4: CLI: `smyth emit-hs <file>` (writes .hs next to input or in tmp/locque/gen).
+ - M4: CLI: `smyth emit-hs <file>` (writes .hs next to input or in tmp/locque/gen).
 - M5: Golden tests: compile/run `hello` + small stdlib sample; compare output vs interpreter.
 - M6: Cache-friendly build: reuse existing run cache for compiled artifacts (optional).
 - M7: `smyth compile` wrapper (ghc build, binary output, args passthrough).
