@@ -2,6 +2,7 @@
 
 module Main where
 
+import Control.Exception (evaluate)
 import qualified Data.Text as T
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -152,6 +153,15 @@ main = hspec $ do
       RT.eqStringPrim hello "hello" `shouldBe` True
       RT.stringLengthPrim hello `shouldBe` (5 :: RT.Natural)
 
+    it "looks up dictionary entries by name" $ do
+      let entries = [("alpha" :: RT.String, (10 :: RT.Natural))]
+      RT.dictAccessPrim entries "alpha" `shouldBe` (10 :: RT.Natural)
+
+    it "fails dictionary lookup when missing" $ do
+      let entries = [("alpha" :: RT.String, (10 :: RT.Natural))]
+      evaluate (RT.dictAccessPrim entries "missing")
+        `shouldThrow` anyErrorCall
+
   describe "Core → Haskell codegen" $ do
     it "emits a module header and runtime import" $ do
       let rendered = emitModule (CoreModule (Name "Test") [])
@@ -177,6 +187,77 @@ main = hspec $ do
       rendered `shouldSatisfy` T.isInfixOf "Just 1"
       rendered `shouldSatisfy` T.isInfixOf "["
       rendered `shouldSatisfy` T.isInfixOf ":"
+
+    it "annotates string literals with String" $ do
+      let decl =
+            CoreDef
+              (Name "value")
+              TyString
+              (VLit (LitString "hello"))
+      let rendered = emitModule (CoreModule (Name "Test") [decl])
+      rendered `shouldSatisfy` T.isInfixOf "(\"hello\" :: String)"
+
+    it "maps dict-access-prim in codegen" $ do
+      let decl =
+            CoreDef
+              (Name "value")
+              TyUnit
+              (VApp
+                (VApp
+                  (VVar (Name "dict-access-prim"))
+                  (VVar (Name "dict")))
+                (VLit (LitString "method")))
+      let rendered = emitModule (CoreModule (Name "Test") [decl])
+      rendered `shouldSatisfy` T.isInfixOf "dictAccessPrim"
+
+    it "renders ignored binders as underscores" $ do
+      let comp =
+            CoreDefComp
+              (Name "value")
+              TyUnit
+              (CMatch
+                (VVar (Name "pair"))
+                [ CoreCase
+                    (Name "Pair::pair")
+                    [Name "ignored", Name "ignored"]
+                    (CReturn (VLit LitUnit))
+                ])
+      let rendered = emitModule (CoreModule (Name "Test") [comp])
+      rendered `shouldSatisfy` T.isInfixOf "(_, _)"
+
+    it "renders duplicate binders with underscores" $ do
+      let comp =
+            CoreDefComp
+              (Name "value")
+              TyUnit
+              (CMatch
+                (VVar (Name "pair"))
+                [ CoreCase
+                    (Name "Pair::pair")
+                    [Name "x", Name "x"]
+                    (CReturn (VLit LitUnit))
+                ])
+      let rendered = emitModule (CoreModule (Name "Test") [comp])
+      rendered `shouldSatisfy` T.isInfixOf "(x, _)"
+
+    it "renders bare list cons constructor as (:)" $ do
+      let decl =
+            CoreDef
+              (Name "value")
+              TyUnit
+              (VConstructor (Name "List::cons") [])
+      let rendered = emitModule (CoreModule (Name "Test") [decl])
+      rendered `shouldSatisfy` T.isInfixOf "(:)"
+
+    it "escapes string literals in codegen" $ do
+      let decl =
+            CoreDef
+              (Name "value")
+              TyString
+              (VLit (LitString "line\n\"quote\""))
+      let rendered = emitModule (CoreModule (Name "Test") [decl])
+      rendered `shouldSatisfy` T.isInfixOf "\\n"
+      rendered `shouldSatisfy` T.isInfixOf "\\\""
 
     it "emits data declarations with constructor fields" $ do
       let dataDecl =

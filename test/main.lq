@@ -23,6 +23,7 @@ import test::io as test_io
 import test::time as test_time
 import test::file as test_file
 import test::cli as test_cli
+import test::compile as test_compile
 import test::path as test_path
 import test::examples as test_examples
 import test::option as test_option
@@ -58,6 +59,7 @@ module test::main contains
     , (P::pair String (computation Unit) "test_time" test_time::main)
     , (P::pair String (computation Unit) "test_file" test_file::main)
     , (P::pair String (computation Unit) "test_cli" test_cli::main)
+    , (P::pair String (computation Unit) "test_compile" test_compile::main)
     , (P::pair String (computation Unit) "test_path" test_path::main)
     , (P::pair String (computation Unit) "test_examples" test_examples::main)
     , (P::pair String (computation Unit) "test_option" test_option::main)

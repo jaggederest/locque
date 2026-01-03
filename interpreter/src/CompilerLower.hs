@@ -594,7 +594,7 @@ simplifyValue nullaryCtors value =
       let scrut' = simplifyValue nullaryCtors scrut
           cases' = map (simplifyValueCase nullaryCtors) cases
        in case selectValueCase nullaryCtors scrut' cases' of
-            Just body -> body
+            Just body -> simplifyValue nullaryCtors body
             Nothing -> VMatch scrut' cases'
 
 simplifyValueCase :: Set.Set Name -> CoreValueCase -> CoreValueCase
@@ -615,7 +615,7 @@ simplifyComp nullaryCtors comp =
       let scrut' = simplifyValue nullaryCtors scrut
           cases' = map (simplifyCompCase nullaryCtors) cases
        in case selectCompCase nullaryCtors scrut' cases' of
-            Just body -> body
+            Just body -> simplifyComp nullaryCtors body
             Nothing -> CMatch scrut' cases'
 
 simplifyCompCase :: Set.Set Name -> CoreCase -> CoreCase
@@ -624,31 +624,104 @@ simplifyCompCase nullaryCtors (CoreCase ctor binders body) =
 
 selectValueCase :: Set.Set Name -> CoreValue -> [CoreValueCase] -> Maybe CoreValue
 selectValueCase nullaryCtors scrut cases =
-  case matchCtor nullaryCtors scrut of
+  case matchCtorArgs nullaryCtors scrut of
     Nothing -> Nothing
-    Just ctor ->
-      case [body | CoreValueCase ctor' binders body <- cases, ctor' == ctor, null binders] of
-        (body:_) -> Just body
+    Just (ctor, args) ->
+      case [ (binders, body) | CoreValueCase ctor' binders body <- cases, ctor' == ctor ] of
+        ((binders, body):_) ->
+          if length binders == length args
+            then Just (applyValueSubsts binders args body)
+            else Nothing
         [] -> Nothing
 
 selectCompCase :: Set.Set Name -> CoreValue -> [CoreCase] -> Maybe CoreComp
 selectCompCase nullaryCtors scrut cases =
-  case matchCtor nullaryCtors scrut of
+  case matchCtorArgs nullaryCtors scrut of
     Nothing -> Nothing
-    Just ctor ->
-      case [body | CoreCase ctor' binders body <- cases, ctor' == ctor, null binders] of
-        (body:_) -> Just body
+    Just (ctor, args) ->
+      case [ (binders, body) | CoreCase ctor' binders body <- cases, ctor' == ctor ] of
+        ((binders, body):_) ->
+          if length binders == length args
+            then Just (applyCompSubsts binders args body)
+            else Nothing
         [] -> Nothing
 
-matchCtor :: Set.Set Name -> CoreValue -> Maybe Name
-matchCtor nullaryCtors value =
+matchCtorArgs :: Set.Set Name -> CoreValue -> Maybe (Name, [CoreValue])
+matchCtorArgs nullaryCtors value =
   case value of
-    VConstructor name args | null args -> Just name
-    VVar name | name `Set.member` nullaryCtors -> Just name
-    VLit (LitBoolean True) -> Just (Name "Boolean::true")
-    VLit (LitBoolean False) -> Just (Name "Boolean::false")
-    VLit LitUnit -> Just (Name "Unit::tt")
+    VConstructor name args -> Just (name, args)
+    VVar name | name `Set.member` nullaryCtors -> Just (name, [])
+    VLit (LitBoolean True) -> Just (Name "Boolean::true", [])
+    VLit (LitBoolean False) -> Just (Name "Boolean::false", [])
+    VLit LitUnit -> Just (Name "Unit::tt", [])
     _ -> Nothing
+
+applyValueSubsts :: [Name] -> [CoreValue] -> CoreValue -> CoreValue
+applyValueSubsts binders args body =
+  foldl (\acc (name, val) -> substValue name val acc) body (zip binders args)
+
+applyCompSubsts :: [Name] -> [CoreValue] -> CoreComp -> CoreComp
+applyCompSubsts binders args body =
+  foldl (\acc (name, val) -> substComp name val acc) body (zip binders args)
+
+substValue :: Name -> CoreValue -> CoreValue -> CoreValue
+substValue target replacement value =
+  case value of
+    VVar name | name == target -> replacement
+    VVar _ -> value
+    VLit _ -> value
+    VErased -> value
+    VLam name ty body ->
+      if name == target
+        then VLam name ty body
+        else VLam name ty (substValue target replacement body)
+    VApp fn arg ->
+      VApp (substValue target replacement fn) (substValue target replacement arg)
+    VConstructor name args ->
+      VConstructor name (map (substValue target replacement) args)
+    VCompute comp -> VCompute (substComp target replacement comp)
+    VLet name val body ->
+      let val' = substValue target replacement val
+      in if name == target
+        then VLet name val' body
+        else VLet name val' (substValue target replacement body)
+    VMatch scrut cases ->
+      let scrut' = substValue target replacement scrut
+          cases' = map (substValueCase target replacement) cases
+      in VMatch scrut' cases'
+
+substValueCase :: Name -> CoreValue -> CoreValueCase -> CoreValueCase
+substValueCase target replacement (CoreValueCase ctor binders body) =
+  if target `elem` binders
+    then CoreValueCase ctor binders body
+    else CoreValueCase ctor binders (substValue target replacement body)
+
+substComp :: Name -> CoreValue -> CoreComp -> CoreComp
+substComp target replacement comp =
+  case comp of
+    CReturn value -> CReturn (substValue target replacement value)
+    CBind name left right ->
+      let left' = substComp target replacement left
+      in if name == target
+        then CBind name left' right
+        else CBind name left' (substComp target replacement right)
+    CPerform value -> CPerform (substValue target replacement value)
+    CApp fn arg -> CApp (substValue target replacement fn) (substValue target replacement arg)
+    CLet name val body ->
+      let val' = substValue target replacement val
+      in if name == target
+        then CLet name val' body
+        else CLet name val' (substComp target replacement body)
+    CMatch scrut cases ->
+      let scrut' = substValue target replacement scrut
+          cases' = map (substCompCase target replacement) cases
+      in CMatch scrut' cases'
+
+substCompCase :: Name -> CoreValue -> CoreCase -> CoreCase
+substCompCase target replacement (CoreCase ctor binders body) =
+  if target `elem` binders
+    then CoreCase ctor binders body
+    else CoreCase ctor binders (substComp target replacement body)
 
 isKindName :: T.Text -> Bool
 isKindName name =

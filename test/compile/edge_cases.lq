@@ -1,0 +1,105 @@
+import assert as A
+import list as L
+import prelude as P
+import string as Str
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option::none Option::some Either::left Either::right end
+
+module test::compile::edge_cases contains
+  define transparent match-bool as
+    match true of-type Boolean as ignored returns Natural
+      case Boolean::false as 0
+      case Boolean::true as 1
+    end
+
+  define transparent match-pair-shadow as
+    let value x be 99 in
+      match (Pair::pair Natural Natural 1 2) of-type (Pair Natural Natural) as ignored returns Natural
+        case Pair::pair with x Natural y Natural as x
+      end
+    end
+
+  define transparent match-list-head as
+    match [10, 20] of-type (List Natural) as ignored returns Natural
+      case List::empty as 0
+      case List::cons with h Natural t (List Natural) as h
+    end
+
+  define transparent match-list-tail-length as
+    match [10, 20, 30] of-type (List Natural) as ignored returns Natural
+      case List::empty as 0
+      case List::cons with h Natural t (List Natural) as L::length Natural t
+    end
+
+  define transparent match-option-some as
+    match (Option::some Natural 5) of-type (P::Option Natural) as ignored returns Natural
+      case Option::none as 0
+      case Option::some with x Natural as x
+    end
+
+  define transparent match-either-right as
+    match (Either::right Natural String "ok") of-type (P::Either Natural String) as ignored returns String
+      case Either::left with ignored Natural as "left"
+      case Either::right with x String as x
+    end
+
+  define transparent match-unit as
+    match Unit::tt of-type Unit as ignored returns Natural
+      case Unit::tt as 99
+    end
+
+  define transparent match-nested as
+    match [1, 2] of-type (List Natural) as ignored returns Natural
+      case List::empty as 0
+      case List::cons with ignored Natural t (List Natural) as
+        match t of-type (List Natural) as ignored returns Natural
+          case List::empty as 0
+          case List::cons with h Natural ignored (List Natural) as h
+        end
+    end
+
+  define transparent match-list-shadow as
+    let value h be 99 in
+      match [4, 5] of-type (List Natural) as ignored returns Natural
+        case List::empty as 0
+        case List::cons with h Natural t (List Natural) as h
+      end
+    end
+
+  define transparent match-ignored-tail as
+    match [42, 7] of-type (List Natural) as ignored returns Natural
+      case List::empty as 0
+      case List::cons with h Natural ignored (List Natural) as h
+    end
+
+  define transparent match-comp as compute
+    bind result from perform
+      (match [1] of-type (List Natural) as ignored returns computation Natural
+        case List::empty as compute return 0 end
+        case List::cons with h Natural t (List Natural) as compute return h end
+      end)
+    then
+      perform (A::assert-eq Natural result 1)
+    end
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural match-bool 1)
+      , (A::assert-eq Natural match-pair-shadow 1)
+      , (A::assert-eq Natural match-list-head 10)
+      , (A::assert-eq Natural match-list-tail-length 2)
+      , (A::assert-eq Natural match-option-some 5)
+      , (A::assert-eq String match-either-right "ok")
+      , (A::assert-eq Natural match-unit 99)
+      , (A::assert-eq Natural match-nested 2)
+      , (A::assert-eq Natural match-list-shadow 4)
+      , (A::assert-eq Natural match-ignored-tail 42)
+      , match-comp
+      ])
+  end
+end
