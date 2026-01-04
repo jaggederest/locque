@@ -5,22 +5,21 @@ module CompilerPipeline
   ) where
 
 import Control.Exception (SomeException, try, evaluate)
-import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Directory (doesFileExist)
-import System.FilePath ((</>), (<.>), takeExtension)
+import System.FilePath (takeExtension)
 
 import AST
 import CompilerLower (lowerModule)
-import DictPass (transformModuleWithEnvs)
+import DictPass (transformModuleWithEnvsScope)
 import Eval (ctorArityMap)
+import ImportResolver (ImportScope(..), ResolvedModule(..), resolveModulePath)
 import Parser (parseMExprFile, parseModuleFile)
 import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (SmythConfig(..))
-import Utils (modNameToPath, qualifyName)
+import Utils (qualifyName)
 import Validator (checkParens)
 import qualified RunCache as RC
 import qualified TypeChecker as TC
@@ -33,12 +32,17 @@ loadCoreModule config file = do
   pure (fmap lowerModule annotated)
 
 loadAnnotatedModule :: SmythConfig -> FilePath -> IO (Either String Module)
-loadAnnotatedModule config file = do
+loadAnnotatedModule config file =
+  loadAnnotatedModuleWithScope config ProjectScope file
+
+loadAnnotatedModuleWithScope :: SmythConfig -> ImportScope -> FilePath -> IO (Either String Module)
+loadAnnotatedModuleWithScope config scope file = do
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> pure (Left err)
     Right m -> do
-      digestAttempt <- try @SomeException (TC.moduleDigestWithImports (projectRoot config) contents m)
+      digestAttempt <- try @SomeException
+        (TC.moduleDigestWithImportsScope (projectRoot config) scope contents m)
       case digestAttempt of
         Left err -> pure (Left ("Type check phase error: " ++ show err))
         Right (digest, importedEnv) -> do
@@ -60,7 +64,7 @@ loadAnnotatedModule config file = do
                   case prepared of
                     Left msg -> pure (Left msg)
                     Right preparedModule -> do
-                      transformed <- transformModuleWithEnvs (projectRoot config) preparedModule
+                      transformed <- transformModuleWithEnvsScope (projectRoot config) scope preparedModule
                       case TC.annotateModule env transformed of
                         Left annotErr -> pure (Left ("Annotation error: " ++ show annotErr))
                         Right annotatedM -> do
@@ -88,62 +92,45 @@ loadAnnotatedModuleWithImports config file = do
   case entry of
     Left err -> pure (Left err)
     Right modEntry -> do
-      defsResult <- flattenModule config Set.empty modEntry
+      defsResult <- flattenModule config ProjectScope Set.empty modEntry
       case defsResult of
         Left err -> pure (Left err)
         Right defs ->
           let combined = Module (modName modEntry) [] [] (dedupeDefs defs)
           in pure (Right combined)
 
-flattenModule :: SmythConfig -> Set.Set T.Text -> Module -> IO (Either String [Definition])
-flattenModule config visiting modEntry = do
-  depsResult <- loadImports config visiting (modImports modEntry)
+flattenModule :: SmythConfig -> ImportScope -> Set.Set T.Text -> Module -> IO (Either String [Definition])
+flattenModule config scope visiting modEntry = do
+  depsResult <- loadImports config scope visiting (modImports modEntry)
   case depsResult of
     Left err -> pure (Left err)
     Right deps -> do
       let locals = renameModuleDefs Nothing modEntry
       pure (Right (deps ++ locals))
 
-loadImports :: SmythConfig -> Set.Set T.Text -> [Import] -> IO (Either String [Definition])
-loadImports config visiting imports = do
-  results <- mapM (loadImport config visiting) imports
+loadImports :: SmythConfig -> ImportScope -> Set.Set T.Text -> [Import] -> IO (Either String [Definition])
+loadImports config scope visiting imports = do
+  results <- mapM (loadImport config scope visiting) imports
   pure (concatEither results)
 
-loadImport :: SmythConfig -> Set.Set T.Text -> Import -> IO (Either String [Definition])
-loadImport config visiting (Import modName alias) = do
+loadImport :: SmythConfig -> ImportScope -> Set.Set T.Text -> Import -> IO (Either String [Definition])
+loadImport config scope visiting (Import modName alias) = do
   if modName `Set.member` visiting
     then pure (Left ("Import cycle detected: " ++ T.unpack modName))
     else do
-      modPath <- resolveModulePath config modName
-      imported <- loadAnnotatedModule config modPath
+      ResolvedModule modPath nextScope <-
+        resolveModulePath (projectRoot config) (libRoot config) scope modName
+      imported <- loadAnnotatedModuleWithScope config nextScope modPath
       case imported of
         Left err -> pure (Left err)
         Right modImported -> do
           let visiting' = Set.insert modName visiting
-          depsResult <- loadImports config visiting' (modImports modImported)
+          depsResult <- loadImports config nextScope visiting' (modImports modImported)
           case depsResult of
             Left err -> pure (Left err)
             Right deps -> do
               let qualified = renameModuleDefs (Just alias) modImported
               pure (Right (deps ++ qualified))
-
-resolveModulePath :: SmythConfig -> T.Text -> IO FilePath
-resolveModulePath config modName = do
-  let modPath = modNameToPath modName
-      basePath =
-        if "test/" `isPrefixOf` modPath
-          then projectRoot config </> modPath
-          else projectRoot config </> libRoot config </> modPath
-      lqPath = basePath <.> "lq"
-      lqsPath = basePath <.> "lqs"
-  lqExists <- doesFileExist lqPath
-  if lqExists
-    then pure lqPath
-    else do
-      lqsExists <- doesFileExist lqsPath
-      if lqsExists
-        then pure lqsPath
-        else error ("Module file not found for import: " ++ T.unpack modName)
 
 dedupeDefs :: [Definition] -> [Definition]
 dedupeDefs defs =

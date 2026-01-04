@@ -12,7 +12,7 @@ synopsis:            Toy interpreter for locque
 executable locque-interpreter
   main-is:             Main.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils
+  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -34,7 +34,7 @@ executable locque-interpreter
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, SmythEmit, SmythCompile, CompilerPipeline, CompilerLower, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils
+  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, SmythEmit, SmythCompile, SmythCompileTest, CompilerPipeline, CompilerLower, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -58,7 +58,7 @@ test-suite locque-compiler-golden
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test, src
   main-is:             CompilerGolden.hs
-  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, SmythConfig, SmythRun, SmythCompile, CompilerPipeline, CompilerLower
+  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, SmythConfig, SmythRun, SmythCompile, CompilerPipeline, CompilerLower, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -82,7 +82,7 @@ test-suite locque-compiler-golden
 executable locque-lsp
   main-is:             LocqueLsp.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, Parser, Recursor, Type, TypeChecker, Utils, SmythConfig
+  other-modules:       SourceLoc, ErrorMsg, AST, Parser, Recursor, Type, TypeChecker, Utils, SmythConfig, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:

@@ -9,6 +9,7 @@ module TypeChecker
   , annotateModule
   , moduleDigest
   , moduleDigestWithImports
+  , moduleDigestWithImportsScope
   , TypeError(..)
   , TypeEnv
   , freeVars
@@ -30,8 +31,7 @@ import qualified Data.Text.IO as TIO
 import Data.Word (Word64)
 import Numeric (showHex)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
-import System.FilePath ((</>), (<.>), makeRelative, takeDirectory, takeExtension)
-import System.IO.Error (catchIOError, isDoesNotExistError)
+import System.FilePath ((</>), (<.>), isAbsolute, makeRelative, takeDirectory, takeExtension)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 import AST
@@ -40,7 +40,8 @@ import Parser (parseModuleFile, parseMExprFile, exprToMExprText)
 import SourceLoc
 import Recursor (injectRecursors, recursorDefinition)
 import ErrorMsg
-import Utils (modNameToPath, qualifyName)
+import ImportResolver (ImportScope(..), ResolvedModule(..), resolveModulePath)
+import Utils (qualifyName)
 
 data DataInfo = DataInfo
   { dataName :: Text
@@ -2562,8 +2563,12 @@ moduleDigest projectRoot sourceContents m = do
 
 moduleDigestWithImports :: FilePath -> Text -> Module -> IO (String, TCEnv)
 moduleDigestWithImports projectRoot sourceContents m = do
+  moduleDigestWithImportsScope projectRoot ProjectScope sourceContents m
+
+moduleDigestWithImportsScope :: FilePath -> ImportScope -> Text -> Module -> IO (String, TCEnv)
+moduleDigestWithImportsScope projectRoot scope sourceContents m = do
   let sourceHash = hashText sourceContents
-  (importedEnv, depHashes) <- loadTypeImportsWithDigest projectRoot Set.empty (modImports m)
+  (importedEnv, depHashes) <- loadTypeImportsWithDigest projectRoot scope Set.empty (modImports m)
   let depMap = Map.fromList depHashes
       depDigest = computeDepDigest depMap
   pure (computeDigest sourceHash depDigest, importedEnv)
@@ -2678,7 +2683,12 @@ cacheRoot projectRoot = projectRoot </> ".locque-cache" </> "typecheck"
 
 cachePathFor :: FilePath -> FilePath -> FilePath
 cachePathFor projectRoot sourcePath =
-  cacheRoot projectRoot </> makeRelative projectRoot sourcePath <.> "cache"
+  let rel = makeRelative projectRoot sourcePath
+      safeRel =
+        if isAbsolute rel || ".." `isPrefixOf` rel
+          then hashString sourcePath
+          else rel
+  in cacheRoot projectRoot </> safeRel <.> "cache"
 
 hashText :: Text -> String
 hashText = hashString . T.unpack
@@ -2733,23 +2743,15 @@ writeCacheEntry projectRoot sourcePath entry = do
 
 loadTypeImports :: FilePath -> Module -> IO TCEnv
 loadTypeImports projectRoot (Module _ imports _ _) =
-  fst <$> loadTypeImportsWithDigest projectRoot Set.empty imports
+  fst <$> loadTypeImportsWithDigest projectRoot ProjectScope Set.empty imports
 
-loadTypeImportWithDigest :: FilePath -> Set.Set Text -> Import -> IO (TCEnv, (Text, String))
-loadTypeImportWithDigest projectRoot visiting (Import modName alias) = do
+loadTypeImportWithDigest :: FilePath -> ImportScope -> Set.Set Text -> Import -> IO (TCEnv, (Text, String))
+loadTypeImportWithDigest projectRoot scope visiting (Import modName alias) = do
   when (modName `Set.member` visiting) $
     error $ "Import cycle detected: " ++ T.unpack modName
-  let modPath = modNameToPath modName
-      basePath = if "test/" `isPrefixOf` modPath
-                 then projectRoot </> modPath
-                 else projectRoot </> "lib" </> modPath
-      lqPath = basePath <.> "lq"
-      lqsPath = basePath <.> "lqs"
-
-  (path, contents) <- tryLoadFile lqPath `catchIOError` \e ->
-    if isDoesNotExistError e
-      then tryLoadFile lqsPath
-      else ioError e
+  ResolvedModule path nextScope <-
+    resolveModulePath projectRoot "lib" scope modName
+  contents <- TIO.readFile path
   let sourceHash = hashText contents
   cached <- readCacheEntry projectRoot path sourceHash
 
@@ -2766,7 +2768,7 @@ loadTypeImportWithDigest projectRoot visiting (Import modName alias) = do
 
   let Module _ _ opens defs = parsed
       visiting' = Set.insert modName visiting
-  (envImports, depHashes) <- loadTypeImportsWithDigest projectRoot visiting' (modImports parsed)
+  (envImports, depHashes) <- loadTypeImportsWithDigest projectRoot nextScope visiting' (modImports parsed)
   let envWithOpens = processOpens opens envImports
       depMap = Map.fromList depHashes
       depDigest = computeDepDigest depMap
@@ -2800,9 +2802,6 @@ loadTypeImportWithDigest projectRoot visiting (Import modName alias) = do
       digest = computeDigest sourceHash depDigest
   pure (envFinal, (modName, digest))
   where
-    tryLoadFile p = do
-      c <- TIO.readFile p
-      pure (p, c)
     isClass expr = case expr of
       ETypeClass _ _ _ -> True
       _ -> False
@@ -2813,9 +2812,9 @@ loadTypeImportWithDigest projectRoot visiting (Import modName alias) = do
       EData _ _ _ -> True
       _ -> False
 
-loadTypeImportsWithDigest :: FilePath -> Set.Set Text -> [Import] -> IO (TCEnv, [(Text, String)])
-loadTypeImportsWithDigest projectRoot visiting imports = do
-  envsWithDigests <- mapM (loadTypeImportWithDigest projectRoot visiting) imports
+loadTypeImportsWithDigest :: FilePath -> ImportScope -> Set.Set Text -> [Import] -> IO (TCEnv, [(Text, String)])
+loadTypeImportsWithDigest projectRoot scope visiting imports = do
+  envsWithDigests <- mapM (loadTypeImportWithDigest projectRoot scope visiting) imports
   let envs = map fst envsWithDigests
       digests = map snd envsWithDigests
   let mergedTypes = Map.unions (tcTypes emptyEnv : map tcTypes envs)

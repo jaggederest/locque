@@ -8,7 +8,7 @@
 ## Priority (next up)
 - Compiler: debug build mode (optional) with source-map + selected type annotations.
 - Compiler: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
-- Compiler: add a compiled test runner/harness (smyth compile-test) to enforce parity vs interpreter.
+- Smyth: add `smyth new` to scaffold a project (Smythfile.lq, lib/, test/).
 - Webapp: consider refined todo IDs (e.g., `Natural` with `is-positive`) when predicate helpers land.
 - HTTP request/response: add refinement hooks for valid requests and response status (future).
 - Default instances: consider `Default (Refine A P)` once proof automation exists.

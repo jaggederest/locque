@@ -50,6 +50,7 @@
 ## Core Tooling (smyth)
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`).
 - [x] `smyth bench` with benchmark rollup (`test/bench.lq`) and thresholds.
+- [x] `smyth compile-test` for interpreter vs compiled test suite parity.
 - [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
 - [x] Run cache in `tmp/locque/cache` for annotated modules + ctor arity; keyed by module digest; used by `smyth test/run`.
 - [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.

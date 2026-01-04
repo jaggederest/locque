@@ -1,21 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module DictPass
   ( transformModuleWithEnvs
+  , transformModuleWithEnvsScope
   ) where
 
 import AST
 import Parser (parseMExprFile, parseModuleFile)
-import Utils (modNameToPath, qualifyName)
+import ImportResolver (ImportScope(..), ResolvedModule(..), resolveModulePath)
+import Utils (qualifyName)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.List (isPrefixOf)
 import Data.Maybe (mapMaybe)
-import System.FilePath ((</>), (<.>), takeExtension)
+import System.FilePath (takeExtension)
 import qualified Data.Text.IO as TIO
-import System.IO.Error (catchIOError, isDoesNotExistError)
 
 data ClassInfo = ClassInfo
   { classParam   :: Text
@@ -85,8 +85,12 @@ dedupeInstances insts =
 -- Entry point
 
 transformModuleWithEnvs :: FilePath -> Module -> IO Module
-transformModuleWithEnvs projectRoot m@(Module name imports opens defs) = do
-  importEnvs <- loadDictImports projectRoot m
+transformModuleWithEnvs projectRoot m =
+  transformModuleWithEnvsScope projectRoot ProjectScope m
+
+transformModuleWithEnvsScope :: FilePath -> ImportScope -> Module -> IO Module
+transformModuleWithEnvsScope projectRoot scope m@(Module name imports opens defs) = do
+  importEnvs <- loadDictImports projectRoot scope m
   let localClassesMap = collectLocalClasses defs
       localClassNames = Set.fromList (Map.keys localClassesMap)
       openAliases = buildOpenClassAliases localClassNames importEnvs opens
@@ -113,23 +117,16 @@ transformModuleWithEnvs projectRoot m@(Module name imports opens defs) = do
 --------------------------------------------------------------------------------
 -- Import envs
 
-loadDictImports :: FilePath -> Module -> IO DictEnvs
-loadDictImports projectRoot (Module _ imports _ _) = do
-  envs <- mapM (loadDictImport projectRoot) imports
+loadDictImports :: FilePath -> ImportScope -> Module -> IO DictEnvs
+loadDictImports projectRoot scope (Module _ imports _ _) = do
+  envs <- mapM (loadDictImport projectRoot scope) imports
   pure (foldl mergeEnvs emptyEnvs envs)
 
-loadDictImport :: FilePath -> Import -> IO DictEnvs
-loadDictImport projectRoot (Import modName alias) = do
-  let modPath = modNameToPath modName
-      basePath = if "test/" `isPrefixOf` modPath
-                 then projectRoot </> modPath
-                 else projectRoot </> "lib" </> modPath
-      lqPath = basePath <.> "lq"
-      lqsPath = basePath <.> "lqs"
-
-  (path, contents) <- tryLoadFile lqPath `catchIOError` \e ->
-    if isDoesNotExistError e then tryLoadFile lqsPath else ioError e
-
+loadDictImport :: FilePath -> ImportScope -> Import -> IO DictEnvs
+loadDictImport projectRoot scope (Import modName alias) = do
+  ResolvedModule path nextScope <-
+    resolveModulePath projectRoot "lib" scope modName
+  contents <- TIO.readFile path
   parsed <- case takeExtension path of
     ".lq"  -> case parseMExprFile path contents of
       Left err -> error err
@@ -139,7 +136,7 @@ loadDictImport projectRoot (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  importEnvs <- loadDictImports projectRoot parsed
+  importEnvs <- loadDictImports projectRoot nextScope parsed
   let localClassesMap = collectLocalClasses (modDefs parsed)
       localClassNames = Set.fromList (Map.keys localClassesMap)
       openAliases = buildOpenClassAliases localClassNames importEnvs (modOpens parsed)
@@ -152,10 +149,6 @@ loadDictImport projectRoot (Import modName alias) = do
       localInfo = LocalInfo localClassesMap localFnsMap localInstancesMap
 
   pure (mergeEnvs (qualifyLocalInfo alias localInfo) importEnvs)
-  where
-    tryLoadFile p = do
-      c <- TIO.readFile p
-      pure (p, c)
 
 --------------------------------------------------------------------------------
 -- Local env collection

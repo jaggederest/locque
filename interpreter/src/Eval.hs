@@ -52,8 +52,9 @@ import qualified Network.Socket.ByteString as NSB
 import           Parser (parseModuleFile, parseMExprFile)
 import           Validator (checkParens, validateModule)
 import           ErrorMsg (findFuzzyMatches)
-import           Utils (modNameToPath, qualifyName)
-import           DictPass (transformModuleWithEnvs)
+import           ImportResolver (ImportScope(..), ResolvedModule(..), resolveModulePath)
+import           Utils (qualifyName)
+import           DictPass (transformModuleWithEnvsScope)
 import           Recursor (recursorDefs, insertRecursors)
 import qualified Type as Type
 import qualified TypeChecker as TC
@@ -1238,25 +1239,15 @@ runComp env comp = case comp of
 
 loadImports :: FilePath -> Module -> IO Env
 loadImports projectRoot (Module _ imports _ _) =
-  loadImportsWith projectRoot Set.empty imports
+  loadImportsWith projectRoot ProjectScope Set.empty imports
 
-loadImport :: FilePath -> Set.Set Text -> Import -> IO Env
-loadImport projectRoot visiting (Import modName alias) = do
+loadImport :: FilePath -> ImportScope -> Set.Set Text -> Import -> IO Env
+loadImport projectRoot scope visiting (Import modName alias) = do
   when (modName `Set.member` visiting) $
     error $ "Import cycle detected: " ++ T.unpack modName
-  let modPath = modNameToPath modName
-      -- If module path starts with "test/", use projectRoot directly
-      -- Otherwise, use projectRoot </> "lib"
-      basePath = if "test/" `isPrefixOf` modPath
-                 then projectRoot </> modPath
-                 else projectRoot </> "lib" </> modPath
-      lqPath = basePath <.> "lq"
-      lqsPath = basePath <.> "lqs"
-
-  -- Try .lq first, fall back to .lqs if not found
-  (path, contents) <- tryLoadFile lqPath `catch` \(_ :: IOException) -> tryLoadFile lqsPath
-
-  -- Parse based on file extension
+  ResolvedModule path nextScope <-
+    resolveModulePath projectRoot "lib" scope modName
+  contents <- TIO.readFile path
   parsed <- case takeExtension path of
     ".lq"  -> case parseMExprFile path contents of
       Left err -> error err
@@ -1266,7 +1257,7 @@ loadImport projectRoot visiting (Import modName alias) = do
       Right m -> pure m
     _      -> error $ "Unknown file extension: " ++ path
 
-  (digest, importedEnv) <- TC.moduleDigestWithImports projectRoot contents parsed
+  (digest, importedEnv) <- TC.moduleDigestWithImportsScope projectRoot nextScope contents parsed
   cached <- RC.readRunCache projectRoot path digest
   (annotated, ctorArity) <- case cached of
     Just entry ->
@@ -1280,7 +1271,7 @@ loadImport projectRoot visiting (Import modName alias) = do
           prepared <- case insertRecursors parsed recDefs of
             Left msg -> error $ "Transform error in import " ++ T.unpack modName ++ ": " ++ msg
             Right m -> pure m
-          transformed <- transformModuleWithEnvs projectRoot prepared
+          transformed <- transformModuleWithEnvsScope projectRoot nextScope prepared
           case TC.annotateModule env transformed of
             Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
             Right m -> pure (m, normalized)
@@ -1296,7 +1287,7 @@ loadImport projectRoot visiting (Import modName alias) = do
 
   let Module _modName _ opens defs = annotated
       visiting' = Set.insert modName visiting
-  envImports <- loadImportsWith projectRoot visiting' (modImports annotated)
+  envImports <- loadImportsWith projectRoot nextScope visiting' (modImports annotated)
   -- Process opens to bring in unqualified names from open statements
   let envWithOpens = processOpens opens envImports
 
@@ -1309,10 +1300,6 @@ loadImport projectRoot visiting (Import modName alias) = do
 
   pure envFinal
   where
-    tryLoadFile p = do
-      c <- TIO.readFile p
-      pure (p, c)
-
     -- Insert qualified name for a definition (if it exists in envSelf)
     insertQualified :: Text -> Env -> Env -> Text -> Env
     insertQualified aliasPrefix envSelf env name =
@@ -1327,9 +1314,9 @@ loadImport projectRoot visiting (Import modName alias) = do
       EData _ _ cases -> map dataCaseName cases
       _ -> []
 
-loadImportsWith :: FilePath -> Set.Set Text -> [Import] -> IO Env
-loadImportsWith projectRoot visiting imports = do
-  envs <- mapM (loadImport projectRoot visiting) imports
+loadImportsWith :: FilePath -> ImportScope -> Set.Set Text -> [Import] -> IO Env
+loadImportsWith projectRoot scope visiting imports = do
+  envs <- mapM (loadImport projectRoot scope visiting) imports
   pure $ Map.unions (primEnv : envs)
 
 ctorArityMap :: Module -> CtorArityMap

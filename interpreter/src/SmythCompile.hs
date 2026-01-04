@@ -16,6 +16,7 @@ import System.IO (hPutStr, stderr)
 import System.Process (proc, readCreateProcessWithExitCode)
 
 import CompilerPipeline (loadCoreModule)
+import ImportResolver (resolveCompilerSrc)
 import Locque.Compiler.Codegen (emitModule)
 import SmythConfig (SmythConfig(..))
 
@@ -58,8 +59,8 @@ runCompile config args = do
               buildDir = root </> "tmp" </> "locque" </> "build" </> baseName
               genPath = genDir </> "LocqueGen.hs"
               mainPath = genDir </> "Main.hs"
-              compilerSrc = root </> "compiler" </> "src"
               hsOutput = emitModule coreModule
+          compilerSrc <- resolveCompilerSrc root
           createDirectoryIfMissing True genDir
           createDirectoryIfMissing True buildDir
           createDirectoryIfMissing True (takeDirectory outPath)

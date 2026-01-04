@@ -1,0 +1,7 @@
+import test::smyth as test_smyth
+
+module test::main contains
+  define transparent main as compute
+    perform test_smyth::main
+  end
+end

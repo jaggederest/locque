@@ -1,0 +1,12 @@
+# Smythfile.lq
+# Configuration for the Smyth Locque project
+
+module SmythConfig contains
+  define transparent project-name as "smyth"
+  define transparent test-root as "test"
+  define transparent lib-root as "lib"
+  define transparent source-root as "src"
+  define transparent default-log-level as "ERROR"
+  define transparent color-mode as "auto"
+  define transparent error-tests as []
+end
