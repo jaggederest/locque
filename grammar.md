@@ -6,7 +6,7 @@ One canonical surface, no arrows or symbolic sugar. Qualification uses `::` only
 
 - Identifiers: `[A-Za-z_][A-Za-z0-9_-]*`
 - Qualified names: `Alias::name` (only `::`; `.` reserved for future records)
-- Module names: `[A-Za-z0-9_:/-]+` with `::` separators; `Group::Module` → `group/module.lq` (lowercased). Tests live under `Test::…` → `test/…`.
+- Module names: `[A-Za-z0-9_:/-]+` with `::` separators; `Group::Module` → `group/module.lq` (lowercased). Tests live under `Test::…` → `test/…`. Standard library modules use `standard-library::Foo::Bar` (or `standard-library/...` paths).
 - Literals:
   - Naturals: digits with optional `_` separators (ignored): `0`, `42`, `1_000`
   - Strings: `"..."` with escapes
@@ -32,6 +32,7 @@ end
 - `open Alias exposing name1 name2 ... end` (explicit list only; no wildcard).
 - `open` names may include `::` (e.g., `Option::some`) to drop only the module qualifier while keeping the type-qualified constructor name. `open` never introduces bare constructor names.
 - `end` is mandatory for `open` and `module` blocks in M-expr.
+- Import resolution searches the project `lib/` first, then standard library roots; `standard-library::` forces stdlib lookup (roots are provided by the tooling/runtime).
 
 ## Definitions
 

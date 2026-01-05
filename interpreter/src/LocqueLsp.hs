@@ -220,7 +220,7 @@ computeDiagnostics projectRoot path contents =
     Left parseErr ->
       pure [diagnosticValue (Range (Position 0 0) (Position 0 0)) (T.pack parseErr)]
     Right m -> do
-      result <- try (TC.typeCheckModuleWithImports projectRoot contents m)
+      result <- try (TC.typeCheckModuleWithImports projectRoot path contents m)
         :: IO (Either SomeException (Either TC.TypeError TC.TypeEnv))
       case result of
         Left err ->
@@ -234,6 +234,7 @@ computeDiagnostics projectRoot path contents =
 
 typeErrorLoc :: TC.TypeError -> SrcLoc
 typeErrorLoc err = case err of
+  TC.ContextError _ inner -> typeErrorLoc inner
   TC.VarNotInScope loc _ _ -> loc
   TC.TypeMismatch loc _ _ _ -> loc
   TC.CannotApply loc _ _ -> loc
@@ -241,6 +242,7 @@ typeErrorLoc err = case err of
   TC.NotAComputation loc _ -> loc
   TC.ExpectedType loc _ -> loc
   TC.InvalidLift loc _ _ -> loc
+  TC.EmptyListLiteral loc -> loc
   TC.ExpectedThereExists loc _ -> loc
   TC.ExpectedEquality loc _ -> loc
   TC.MatchCaseError loc _ -> loc

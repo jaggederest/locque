@@ -13,6 +13,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Locque.Compiler.Core,
                        Locque.Compiler.CoreErased,
+                       Locque.Compiler.CoreErasedPretty,
                        Locque.Compiler.CorePretty,
                        Locque.Compiler.CoreParse,
                        Locque.Compiler.Codegen,

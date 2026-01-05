@@ -6,6 +6,7 @@ open Eq exposing Equality eq end
 
 module assert contains
   define transparent assert-hit as assert-hit-prim
+  define transparent assertion-count as assertion-count-prim
 
   define transparent assert-eq as
     function A Type0 x A y A requires Equality A returns computation Unit value

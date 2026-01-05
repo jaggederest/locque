@@ -208,18 +208,18 @@ runTestOutcome projectRoot file = do
                 case insertRecursors m recDefs of
                   Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
                   Right prepared -> do
-                    m' <- transformModuleWithEnvs projectRoot prepared
-                    case TC.annotateModule env m' of
+                    case TC.annotateModule env prepared of
                       Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-                      Right annotatedM -> do
+                      Right annotatedPrepared -> do
+                        m' <- transformModuleWithEnvs projectRoot annotatedPrepared
                         let cacheEntry = RC.RunCache
                               { RC.cacheVersion = RC.cacheVersionCurrent
                               , RC.cacheDigest = digest
-                              , RC.cacheAnnotated = annotatedM
+                              , RC.cacheAnnotated = m'
                               , RC.cacheCtorArity = arity
                               }
                         RC.writeRunCache projectRoot file cacheEntry
-                        count <- runModuleMain projectRoot arity annotatedM
+                        count <- runModuleMain projectRoot arity m'
                         pure (Right count)
         ) `catch` handleTestException
       pure result
@@ -266,20 +266,20 @@ runTestOutcomeTimed projectRoot file = do
                 case insertRecursors m recDefs of
                   Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
                   Right prepared -> do
-                    m' <- record "transform" (transformModuleWithEnvs projectRoot prepared)
-                    annotRes <- record "annotate" (evaluate (TC.annotateModule env m'))
+                    annotRes <- record "annotate" (evaluate (TC.annotateModule env prepared))
                     case annotRes of
                       Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-                      Right annotatedM -> do
+                      Right annotatedPrepared -> do
+                        m' <- record "transform" (transformModuleWithEnvs projectRoot annotatedPrepared)
                         record "cache-write" $ do
                           let cacheEntry = RC.RunCache
                                 { RC.cacheVersion = RC.cacheVersionCurrent
                                 , RC.cacheDigest = digest
-                                , RC.cacheAnnotated = annotatedM
+                                , RC.cacheAnnotated = m'
                                 , RC.cacheCtorArity = arity
                                 }
                           RC.writeRunCache projectRoot file cacheEntry
-                        count <- record "run" (runModuleMain projectRoot arity annotatedM)
+                        count <- record "run" (runModuleMain projectRoot arity m')
                         pure (Right count)
     ) `catch` handleTestException
   timings <- readIORef timingsRef

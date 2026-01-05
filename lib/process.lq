@@ -1,0 +1,3 @@
+module process contains
+  define transparent run as process-run-prim
+end

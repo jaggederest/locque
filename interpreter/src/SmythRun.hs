@@ -73,7 +73,7 @@ runFileNoExit config file = do
             Nothing -> do
               -- Type check (native typeclass support on original module)
               tcAttempt <- try (evaluate (TC.typeCheckAndNormalizeWithEnv importedEnv m))
-                :: IO (Either SomeException (Either TC.TypeError (TC.TypeEnv, Module)))
+                :: IO (Either SomeException (Either TC.TypeError (TC.TCEnv, Module)))
               case tcAttempt of
                 Left e -> do
                   putStrLn $ "Type check phase error: " ++ show e
@@ -90,28 +90,28 @@ runFileNoExit config file = do
                       putStrLn $ "Transform error: " ++ msg
                       pure False
                     Right prepared -> do
-                      -- Transform: dictionary passing for evaluation
-                      transformAttempt <- try (transformModuleWithEnvs (projectRoot config) prepared)
-                        :: IO (Either SomeException Module)
-                      case transformAttempt of
-                        Left e -> do
-                          putStrLn $ "Transform error: " ++ show e
+                      -- Annotate: wrap expressions with inferred types
+                      case TC.annotateModule env prepared of
+                        Left annotErr -> do
+                          putStrLn $ "Annotation error: " ++ show annotErr
                           pure False
-                        Right m' -> do
-                          -- Annotate: wrap expressions with inferred types
-                          case TC.annotateModule env m' of
-                            Left annotErr -> do
-                              putStrLn $ "Annotation error: " ++ show annotErr
+                        Right annotatedPrepared -> do
+                          -- Transform: dictionary passing for evaluation
+                          transformAttempt <- try (transformModuleWithEnvs (projectRoot config) annotatedPrepared)
+                            :: IO (Either SomeException Module)
+                          case transformAttempt of
+                            Left e -> do
+                              putStrLn $ "Transform error: " ++ show e
                               pure False
-                            Right annotatedM -> do
+                            Right m' -> do
                               let cacheEntry = RC.RunCache
                                     { RC.cacheVersion = RC.cacheVersionCurrent
                                     , RC.cacheDigest = digest
-                                    , RC.cacheAnnotated = annotatedM
+                                    , RC.cacheAnnotated = m'
                                     , RC.cacheCtorArity = arity
                                     }
                               RC.writeRunCache (projectRoot config) file cacheEntry
-                              runAnnotated arity annotatedM
+                              runAnnotated arity m'
 
 runFileNoExitWithOptions :: SmythConfig -> RunOptions -> FilePath -> IO Bool
 runFileNoExitWithOptions config opts file = do

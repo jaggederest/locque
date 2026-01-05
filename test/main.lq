@@ -2,6 +2,8 @@ import prelude as P
 # Main test entry point
 # Runs all library rollups
 
+import arithmetic as Ar
+import assert as A
 import cli as CLI
 import io as IO
 import list as L
@@ -43,6 +45,7 @@ import test::typecheck as test_typecheck
 import test::syntax as test_syntax
 import test::tools as test_tools
 import test::new_syntax_test as test_new_syntax_test
+import test::process as test_process
 
 module test::main contains
   define transparent suites as
@@ -79,6 +82,7 @@ module test::main contains
     , (P::pair String (computation Unit) "test_syntax" test_syntax::main)
     , (P::pair String (computation Unit) "test_tools" test_tools::main)
     , (P::pair String (computation Unit) "test_new_syntax_test" test_new_syntax_test::main)
+    , (P::pair String (computation Unit) "test_process" test_process::main)
     ]
 
   define transparent suite-action as
@@ -109,9 +113,13 @@ module test::main contains
     end
 
   define transparent suite-end-line as
-    function name String elapsed Natural returns String value
+    function name String elapsed Natural assertions Natural returns String value
       S::concat "end "
-        (S::concat name (S::concat " (" (S::concat (N::to-string elapsed) "us)")))
+        (S::concat name
+          (S::concat " ("
+            (S::concat (N::to-string elapsed)
+              (S::concat "us, "
+                (S::concat (N::to-string assertions) " assertions)")))))
     end
 
   define transparent run-suite-verbose as
@@ -120,10 +128,17 @@ module test::main contains
         case Pair::pair with name String action (computation Unit) as
           compute
             bind ignored from perform (IO::print (suite-start-line name)) then
-              bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
-                bind ignored from perform
-                  (IO::print (suite-end-line name (P::snd Unit Natural measured))) then
-                    return Unit::tt
+              bind before from perform A::assertion-count then
+                bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
+                  bind after from perform A::assertion-count then
+                    bind ignored from perform
+                      (IO::print
+                        (let value assertions be Ar::subtract after before in
+                          suite-end-line name (P::snd Unit Natural measured) assertions
+                        end)) then
+                      return Unit::tt
+                    end
+                  end
                 end
               end
             end

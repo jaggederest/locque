@@ -5,36 +5,44 @@
 - Short term focus should stay on compiler correctness/observability before deeper type system features.
 - Stdlib is stable; refinements/proofs and effect typing remain the main growth areas.
 
-## Priority (next up)
+## Roadmap (prioritized)
+### Near term
 - Compiler: debug build mode (optional) with source-map + selected type annotations.
 - Compiler: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
 - Smyth: add `smyth new` to scaffold a project (Smythfile.lq, lib/, test/).
-- Webapp: consider refined todo IDs (e.g., `Natural` with `is-positive`) when predicate helpers land.
-- HTTP request/response: add refinement hooks for valid requests and response status (future).
-- Default instances: consider `Default (Refine A P)` once proof automation exists.
-- Hash instances: add `Refine` once higher-kinded params land (`List`/`Pair` done).
-- Semigroup: add `NonEmptyList` instance (`List`/`String` done).
-- Arithmetic refinements: add instances for `Positive`/`NonZero` and refine div/mod inputs/outputs.
-- Display: add `Display (Refine A P)` once higher-kinded params land (`List`/`Pair` done).
-- Order: add instances for refined types via `refine-value` (e.g., Positive, NonZero) once higher-kinded params land.
-- Dictionary: consider `NonEmptyDictionary` refinement, plus `keys`/`values` helpers.
-- List: consider a `Sorted` refinement for `sort-by`.
-- Natural: consider digit list conversions for proof-friendly properties.
-- Arithmetic: add proof lemmas (add-zero, add-comm, etc.) and refine div/mod inputs/outputs (Positive/NonZero).
-- Shell: consider refined `ExistingPath` for file operations.
-- Net/TCP: consider `ValidPort` refinement for safe APIs.
+- Stdlib ergonomics: computation helpers (`when`, `unless`, `guard`, `tap`, `map-comp`, `bind-comp`, `and-then`, `sequence-when`).
+- Stdlib ergonomics: List traversal helpers (`traverse`, `map-compute`, `filter-compute`, `fold-compute`, `find-map`).
+- Stdlib ergonomics: Option/Either/Result helpers (`unwrap-or`, `and-then`, `map-error`, `with-context`, conversions).
+- Stdlib ergonomics: String `lines`/`unlines`/`split-once` with consistent trailing-empty behavior.
+- Stdlib ergonomics: File/Process Result wrappers (`read-result`, `run-result`, `run-ok`) with consistent error formatting.
+- Stdlib ergonomics: CLI structured option parsing that returns flags/options/positionals.
+- Diagnostics: contextual error helper combinator for structured breadcrumbs.
+- Tests: helper for per-suite assertion counts in verbose output.
 
-## Stdlib follow-ups (Applicative/Monad)
-- Add `traverse`/`sequence` for `List` using `Applicative` (beyond the existing computation sequence helpers).
-- Add `Option`/`Either`/`Result`/`List` convenience wrappers (`pure`, `apply`, `and-then`) aligned with new typeclasses.
-- Consider `Dictionary` functorial map (value mapping) and possible `Functor` instance.
-- Consider `computation` monad helpers (effect-indexed) once effect polymorphism is formalized.
+### Mid term
+- Stdlib: Applicative/Monad convenience wrappers (`pure`, `apply`, `and-then`) aligned with new typeclasses.
+- Dictionary: functorial map (value mapping) + possible `Functor` instance.
+- Computation: effect-indexed monad helpers once effect polymorphism is formalized.
+- Diagnostics: show code context once parser locations updated.
+- Performance: typecheck profiling + caching/parallelism once a stable baseline exists.
+- Language ergonomics: computation `let`/`do`-style sugar to reduce `perform (let ...)`.
+- Language ergonomics: allow `match` to return computations directly (reduce extra `compute` nesting).
 
-## Compiler (Haskell backend bootstrap)
-### Milestones (incremental)
-- M8: Debug build mode (optional): keep source map/selected type annotations.
-- Lowering cleanup: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
+### Later
+- Refinement/typeclass expansion: Default/Display/Order/Hash for `Refine` once proof automation + higher-kinded params land.
+- Semigroup: `NonEmptyList` instance (`List`/`String` done).
+- Arithmetic refinements + lemmas: `Positive`/`NonZero` instances; div/mod refinements; add-zero/add-comm proofs.
+- Dictionary: `NonEmptyDictionary` refinement + `keys`/`values` helpers.
+- List: `Sorted` refinement for `sort-by`.
+- Natural: digit list conversions for proof-friendly properties.
+- Shell: `ExistingPath` refinement for file operations.
+- Net/TCP: `ValidPort` refinement for safe APIs.
+- HTTP request/response: refinement hooks for valid requests and response status.
+- Webapp: refined todo IDs (e.g., `Natural` with `is-positive`) once predicate helpers land.
+- Theorem proving: expand predicate library; add decidable predicate helpers beyond equality.
+- Language features: definitional equality (eta), type holes, better inference, rows/records.
 
+## Compiler backend (context)
 ### Project decisions (locked)
 - Typed CBPV Core IR; no ANF for now.
 - Full erasure in normal builds; debug flag later.
@@ -42,20 +50,6 @@
 - Builtins mapping: Option→Maybe, Either→Either, Result→Either, List→[], Pair→(,), Natural→Integer, String/Character→Text (upgrade later).
 - Computations: `newtype Comp a = Comp (IO a)` in runtime.
 - Haskell backend emits a single module per entrypoint; `LocqueRuntime` is shared.
-
-## Diagnostics
-- Show code context once parser locations updated.
-
-## Performance
-- Typecheck profiling + targeted caching or parallelism once we have a stable baseline.
-
-## Language features (future)
-- Definitional equality: eta reduction for functions.
-- Type holes; better inference; rows/records.
-
-## Theorem proving
-- Refinement helpers: expand common predicate library beyond NonEmpty/Positive/NonZero.
-- Decidable predicates: add string helpers beyond equality.
 
 ## Parked backlog
 

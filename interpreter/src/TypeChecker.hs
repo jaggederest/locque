@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module TypeChecker
   ( typeCheckModule
+  , typeCheckModuleFull
   , typeCheckModuleWithImports
+  , typeCheckModuleWithImportsFull
   , typeCheckAndNormalizeWithEnv
   , typeCheckAndNormalizeWithImports
   , normalizeModuleWithImports
@@ -12,10 +14,15 @@ module TypeChecker
   , moduleDigestWithImportsScope
   , TypeError(..)
   , TypeEnv
+  , TCEnv
+  , tcEnvTypes
+  , definitionLineMap
   , freeVars
+  , processOpens
   ) where
 
 import Control.Monad (foldM, when)
+import Control.Monad.Except (catchError, throwError)
 import Control.Monad.State
 import Data.Bits (xor)
 import qualified Data.ByteString as BS
@@ -31,7 +38,7 @@ import qualified Data.Text.IO as TIO
 import Data.Word (Word64)
 import Numeric (showHex)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
-import System.FilePath ((</>), (<.>), isAbsolute, makeRelative, takeDirectory, takeExtension)
+import System.FilePath ((</>), (<.>), isAbsolute, makeRelative, takeDirectory, takeExtension, takeFileName)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 import AST
@@ -87,17 +94,43 @@ data TypeError
   | MatchCaseError SrcLoc Text
   | TypeclassError SrcLoc Text
   | RecursionError SrcLoc Text
+  | ContextError Text TypeError
 
 instance Show TypeError where
-  show (VarNotInScope loc var env) =
+  show err =
+    let (contexts, baseErr) = collectContexts err
+        ErrorMsg loc mainMsg mbCtx suggestions note = baseErrorMsg baseErr
+        ctxNote = formatContextNote contexts
+        note' = appendNote note ctxNote
+    in T.unpack (formatError (ErrorMsg loc mainMsg mbCtx suggestions note'))
+
+collectContexts :: TypeError -> ([Text], TypeError)
+collectContexts err = case err of
+  ContextError ctx inner ->
+    let (ctxs, base) = collectContexts inner
+    in (ctx : ctxs, base)
+  _ -> ([], err)
+
+formatContextNote :: [Text] -> Maybe Text
+formatContextNote [] = Nothing
+formatContextNote ctxs =
+  let lines' = map ("  - " <>) ctxs
+  in Just ("Context:\n" <> T.intercalate "\n" lines')
+
+appendNote :: Maybe Text -> Maybe Text -> Maybe Text
+appendNote Nothing extra = extra
+appendNote (Just base) Nothing = Just base
+appendNote (Just base) (Just extra) = Just (base <> "\n" <> extra)
+
+baseErrorMsg :: TypeError -> ErrorMsg
+baseErrorMsg err = case err of
+  VarNotInScope loc var env ->
     let candidates = Map.keys env
         suggestions = case findFuzzyMatches var candidates of
                         [] -> []
                         xs -> [DidYouMean (T.intercalate ", " xs)]
-        msg = ErrorMsg loc ("Variable not in scope: " <> var) Nothing suggestions Nothing
-    in T.unpack (formatError msg)
-
-  show (TypeMismatch loc expected actual context) =
+    in ErrorMsg loc ("Variable not in scope: " <> var) Nothing suggestions Nothing
+  TypeMismatch loc expected actual context ->
     let mainMsg = "Type mismatch"
         locLine = case loc of
           NoLoc -> ""
@@ -108,61 +141,42 @@ instance Show TypeError where
         note = Just $ locLine <> contextLine <>
                       "Expected: " <> prettyType expected <>
                       "\n  Actual:   " <> prettyType actual
-        msg = ErrorMsg loc mainMsg Nothing [] note
-    in T.unpack (formatError msg)
-
-  show (CannotApply loc fType argType) =
+    in ErrorMsg loc mainMsg Nothing [] note
+  CannotApply loc fType argType ->
     let mainMsg = "Cannot apply function"
         note = Just $ "Function type: " <> prettyType fType <>
                       "\n  Argument type: " <> prettyType argType
-        msg = ErrorMsg loc mainMsg Nothing [] note
-    in T.unpack (formatError msg)
-
-  show (NotAFunction loc ty) =
-    let msg = ErrorMsg loc ("Expected function, got: " <> prettyType ty) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (NotAComputation loc ty) =
-    let msg = ErrorMsg loc ("Expected computation, got: " <> prettyType ty) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (ExpectedType loc ty) =
-    let msg = ErrorMsg loc ("Expected a type, got: " <> prettyType ty) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (InvalidLift loc fromLevel toLevel) =
-    let msg = ErrorMsg loc
-          ("Invalid lift: from Type" <> T.pack (show fromLevel) <>
-           " to Type" <> T.pack (show toLevel) <> " (from must be <= to)")
-          Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (EmptyListLiteral loc) =
-    let msg = ErrorMsg loc "Empty list literal requires type annotation" Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (ExpectedThereExists loc ty) =
-    let msg = ErrorMsg loc ("Expected there-exists type, got: " <> prettyType ty) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (ExpectedEquality loc ty) =
-    let msg = ErrorMsg loc ("Expected equality type, got: " <> prettyType ty) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (MatchCaseError loc msgText) =
-    let msg = ErrorMsg loc ("Match error: " <> msgText) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (TypeclassError loc msgText) =
-    let msg = ErrorMsg loc ("Typeclass error: " <> msgText) Nothing [] Nothing
-    in T.unpack (formatError msg)
-
-  show (RecursionError loc msgText) =
-    let msg = ErrorMsg loc ("Recursion error: " <> msgText) Nothing [] Nothing
-    in T.unpack (formatError msg)
+    in ErrorMsg loc mainMsg Nothing [] note
+  NotAFunction loc ty ->
+    ErrorMsg loc ("Expected function, got: " <> prettyType ty) Nothing [] Nothing
+  NotAComputation loc ty ->
+    ErrorMsg loc ("Expected computation, got: " <> prettyType ty) Nothing [] Nothing
+  ExpectedType loc ty ->
+    ErrorMsg loc ("Expected a type, got: " <> prettyType ty) Nothing [] Nothing
+  InvalidLift loc fromLevel toLevel ->
+    ErrorMsg loc
+      ("Invalid lift: from Type" <> T.pack (show fromLevel) <>
+       " to Type" <> T.pack (show toLevel) <> " (from must be <= to)")
+      Nothing [] Nothing
+  EmptyListLiteral loc ->
+    ErrorMsg loc "Empty list literal requires type annotation" Nothing [] Nothing
+  ExpectedThereExists loc ty ->
+    ErrorMsg loc ("Expected there-exists type, got: " <> prettyType ty) Nothing [] Nothing
+  ExpectedEquality loc ty ->
+    ErrorMsg loc ("Expected equality type, got: " <> prettyType ty) Nothing [] Nothing
+  MatchCaseError loc msgText ->
+    ErrorMsg loc ("Match error: " <> msgText) Nothing [] Nothing
+  TypeclassError loc msgText ->
+    ErrorMsg loc ("Typeclass error: " <> msgText) Nothing [] Nothing
+  RecursionError loc msgText ->
+    ErrorMsg loc ("Recursion error: " <> msgText) Nothing [] Nothing
+  ContextError _ inner -> baseErrorMsg inner
 
 -- | Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where
+  ContextError _ a == ContextError _ b = a == b
+  ContextError _ a == b = a == b
+  a == ContextError _ b = a == b
   VarNotInScope _ a _ == VarNotInScope _ b _ = a == b
   TypeMismatch _ a1 a2 _ == TypeMismatch _ b1 b2 _ = a1 == b1 && a2 == b2
   CannotApply _ a1 a2 == CannotApply _ b1 b2 = a1 == b1 && a2 == b2
@@ -188,12 +202,17 @@ data TCEnv = TCEnv
   , tcInstances :: Map.Map Text [InstanceInfo]
   , tcData :: Map.Map Text DataInfo
   , tcCtors :: Map.Map Text CtorInfo
+  , tcDefLines :: Map.Map Text Int
+  , tcSourceFile :: Maybe FilePath
   } deriving (Show, Read, Eq)
 
 type TypeCheckM a = StateT Int (Either TypeError) a
 
 runTypeCheck :: TypeCheckM a -> Either TypeError a
 runTypeCheck tc = evalStateT tc 0
+
+tcEnvTypes :: TCEnv -> TypeEnv
+tcEnvTypes = tcTypes
 
 freshNameAvoid :: Text -> Set.Set Text -> TypeCheckM Text
 freshNameAvoid base avoid = do
@@ -203,6 +222,10 @@ freshNameAvoid base avoid = do
   if candidate `Set.member` avoid
     then freshNameAvoid base avoid
     else pure candidate
+
+withContext :: Text -> TypeCheckM a -> TypeCheckM a
+withContext ctx action =
+  catchError action (throwError . ContextError ctx)
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -534,7 +557,7 @@ emptyEnv =
   let dataInfos = builtinDataInfos
       dataMap = Map.fromList [(dataName info, info) | info <- dataInfos]
       ctorMap = Map.fromList [(ctorName ctor, ctor) | info <- dataInfos, ctor <- dataCtors info]
-  in TCEnv buildPrimitiveEnv Map.empty Set.empty Map.empty Map.empty dataMap ctorMap
+  in TCEnv buildPrimitiveEnv Map.empty Set.empty Map.empty Map.empty dataMap ctorMap Map.empty Nothing
 
 extendLocal :: TCEnv -> Text -> Expr -> TCEnv
 extendLocal env name ty =
@@ -2129,7 +2152,10 @@ infer env expr = case expr of
     _ <- inferUniverse env scrutTy
     let envScrut = extendLocal env scrutName scrutTy
     _ <- inferUniverse envScrut retTy
-    checkMatch envScrut scrutName retTy scrutTy cases
+    let matchCtx =
+          "match " <> compactText (exprToMExprText scrut)
+            <> " of-type " <> compactText (exprToMExprText scrutTy)
+    withContext matchCtx (checkMatch envScrut scrutName retTy scrutTy cases)
     subst scrutName scrut retTy
   EAnnot e1 ty -> do
     _ <- inferUniverse env ty
@@ -2289,6 +2315,313 @@ checkCase env scrutName retTy scrutTy dataInfo dataArgs (ctorInfo, binders, body
       envCase <- substEnvTypes scrutName ctorTerm' envWithScrut
       envCase' <- substEnvTypesMany indexSubstsList envCase
       check envCase' body expected'
+  where
+    checkBinder (envAcc, substs) (Param ctorName' ctorTy, Param caseName caseTy) = do
+      let substsNoShadow = filter ((/= ctorName') . fst) substs
+      expectedTy <- substMany substsNoShadow ctorTy
+      let context = "case binder " <> caseName <> " in " <> ctorName ctorInfo
+      ensureConvWith envAcc caseTy expectedTy (Just context)
+      let env' = extendLocal envAcc caseName expectedTy
+          substs' = (ctorName', EVar caseName) : substsNoShadow
+      pure (env', substs')
+
+--------------------------------------------------------------------------------
+-- Annotation (wrap expressions with inferred types)
+
+annotateExpr :: TCEnv -> Expr -> TypeCheckM (Expr, Expr)
+annotateExpr env expr = case expr of
+  EVar v -> do
+    ty <- lookupVar noLoc env v
+    pure (ETyped (EVar v) ty, ty)
+  ELit lit ->
+    let ty = case lit of
+          LNatural _ -> tNat
+          LString _ -> tString
+          LBoolean _ -> tBool
+          LUnit -> tUnit
+    in pure (ETyped (ELit lit) ty, ty)
+  EListLiteral elems -> case elems of
+    [] -> lift (Left (EmptyListLiteral noLoc))
+    (first:rest) -> do
+      (first', elemTy) <- annotateExpr env first
+      rest' <- mapM (\e -> annotateCheck env e elemTy) rest
+      let expr' = EListLiteral (first' : rest')
+          ty = tList elemTy
+      pure (ETyped expr' ty, ty)
+  ETypeConst tc ->
+    let ty = typeOfTypeConst tc
+    in pure (ETyped (ETypeConst tc) ty, ty)
+  ETypeUniverse n ->
+    let ty = ETypeUniverse (n + 1)
+    in pure (ETyped (ETypeUniverse n) ty, ty)
+  EForAll v dom cod -> do
+    domLevel <- inferUniverse env dom
+    let env' = extendLocal env v dom
+    codLevel <- inferUniverse env' cod
+    let ty = ETypeUniverse (max domLevel codLevel)
+    pure (ETyped (EForAll v dom cod) ty, ty)
+  EThereExists v dom cod -> do
+    domLevel <- inferUniverse env dom
+    let env' = extendLocal env v dom
+    codLevel <- inferUniverse env' cod
+    let ty = ETypeUniverse (max domLevel codLevel)
+    pure (ETyped (EThereExists v dom cod) ty, ty)
+  ECompType eff t -> do
+    level <- inferUniverse env t
+    let ty = ETypeUniverse level
+    pure (ETyped (ECompType eff t) ty, ty)
+  EEqual ty lhs rhs -> do
+    level <- inferUniverse env ty
+    lhs' <- annotateCheck env lhs ty
+    rhs' <- annotateCheck env rhs ty
+    let ty' = ETypeUniverse level
+    pure (ETyped (EEqual ty lhs' rhs') ty', ty')
+  EReflexive ty term -> do
+    _ <- inferUniverse env ty
+    term' <- annotateCheck env term ty
+    let ty' = EEqual ty term term
+    pure (ETyped (EReflexive ty term') ty', ty')
+  ERewrite family proof body -> do
+    familyTy <- infer env family
+    familyTyWhnf <- whnf env familyTy
+    case familyTyWhnf of
+      EForAll v dom cod -> do
+        _ <- inferUniverse (extendLocal env v dom) cod
+        proofTy <- infer env proof
+        proofTyWhnf <- whnf env proofTy
+        case proofTyWhnf of
+          EEqual eqTy lhs rhs -> do
+            ensureConv env eqTy dom
+            expected <- reduceFamilyApp family lhs
+            body' <- annotateCheck env body expected
+            resultTy <- reduceFamilyApp family rhs
+            (family', _) <- annotateExpr env family
+            (proof', _) <- annotateExpr env proof
+            let expr' = ERewrite family' proof' body'
+            pure (ETyped expr' resultTy, resultTy)
+          _ -> lift (Left (ExpectedEquality noLoc proofTyWhnf))
+      _ -> lift (Left (NotAFunction noLoc familyTyWhnf))
+    where
+      reduceFamilyApp fam arg = case fam of
+        EAnnot e _ -> reduceFamilyApp e arg
+        ETyped e _ -> reduceFamilyApp e arg
+        EFunction params constraints ret (FunctionValue bodyExpr) ->
+          applyParams params constraints ret bodyExpr [arg]
+        EVar name ->
+          case Map.lookup name (tcDefs env) of
+            Just (Transparent, bodyExpr) -> reduceFamilyApp bodyExpr arg
+            _ -> pure (mkApp fam [arg])
+        _ -> pure (mkApp fam [arg])
+  EPack v dom cod witness body -> do
+    _ <- inferUniverse env dom
+    let env' = extendLocal env v dom
+    _ <- inferUniverse env' cod
+    witness' <- annotateCheck env witness dom
+    codApplied <- subst v witness cod
+    body' <- annotateCheck env body codApplied
+    let ty = EThereExists v dom cod
+    pure (ETyped (EPack v dom cod witness' body') ty, ty)
+  EUnpack packed x y body -> do
+    packedTy <- infer env packed
+    packedTyWhnf <- whnf env packedTy
+    case packedTyWhnf of
+      EThereExists v dom cod -> do
+        (packed', _) <- annotateExpr env packed
+        cod' <- subst v (EVar x) cod
+        let env' = extendLocal (extendLocal env x dom) y cod'
+        (body', bodyTy) <- annotateExpr env' body
+        let expr' = EUnpack packed' x y body'
+        pure (ETyped expr' bodyTy, bodyTy)
+      _ -> lift (Left (ExpectedThereExists noLoc packedTyWhnf))
+  ELift ty fromLevel toLevel -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    let ty' = ETypeUniverse toLevel
+    pure (ETyped (ELift ty fromLevel toLevel) ty', ty')
+  EUp ty fromLevel toLevel body -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    body' <- annotateCheck env body ty
+    let ty' = ELift ty fromLevel toLevel
+    pure (ETyped (EUp ty fromLevel toLevel body') ty', ty')
+  EDown ty fromLevel toLevel body -> do
+    ensureLiftLevels env ty fromLevel toLevel
+    body' <- annotateCheck env body (ELift ty fromLevel toLevel)
+    let ty' = ty
+    pure (ETyped (EDown ty fromLevel toLevel body') ty', ty')
+  EApp f args -> do
+    fTy <- infer env f
+    ty <- foldM (applyArg env) fTy args
+    (f', _) <- annotateExpr env f
+    args' <- mapM (\arg -> fst <$> annotateExpr env arg) args
+    pure (ETyped (EApp f' args') ty, ty)
+  EFunction params constraints ret body -> do
+    envParams <- foldM (\e (Param n ty) -> do
+                          _ <- inferUniverse e ty
+                          pure (extendLocal e n ty)) env params
+    _ <- inferUniverse envParams ret
+    methods <- constraintMethods envParams constraints
+    let envWithMethods = foldl addMethod envParams methods
+        addMethod e (methodName, methodTy) =
+          if methodName `Set.member` tcLocals e
+            then e
+            else extendLocal e methodName methodTy
+    let funTy = mkPi params ret
+        envWithRecur = extendLocal envWithMethods "recur" funTy
+    checkStructuralRecursion envWithRecur params body
+    body' <- case body of
+      FunctionValue e1 -> FunctionValue <$> annotateCheck envWithRecur e1 ret
+      FunctionCompute c1 -> do
+        inner <- expectCompType envParams ret
+        (comp', compTy) <- annotateComp envWithRecur c1
+        ensureConv envWithRecur compTy inner
+        pure (FunctionCompute comp')
+    let expr' = EFunction params constraints ret body'
+    pure (ETyped expr' funTy, funTy)
+  ELet name val body -> do
+    (val', valTy) <- annotateExpr env val
+    (body', bodyTy) <- annotateExpr (extendLocal env name valTy) body
+    let expr' = ELet name val' body'
+    pure (ETyped expr' bodyTy, bodyTy)
+  ECompute comp -> do
+    compTy <- inferComp env comp
+    (comp', _) <- annotateComp env comp
+    let ty = ECompType effectAnyExpr compTy
+    pure (ETyped (ECompute comp') ty, ty)
+  EData params universe cases -> do
+    level <- case universe of
+      ETypeUniverse n -> pure n
+      _ -> lift (Left (ExpectedType noLoc universe))
+    envParams <- foldM (\e (Param n ty) -> do
+                          _ <- inferUniverse e ty
+                          pure (extendLocal e n ty)) env params
+    mapM_ (\(DataCase _ ty) -> inferUniverse envParams ty) cases
+    let ty = mkPi params (ETypeUniverse level)
+    pure (ETyped (EData params universe cases) ty, ty)
+  EMatch scrut scrutTy scrutName retTy cases -> do
+    scrutInferred <- infer env scrut
+    ensureConv env scrutInferred scrutTy
+    _ <- inferUniverse env scrutTy
+    let envScrut = extendLocal env scrutName scrutTy
+    _ <- inferUniverse envScrut retTy
+    let matchCtx =
+          "match " <> compactText (exprToMExprText scrut)
+            <> " of-type " <> compactText (exprToMExprText scrutTy)
+    cases' <- withContext matchCtx (annotateMatch envScrut scrutName retTy scrutTy cases)
+    (scrut', _) <- annotateExpr env scrut
+    ty <- subst scrutName scrut retTy
+    let expr' = EMatch scrut' scrutTy scrutName retTy cases'
+    pure (ETyped expr' ty, ty)
+  EAnnot e1 ty -> do
+    _ <- inferUniverse env ty
+    e1' <- annotateCheck env e1 ty
+    pure (ETyped (EAnnot e1' ty) ty, ty)
+  ETyped e1 ty -> do
+    e1' <- annotateCheck env e1 ty
+    let inner = case e1' of
+          ETyped e _ -> e
+          _ -> e1'
+    pure (ETyped inner ty, ty)
+  EDict _ _ -> lift (Left (TypeclassError noLoc "dict nodes not supported"))
+  EDictAccess _ _ -> lift (Left (TypeclassError noLoc "dict access nodes not supported"))
+  ETypeClass param kind methods -> do
+    ensureUniqueMethodNames (map fst methods)
+    _ <- inferUniverse env kind
+    let env' = extendLocal env param kind
+    mapM_ (\(_, ty) -> inferUniverse env' ty) methods
+    let ty = classType param kind
+    pure (ETyped (ETypeClass param kind methods) ty, ty)
+  EInstance clsName instTy methods -> do
+    ty <- infer env expr
+    methods' <- mapM (\(n, e1) -> do
+      (e1', _) <- annotateExpr env e1
+      pure (n, e1')
+      ) methods
+    pure (ETyped (EInstance clsName instTy methods') ty, ty)
+
+annotateCheck :: TCEnv -> Expr -> Expr -> TypeCheckM Expr
+annotateCheck env expr expected = case expr of
+  EListLiteral elems -> do
+    expectedWhnf <- whnf env expected
+    case expectedWhnf of
+      EApp (ETypeConst TCList) [elemTy] -> do
+        elems' <- mapM (\e -> annotateCheck env e elemTy) elems
+        pure (ETyped (EListLiteral elems') expected)
+      _ -> do
+        (expr', inferred) <- annotateExpr env expr
+        ensureConvWith env inferred expected (Just (exprToMExprText expr))
+        pure expr'
+  _ -> do
+    (expr', inferred) <- annotateExpr env expr
+    ensureConvWith env inferred expected (Just (exprToMExprText expr))
+    pure expr'
+
+annotateComp :: TCEnv -> Comp -> TypeCheckM (Comp, Expr)
+annotateComp env comp = case comp of
+  CReturn e1 -> do
+    (e1', ty) <- annotateExpr env e1
+    pure (CReturn e1', ty)
+  CBind name c1 c2 -> do
+    (c1', t1) <- annotateComp env c1
+    (c2', t2) <- annotateComp (extendLocal env name t1) c2
+    pure (CBind name c1' c2', t2)
+  CPerform e1 -> do
+    (e1', t) <- annotateExpr env e1
+    inner <- expectCompType env t
+    pure (CPerform e1', inner)
+
+annotateMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM [MatchCase]
+annotateMatch env scrutName retTy scrutTy cases = do
+  (dataInfo, dataArgs) <- lookupDataInfo env scrutTy
+  resolved <- mapM (resolveCaseWithName env dataInfo) cases
+  ensureCaseSet dataInfo [ (ctorInfo, binders, body) | (ctorInfo, _, binders, body) <- resolved ]
+  mapM (annotateCase env scrutName retTy scrutTy dataInfo dataArgs) resolved
+  where
+    resolveCaseWithName env' dataInfo' (MatchCase ctor binders body) = do
+      ctorInfo <- lookupCtor env' ctor
+      when (ctorData ctorInfo /= dataName dataInfo') $
+        lift (Left (MatchCaseError noLoc ("unexpected case " <> ctor)))
+      pure (ctorInfo, ctor, binders, body)
+
+annotateCase
+  :: TCEnv
+  -> Text
+  -> Expr
+  -> Expr
+  -> DataInfo
+  -> [Expr]
+  -> (CtorInfo, Text, [Param], Expr)
+  -> TypeCheckM MatchCase
+annotateCase env scrutName retTy scrutTy dataInfo dataArgs (ctorInfo, ctorNameInput, binders, body) = do
+  let ctorParamsList = ctorParams ctorInfo
+  when (length ctorParamsList /= length binders) $
+    lift (Left (MatchCaseError noLoc ("case " <> ctorName ctorInfo <> " expects " <> T.pack (show (length ctorParamsList)) <> " binders")))
+  let dataSubsts = zip (map paramName (dataParams dataInfo)) dataArgs
+  (env', substs) <- foldM checkBinder (env, dataSubsts) (zip ctorParamsList binders)
+  ctorResult' <- substMany substs (ctorResult ctorInfo)
+  let scrutVars = freeVars scrutTy `Set.intersection` tcLocals env
+      binderNames = Set.fromList (map paramName binders)
+      solvables = Set.delete scrutName (scrutVars `Set.difference` binderNames)
+  unifyRes <- unifyIndices env' solvables ctorResult' scrutTy
+  case unifyRes of
+    Nothing ->
+      pure (MatchCase ctorNameInput binders body)
+    Just indexSubsts -> do
+      let dataArgMap = Map.fromList (zip (map paramName (dataParams dataInfo)) dataArgs)
+          ctorDataArgs =
+            [ arg
+            | Param name _ <- dataParamsForCtor dataInfo ctorInfo
+            , Just arg <- [Map.lookup name dataArgMap]
+            ]
+          ctorTerm = EApp (EVar (ctorName ctorInfo)) (ctorDataArgs ++ map (EVar . paramName) binders)
+          indexSubstsList = Map.toList indexSubsts
+      ctorTerm' <- substMany indexSubstsList ctorTerm
+      expected <- subst scrutName ctorTerm' retTy
+      expected' <- substMany indexSubstsList expected
+      scrutTy' <- substMany indexSubstsList scrutTy
+      let envWithScrut = extendLocal env' scrutName scrutTy'
+      envCase <- substEnvTypes scrutName ctorTerm' envWithScrut
+      envCase' <- substEnvTypesMany indexSubstsList envCase
+      body' <- annotateCheck envCase' body expected'
+      pure (MatchCase ctorNameInput binders body')
   where
     checkBinder (envAcc, substs) (Param ctorName' ctorTy, Param caseName caseTy) = do
       let substsNoShadow = filter ((/= ctorName') . fst) substs
@@ -2472,6 +2805,7 @@ buildPrimitiveEnv = Map.fromList
   , ("forever-prim", tFun (tComp tUnit) (tComp tUnit))
   , ("on-signal-prim", tFun tString (tFun (tComp tUnit) (tComp tUnit)))
   , ("assert-hit-prim", tComp tUnit)
+  , ("assertion-count-prim", tComp tNat)
   , ("get-line-prim", tComp tString)
   , ("cli-args-prim", tComp (tList tString))
   , ("current-directory-prim", tComp tString)
@@ -2479,6 +2813,10 @@ buildPrimitiveEnv = Map.fromList
   , ("read-file-prim", tFun tString (tComp tString))
   , ("write-file-prim", tFun tString (tFun tString (tComp tUnit)))
   , ("shell-prim", tFun tString (tComp tString))
+  , ("process-run-prim",
+      tFun (tList tString)
+        (tFun (tOption tString)
+          (tComp (tPair tNat (tPair tString tString)))))
   , ("list-dir-prim", tFun tString (tComp (tList tString)))
   , ("path-exists-prim", tFun tString (tComp tBool))
   , ("is-directory-prim", tFun tString (tComp tBool))
@@ -2503,38 +2841,115 @@ buildPrimitiveEnv = Map.fromList
 --------------------------------------------------------------------------------
 -- Module checking
 
+definitionLineMap :: Text -> Map.Map Text Int
+definitionLineMap contents =
+  let ls = zip [1..] (T.lines contents)
+  in Map.fromList (concatMap extractLine ls)
+  where
+    extractLine (lineNum, lineText) =
+      case extractDefName lineText of
+        Just name -> [(name, lineNum)]
+        Nothing -> []
+
+extractDefName :: Text -> Maybe Text
+extractDefName line =
+  let trimmed = T.strip line
+  in if T.null trimmed
+       || T.isPrefixOf "#" trimmed
+       || T.isPrefixOf ";" trimmed
+       || T.isPrefixOf "#|" trimmed
+       || T.isPrefixOf "/*" trimmed
+     then Nothing
+     else
+       let tokens = map stripParens (T.words trimmed)
+       in case tokens of
+            ("define":rest) -> extractName rest
+            _ -> Nothing
+  where
+    stripParens = T.dropWhileEnd (== ')') . T.dropWhile (== '(')
+    extractName rest = case rest of
+      ("transparent":name:_) -> Just name
+      ("opaque":name:_) -> Just name
+      (name:_) -> Just name
+      _ -> Nothing
+
+definitionContext :: TCEnv -> Text -> Text
+definitionContext env name =
+  let lineInfo = Map.lookup name (tcDefLines env)
+      fileInfo = fmap takeFileName (tcSourceFile env)
+  in case (fileInfo, lineInfo) of
+      (Just file, Just lineNum) ->
+        "definition " <> name <> " (" <> T.pack file <> ":" <> T.pack (show lineNum) <> ")"
+      (_, Just lineNum) ->
+        "definition " <> name <> " (line " <> T.pack (show lineNum) <> ")"
+      _ -> "definition " <> name
+
+compactText :: Text -> Text
+compactText = T.unwords . T.words
+
 typeCheckModule :: Module -> Either TypeError TypeEnv
 typeCheckModule m = do
   let envWithOpens = processOpens (modOpens m) emptyEnv
   env <- runTypeCheck (typeCheckModuleWithEnv envWithOpens m)
   pure (tcTypes env)
 
-typeCheckModuleWithImports :: FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
-typeCheckModuleWithImports projectRoot _sourceContents m = do
-  importedEnv <- loadTypeImports projectRoot m
-  let envWithOpens = processOpens (modOpens m) importedEnv
-  pure $ fmap tcTypes (runTypeCheck (typeCheckModuleWithEnv envWithOpens m))
+typeCheckModuleFull :: Module -> Either TypeError TCEnv
+typeCheckModuleFull m = do
+  let envWithOpens = processOpens (modOpens m) emptyEnv
+  runTypeCheck (typeCheckModuleWithEnv envWithOpens m)
 
-normalizeModuleWithImports :: FilePath -> Text -> Module -> IO (Either TypeError Module)
-normalizeModuleWithImports projectRoot _sourceContents m = do
+typeCheckModuleWithImports :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
+typeCheckModuleWithImports projectRoot sourcePath sourceContents m = do
   importedEnv <- loadTypeImports projectRoot m
   let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
+  pure $ fmap tcTypes (runTypeCheck (typeCheckModuleWithEnv envWithContext m))
+
+typeCheckModuleWithImportsFull :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError TCEnv)
+typeCheckModuleWithImportsFull projectRoot sourcePath sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
+  pure (runTypeCheck (typeCheckModuleWithEnv envWithContext m))
+
+normalizeModuleWithImports :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError Module)
+normalizeModuleWithImports projectRoot sourcePath sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
   pure $ runTypeCheck $ do
-    env <- typeCheckModuleWithEnv envWithOpens m
+    env <- typeCheckModuleWithEnv envWithContext m
     normalized <- normalizeModule env m
     case injectRecursors "<module>" normalized of
       Left msg -> lift (Left (MatchCaseError noLoc (T.pack msg)))
       Right m' -> pure m'
 
-normalizeTypeEnvWithImports :: FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
-normalizeTypeEnvWithImports projectRoot _sourceContents m = do
+normalizeTypeEnvWithImports :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError TypeEnv)
+normalizeTypeEnvWithImports projectRoot sourcePath sourceContents m = do
   importedEnv <- loadTypeImports projectRoot m
   let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
   pure $ runTypeCheck $ do
-    env <- typeCheckModuleWithEnv envWithOpens m
+    env <- typeCheckModuleWithEnv envWithContext m
     normalizeTypeEnv env
 
-typeCheckAndNormalizeWithEnv :: TCEnv -> Module -> Either TypeError (TypeEnv, Module)
+typeCheckAndNormalizeWithEnv :: TCEnv -> Module -> Either TypeError (TCEnv, Module)
 typeCheckAndNormalizeWithEnv importedEnv m =
   runTypeCheck $ do
     let envWithOpens = processOpens (modOpens m) importedEnv
@@ -2543,19 +2958,24 @@ typeCheckAndNormalizeWithEnv importedEnv m =
     normalizedWithRecursors <- case injectRecursors "<module>" normalized of
       Left msg -> lift (Left (MatchCaseError noLoc (T.pack msg)))
       Right m' -> pure m'
-    pure (tcTypes env, normalizedWithRecursors)
+    pure (env, normalizedWithRecursors)
 
-typeCheckAndNormalizeWithImports :: FilePath -> Text -> Module -> IO (Either TypeError (TypeEnv, Module))
-typeCheckAndNormalizeWithImports projectRoot _sourceContents m = do
+typeCheckAndNormalizeWithImports :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError (TCEnv, Module))
+typeCheckAndNormalizeWithImports projectRoot sourcePath sourceContents m = do
   importedEnv <- loadTypeImports projectRoot m
   let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
   pure $ runTypeCheck $ do
-    env <- typeCheckModuleWithEnv envWithOpens m
+    env <- typeCheckModuleWithEnv envWithContext m
     normalized <- normalizeModule env m
     normalizedWithRecursors <- case injectRecursors "<module>" normalized of
       Left msg -> lift (Left (MatchCaseError noLoc (T.pack msg)))
       Right m' -> pure m'
-    pure (tcTypes env, normalizedWithRecursors)
+    pure (env, normalizedWithRecursors)
 
 moduleDigest :: FilePath -> Text -> Module -> IO String
 moduleDigest projectRoot sourceContents m = do
@@ -2578,7 +2998,9 @@ typeCheckModuleWithEnv initialEnv (Module _name _imports _opens defs) =
   foldM typeCheckDef initialEnv defs
 
 typeCheckDef :: TCEnv -> Definition -> TypeCheckM TCEnv
-typeCheckDef env (Definition tr name body) = case body of
+typeCheckDef env (Definition tr name body) =
+  withContext (definitionContext env name) $
+    case body of
   EData params universe cases -> do
     (info, ty) <- checkDataDef env name params universe cases
     let envWithData = extendData env name ty info
@@ -2654,8 +3076,50 @@ checkDataDef env name params universe cases = do
         _ ->
           lift (Left (MatchCaseError noLoc ("constructor result must be " <> name)))
 
-annotateModule :: TypeEnv -> Module -> Either TypeError Module
-annotateModule _env m = Right m
+annotateModule :: TCEnv -> Module -> Either TypeError Module
+annotateModule env (Module name imports opens defs) =
+  runTypeCheck $ do
+    (env', defs') <- foldM annotateDef (env, []) defs
+    pure (Module name imports opens defs')
+  where
+    annotateDef (envAcc, acc) (Definition tr defName body) =
+      withContext (definitionContext envAcc defName) $ do
+        case body of
+          EData params universe cases -> do
+            (info, ty) <- checkDataDef envAcc defName params universe cases
+            (body', _) <- annotateExpr envAcc body
+            let envWithData = extendData envAcc defName ty info
+                recName = defName <> "::recursor"
+            let recCases = [DataCase (ctorName ctor) (ctorType ctor) | ctor <- dataCtors info]
+                recDef = recursorDefinition defName params (dataUniverse info) recCases
+            recTy <- infer envWithData (defBody recDef)
+            let env' = extendGlobal envWithData recName recTy Transparent (defBody recDef)
+            pure (env', acc ++ [Definition tr defName body'])
+          ETypeClass param kind methods -> do
+            (body', _) <- annotateExpr envAcc body
+            let info = ClassInfo
+                  { className = defName
+                  , classParam = param
+                  , classParamKind = kind
+                  , classMethods = methods
+                  }
+            let env' = extendClass envAcc defName info (classType param kind)
+            pure (env', acc ++ [Definition tr defName body'])
+          EInstance clsName instTy methods -> do
+            (body', ty) <- annotateExpr envAcc body
+            classInfo <- lookupClass noLoc envAcc clsName
+            let info = InstanceInfo
+                  { instName = defName
+                  , instClass = className classInfo
+                  , instType = instTy
+                  , instMethods = Map.fromList methods
+                  }
+            let env' = extendInstance envAcc defName info ty
+            pure (env', acc ++ [Definition tr defName body'])
+          _ -> do
+            (body', ty) <- annotateExpr envAcc body
+            let env' = extendGlobal envAcc defName ty tr body
+            pure (env', acc ++ [Definition tr defName body'])
 
 --------------------------------------------------------------------------------
 -- Import loading
@@ -2770,13 +3234,18 @@ loadTypeImportWithDigest projectRoot scope visiting (Import modName alias) = do
       visiting' = Set.insert modName visiting
   (envImports, depHashes) <- loadTypeImportsWithDigest projectRoot nextScope visiting' (modImports parsed)
   let envWithOpens = processOpens opens envImports
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap contents
+          , tcSourceFile = Just path
+          }
       depMap = Map.fromList depHashes
       depDigest = computeDepDigest depMap
   envSelf <- case cached of
     Just entry
       | cacheDepMap entry == depMap -> pure (cacheEnvSelf entry)
     _ ->
-      case runTypeCheck (typeCheckModuleWithEnv envWithOpens parsed) of
+      case runTypeCheck (typeCheckModuleWithEnv envWithContext parsed) of
         Left tcErr -> error $ "Type error in " ++ path ++ ": " ++ show tcErr
         Right env -> do
           let entry = TypeImportCache
@@ -2924,17 +3393,27 @@ processOpens opens env = foldl processOneOpen env opens
     insertOpen modAlias e name =
       let qualifiedName = qualifyName modAlias name
           withValue = case Map.lookup qualifiedName (tcTypes e) of
-            Just scheme -> e { tcTypes = Map.insert name scheme (tcTypes e) }
+            Just scheme
+              | Map.member name (tcTypes e) -> e
+              | otherwise -> e { tcTypes = Map.insert name scheme (tcTypes e) }
             Nothing -> e
           withDefs = case Map.lookup qualifiedName (tcDefs withValue) of
-            Just def -> withValue { tcDefs = Map.insert name def (tcDefs withValue) }
+            Just def
+              | Map.member name (tcDefs withValue) -> withValue
+              | otherwise -> withValue { tcDefs = Map.insert name def (tcDefs withValue) }
             Nothing -> withValue
           withData = case Map.lookup qualifiedName (tcData withDefs) of
-            Just info -> withDefs { tcData = Map.insert name info (tcData withDefs) }
+            Just info
+              | Map.member name (tcData withDefs) -> withDefs
+              | otherwise -> withDefs { tcData = Map.insert name info (tcData withDefs) }
             Nothing -> withDefs
           withCtors = case Map.lookup qualifiedName (tcCtors withData) of
-            Just info -> withData { tcCtors = Map.insert name info (tcCtors withData) }
+            Just info
+              | Map.member name (tcCtors withData) -> withData
+              | otherwise -> withData { tcCtors = Map.insert name info (tcCtors withData) }
             Nothing -> withData
       in case Map.lookup qualifiedName (tcClasses withCtors) of
-          Just info -> withCtors { tcClasses = Map.insert name info (tcClasses withCtors) }
+          Just info
+            | Map.member name (tcClasses withCtors) -> withCtors
+            | otherwise -> withCtors { tcClasses = Map.insert name info (tcClasses withCtors) }
           Nothing -> withCtors

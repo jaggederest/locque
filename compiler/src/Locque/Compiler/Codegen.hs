@@ -1,10 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Locque.Compiler.Codegen
-  ( emitModule
+  ( DebugAnnotation(..)
+  , DebugInfo
+  , EmitOptions(..)
+  , defaultEmitOptions
+  , emitModule
+  , emitModuleWith
   ) where
 
 import Data.Char (isAlphaNum, isLower, isUpper)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -12,9 +18,29 @@ import Locque.Compiler.Core
 import Locque.Compiler.CoreErased
 import Locque.Compiler.Erase
 
+data DebugAnnotation = DebugAnnotation
+  { debugSourceFile :: Maybe FilePath
+  , debugSourceLine :: Maybe Int
+  , debugType :: Maybe Text
+  } deriving (Show, Read, Eq)
+
+type DebugInfo = Map.Map Name DebugAnnotation
+
+data EmitOptions = EmitOptions
+  { emitDebugInfo :: DebugInfo
+  } deriving (Show, Read, Eq)
+
+defaultEmitOptions :: EmitOptions
+defaultEmitOptions = EmitOptions
+  { emitDebugInfo = Map.empty
+  }
+
 emitModule :: CoreModule -> Text
-emitModule coreModule =
-  T.unlines (moduleHeader ++ concatMap emitDecl (coreModuleDecls coreModule))
+emitModule = emitModuleWith defaultEmitOptions
+
+emitModuleWith :: EmitOptions -> CoreModule -> Text
+emitModuleWith options coreModule =
+  T.unlines (moduleHeader ++ concatMap (emitDeclWith options) (coreModuleDecls coreModule))
   where
     moduleHeader =
       [ "{-# LANGUAGE OverloadedStrings #-}"
@@ -27,24 +53,48 @@ emitModule coreModule =
       , ""
       ]
 
-emitDecl :: CoreDecl -> [Text]
-emitDecl decl =
+emitDeclWith :: EmitOptions -> CoreDecl -> [Text]
+emitDeclWith options decl =
   case decl of
     CoreDef name _ value ->
-      [ emitValueBinding name (eraseValue value)
-      , ""
-      ]
+      emitWithDebug options name
+        [ emitValueBinding name (eraseValue value)
+        , ""
+        ]
     CoreDefComp name _ comp ->
-      [ emitCompBinding name (eraseComp comp)
-      , ""
-      ]
+      emitWithDebug options name
+        [ emitCompBinding name (eraseComp comp)
+        , ""
+        ]
     CoreData dataDecl ->
       if isBuiltinDataDecl dataDecl
         then []
-        else
+        else emitWithDebug options (dataName dataDecl)
           [ emitDataDecl dataDecl
           , ""
           ]
+
+emitWithDebug :: EmitOptions -> Name -> [Text] -> [Text]
+emitWithDebug options name rendered =
+  emitDebugLines options name <> rendered
+
+emitDebugLines :: EmitOptions -> Name -> [Text]
+emitDebugLines options name =
+  case Map.lookup name (emitDebugInfo options) of
+    Nothing -> []
+    Just ann ->
+      let typeLine = case debugType ann of
+            Nothing -> []
+            Just ty -> ["-- locque: " <> unName name <> " : " <> ty]
+          linePragma = case (debugSourceFile ann, debugSourceLine ann) of
+            (Just file, Just line) -> [renderLinePragma line file]
+            _ -> []
+          rendered = typeLine <> linePragma
+      in if null rendered then [] else rendered
+
+renderLinePragma :: Int -> FilePath -> Text
+renderLinePragma line file =
+  "{-# LINE " <> T.pack (show line) <> " \"" <> escapeString (T.pack file) <> "\" #-}"
 
 emitValueBinding :: Name -> ErasedValue -> Text
 emitValueBinding name value =
@@ -296,6 +346,7 @@ renderBuiltinVar (Name name) =
     "capture-output-prim" -> "captureOutputPrim"
     "forever-prim" -> "foreverPrim"
     "assert-hit-prim" -> "assertHitPrim"
+    "assertion-count-prim" -> "assertionCountPrim"
     "get-line-prim" -> "getLinePrim"
     "cli-args-prim" -> "cliArgsPrim"
     "current-directory-prim" -> "currentDirectoryPrim"
@@ -336,6 +387,7 @@ renderBuiltinVar (Name name) =
     "dictionary-to-list-prim" -> "dictionaryToListPrim"
     "dict-access-prim" -> "dictAccessPrim"
     "shell-prim" -> "shellPrim"
+    "process-run-prim" -> "processRunPrim"
     "time-now-prim" -> "timeNowPrim"
     "validate-prim" -> "validatePrim"
     "panic-prim" -> "panicPrim"

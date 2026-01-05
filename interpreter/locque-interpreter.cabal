@@ -12,7 +12,7 @@ synopsis:            Toy interpreter for locque
 executable locque-interpreter
   main-is:             Main.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, ImportResolver
+  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, ImportResolver, CompilerPipeline, CompilerLower, SmythConfig, StripTyped
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -29,12 +29,36 @@ executable locque-interpreter
       unix >=2.7,
       network >=3.1,
       bytestring >=0.10,
-      stm >=2.5
+      stm >=2.5,
+      locque-compiler
 
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, SmythEmit, SmythCompile, SmythCompileTest, CompilerPipeline, CompilerLower, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
+  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, SmythEmit, SmythCompile, SmythCompileTest, CompilerPipeline, CompilerLower, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver, StripTyped
+  default-language:    GHC2021
+  ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
+  build-depends:
+      base >=4.14 && <5,
+      megaparsec >=9.3,
+      text >=1.2,
+      containers >=0.6,
+      filepath >=1.4,
+      directory >=1.3,
+      time >=1.9,
+      mtl >=2.2,
+      array >=0.5,
+      process >=1.6,
+      unix >=2.7,
+      network >=3.1,
+      bytestring >=0.10,
+      stm >=2.5,
+      locque-compiler
+
+executable locque-compiler
+  main-is:             LocqueCompiler.hs
+  hs-source-dirs:      src
+  other-modules:       SourceLoc, ErrorMsg, SmythCompile, SmythConfig, CompilerPipeline, CompilerLower, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:

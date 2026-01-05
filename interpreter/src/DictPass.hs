@@ -157,7 +157,8 @@ collectLocalClasses :: [Definition] -> Map.Map Text ClassInfo
 collectLocalClasses defs =
   Map.fromList
     [ (defName, ClassInfo param methods)
-    | Definition _ defName (ETypeClass param _kind methods) <- defs
+    | Definition _ defName body <- defs
+    , ETypeClass param _kind methods <- [stripType body]
     ]
 
 collectLocalFns :: Map.Map Text ClassInfo -> Map.Map Text Text -> [Definition] -> Map.Map Text FnSig
@@ -179,7 +180,7 @@ collectLocalInstances classEnv openAliases defs =
   where
     usedNames = Set.fromList (map defName defs)
 
-    collect (acc, used) (Definition tr name body) = case body of
+    collect (acc, used) (Definition tr name body) = case stripType body of
       EInstance className instTy methods ->
         let className' = resolveClassName classEnv openAliases className
             methodMap = Map.fromList methods
@@ -303,7 +304,7 @@ qualifyInstance alias localClassNames inst =
 -- Transform
 
 transformDefinition :: TransformCtx -> LocalInfo -> Definition -> [Definition]
-transformDefinition ctx localInfo def@(Definition tr name body) = case body of
+transformDefinition ctx localInfo def@(Definition tr name body) = case stripType body of
   ETypeClass _ _ _ -> []
   EInstance _ _ _ -> transformInstanceDefinition ctx localInfo name tr
   _ -> [def { defBody = transformExpr ctx body }]
@@ -336,14 +337,39 @@ emitInstanceMethods ctx instInfo tr =
       case (Map.lookup methodName (instMethods instInfo), Map.lookup methodName (instMethodNames instInfo)) of
         (Just bodyExpr, Just defName) ->
           let methodType = specializeMethodType classInfo (instType instInfo) methodTy
+              methodParams = methodConstraintParams ctx bodyExpr
+              methodType' = wrapMethodParams methodParams methodType
+              methodType'' = quantifyImplicitTypeVars (instTypeVars instInfo) methodType'
               body' = transformExpr ctx bodyExpr
-          in Definition tr defName (EAnnot body' methodType)
+          in Definition tr defName (EAnnot body' methodType'')
         _ -> error $ "Instance method lookup failed for " ++ T.unpack methodName
 
 specializeMethodType :: ClassInfo -> Expr -> Expr -> Expr
 specializeMethodType classInfo instTy methodTy =
   let sub = Map.singleton (classParam classInfo) instTy
   in substType sub methodTy
+
+methodConstraintParams :: TransformCtx -> Expr -> [Param]
+methodConstraintParams ctx expr =
+  case unwrapFunction expr of
+    Nothing -> []
+    Just (params, constraints) ->
+      let constraints' =
+            map (resolveConstraint (ctxClasses ctx) (ctxOpenClassAliases ctx)) constraints
+      in if null constraints'
+          then []
+          else
+            let used0 = Set.fromList (map paramName params)
+                (methodParams, _) = buildMethodParams (ctxClasses ctx) constraints' used0
+            in methodParams
+
+wrapMethodParams :: [Param] -> Expr -> Expr
+wrapMethodParams params ty =
+  foldr (\(Param name paramTy) acc -> EForAll name paramTy acc) ty params
+
+quantifyImplicitTypeVars :: [Text] -> Expr -> Expr
+quantifyImplicitTypeVars vars ty =
+  foldr (\v acc -> EForAll v (ETypeUniverse 0) acc) ty vars
 
 --------------------------------------------------------------------------------
 -- Expression transform
@@ -532,7 +558,7 @@ constraintArgs ctx sub (Constraint className ty) =
   case Map.lookup className (ctxClasses ctx) of
     Nothing -> error $ "Unknown typeclass in constraint: " ++ T.unpack className
     Just classInfo ->
-      let ty' = substType sub ty
+      let ty' = stripType (substType sub ty)
           methodNames = map fst (classMethods classInfo)
       in case ty' of
           EVar _ ->

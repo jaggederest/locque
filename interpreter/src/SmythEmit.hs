@@ -9,31 +9,56 @@ import System.Exit (exitFailure)
 import System.FilePath (takeDirectory)
 
 import SmythConfig (SmythConfig(..))
-import CompilerPipeline (loadCoreModule)
+import CompilerPipeline (loadCoreModule, loadCoreModuleWithDebug)
 
-import Locque.Compiler.Codegen (emitModule)
+import Locque.Compiler.Codegen (EmitOptions(..), defaultEmitOptions, emitModuleWith)
 import Locque.Compiler.Emit (emitHsPath)
 
 runEmit :: SmythConfig -> [String] -> IO ()
 runEmit config args = do
-  (outDir, file) <- parseArgs args
-  coreResult <- loadCoreModule config file
+  (emitArgs, file) <- parseArgs args
+  coreResult <-
+    if emitDebug emitArgs
+      then fmap (fmap (\(coreModule, debugInfo) -> (coreModule, Just debugInfo)))
+        (loadCoreModuleWithDebug config file)
+      else fmap (fmap (\coreModule -> (coreModule, Nothing)))
+        (loadCoreModule config file)
   case coreResult of
     Left err -> failWith err
-    Right coreModule -> do
-      let hsOutput = emitModule coreModule
-          outPath = emitHsPath outDir file
+    Right (coreModule, maybeDebug) -> do
+      let emitOptions = case maybeDebug of
+            Nothing -> defaultEmitOptions
+            Just debugInfo -> defaultEmitOptions { emitDebugInfo = debugInfo }
+          hsOutput = emitModuleWith emitOptions coreModule
+          outPath = emitHsPath (emitOutDir emitArgs) file
       createDirectoryIfMissing True (takeDirectory outPath)
       TIO.writeFile outPath hsOutput
       putStrLn ("Wrote " ++ outPath)
 
-parseArgs :: [String] -> IO (Maybe FilePath, FilePath)
-parseArgs args =
-  case args of
-    [file] -> pure (Nothing, file)
-    ["--out-dir", dir, file] -> pure (Just dir, file)
-    _ -> do
-      putStrLn "Usage: smyth emit-hs [--out-dir <dir>] <file>"
+data EmitArgs = EmitArgs
+  { emitOutDir :: Maybe FilePath
+  , emitDebug :: Bool
+  } deriving (Eq, Show)
+
+defaultEmitArgs :: EmitArgs
+defaultEmitArgs = EmitArgs
+  { emitOutDir = Nothing
+  , emitDebug = False
+  }
+
+parseArgs :: [String] -> IO (EmitArgs, FilePath)
+parseArgs args = go args defaultEmitArgs
+  where
+    go remaining opts = case remaining of
+      [] -> usage
+      [file] -> pure (opts, file)
+      "--out-dir" : dir : rest ->
+        go rest opts { emitOutDir = Just dir }
+      "--debug" : rest ->
+        go rest opts { emitDebug = True }
+      _ -> usage
+    usage = do
+      putStrLn "Usage: smyth emit-hs [--out-dir <dir>] [--debug] <file>"
       exitFailure
 
 failWith :: String -> IO a

@@ -1,0 +1,1434 @@
+import standard-library::arithmetic as Ar
+import standard-library::cli as Cli
+import standard-library::file as File
+import standard-library::io as IO
+import standard-library::list as L
+import standard-library::natural as N
+import standard-library::path as Path
+import standard-library::prelude as P
+import standard-library::process as Process
+import standard-library::string as S
+import standard-library::time as Time
+import standard-library::tools::formatter as Formatter
+import standard-library::typeclass::equality as Eq
+
+open P exposing Option Option::none Option::some Either Either::left Either::right end
+
+module main contains
+  define transparent smythfile-name as "Smythfile.lq"
+
+  define transparent zero-count as
+    P::pair Natural Natural 0 0
+
+  define transparent add-count as
+    function left (Pair Natural Natural) right (Pair Natural Natural) returns (Pair Natural Natural) value
+      P::pair Natural Natural
+        (Ar::add (P::fst Natural Natural left) (P::fst Natural Natural right))
+        (Ar::add (P::snd Natural Natural left) (P::snd Natural Natural right))
+    end
+
+  define transparent drop-trailing-empty as
+    function xs (List String) returns (List String) value
+      match xs of-type (List String) as ignored returns (List String)
+        case List::empty as xs
+        case List::cons with h String t (List String) as
+          let value last be L::last String xs in
+            match (S::is-empty last) of-type Boolean as ignored returns (List String)
+              case Boolean::true as L::init String xs
+              case Boolean::false as xs
+            end
+          end
+      end
+    end
+
+  define transparent lines-from-text as
+    function text String returns (List String) value
+      drop-trailing-empty (S::split-on "\n" text)
+    end
+
+  define transparent print-lines as
+    function lines (List String) returns computation Unit value
+      P::sequence-unit
+        (P::map String (computation Unit) IO::print lines)
+    end
+
+  define transparent print-text-lines as
+    function text String returns computation Unit value
+      match (S::is-empty text) of-type Boolean as ignored returns (computation Unit)
+        case Boolean::true as compute return tt end
+        case Boolean::false as
+          let value lines be lines-from-text text in
+            print-lines lines
+          end
+      end
+    end
+
+  define transparent count-lines as
+    function contents String returns Natural value
+      let value segments be S::split-on "\n" contents in
+        L::length String (drop-trailing-empty segments)
+      end
+    end
+
+  define transparent count-lines-in-file as
+    function path String returns computation Natural value
+      compute
+        bind contents from perform (File::read-file path) then
+          return (count-lines contents)
+        end
+      end
+    end
+
+  define transparent sum-lines as
+    function files (List String) returns computation Natural value
+      let value step be
+        function acc (computation Natural) path String returns computation Natural value
+          compute
+            bind current from perform acc then
+              bind next from perform (count-lines-in-file path) then
+                return (Ar::add current next)
+              end
+            end
+          end
+        end
+      in
+        P::fold-compute String Natural step (compute return 0 end) files
+      end
+    end
+
+  define transparent count-dir as
+    function root String returns computation (Pair Natural Natural) value
+      compute
+        bind exists from perform (File::is-directory root) then
+          perform
+            (match exists of-type Boolean as ignored returns (computation (Pair Natural Natural))
+              case Boolean::false as compute return zero-count end
+              case Boolean::true as
+                compute
+                  bind files from perform (File::walk-lq root (P::nil String)) then
+                    bind total-lines from perform (sum-lines files) then
+                      return (P::pair Natural Natural (L::length String files) total-lines)
+                    end
+                  end
+                end
+            end)
+        end
+      end
+    end
+
+  define transparent format-count as
+    function label String counts (Pair Natural Natural) returns String value
+      let value files be P::fst Natural Natural counts in
+        let value lines be P::snd Natural Natural counts in
+          S::concat label
+            (S::concat ": "
+              (S::concat (N::to-string lines)
+                (S::concat " lines (" (S::concat (N::to-string files) " files)"))))
+        end
+      end
+    end
+
+  define transparent prefixes-from-segments as
+    function segs (List String) returns (List (List String)) value
+      let value step be
+        function acc (Pair (List String) (List (List String))) seg String returns (Pair (List String) (List (List String))) value
+          match acc of-type (Pair (List String) (List (List String))) as ignored returns (Pair (List String) (List (List String)))
+            case Pair::pair with current (List String) collected (List (List String)) as
+              let value next-current be P::append String current [seg] in
+                P::pair (List String) (List (List String))
+                  next-current
+                  (P::cons (List String) next-current collected)
+              end
+          end
+        end
+      in
+        let value initial be
+          P::pair (List String) (List (List String))
+            (P::nil String)
+            (P::nil (List String))
+        in
+          let value result be
+            P::fold String (Pair (List String) (List (List String))) step initial segs
+          in
+            match result of-type (Pair (List String) (List (List String))) as ignored returns (List (List String))
+              case Pair::pair with ignored (List String) collected (List (List String)) as collected
+            end
+          end
+        end
+      end
+    end
+
+  define transparent ancestor-paths as
+    function path String returns (List String) value
+      let value has-root be Path::is-absolute path in
+        let value segs be Path::segments path in
+          let value prefixes be prefixes-from-segments segs in
+            let value all-prefixes be
+              match has-root of-type Boolean as ignored returns (List (List String))
+                case Boolean::true as P::append (List String) prefixes [(P::nil String)]
+                case Boolean::false as prefixes
+              end
+            in
+              P::map (List String) String
+                (function parts (List String) returns String value
+                  Path::join-segments has-root parts
+                end)
+                all-prefixes
+            end
+          end
+        end
+      end
+    end
+
+  define transparent find-root-in as
+    function paths (List String) returns computation (Pair Boolean String) value
+      let value step be
+        function acc (computation (Pair Boolean String)) path String returns computation (Pair Boolean String) value
+          compute
+            bind current from perform acc then
+              perform
+                (match current of-type (Pair Boolean String) as ignored returns (computation (Pair Boolean String))
+                  case Pair::pair with found Boolean root String as
+                    match found of-type Boolean as ignored returns (computation (Pair Boolean String))
+                      case Boolean::true as compute return current end
+                      case Boolean::false as
+                        compute
+                          bind exists from perform (File::path-exists (Path::join path smythfile-name)) then
+                            return
+                              (match exists of-type Boolean as ignored returns (Pair Boolean String)
+                                case Boolean::true as P::pair Boolean String true path
+                                case Boolean::false as P::pair Boolean String false root
+                              end)
+                          end
+                        end
+                    end
+                end)
+            end
+          end
+        end
+      in
+        P::fold-compute String (Pair Boolean String) step
+          (compute return (P::pair Boolean String false "") end)
+          paths
+      end
+    end
+
+  define transparent find-root as
+    function start String returns computation String value
+      let value candidates be ancestor-paths start in
+        compute
+          bind result from perform (find-root-in candidates) then
+            perform
+              (match result of-type (Pair Boolean String) as ignored returns (computation String)
+                case Pair::pair with found Boolean root String as
+                  match found of-type Boolean as ignored returns (computation String)
+                    case Boolean::true as compute return root end
+                    case Boolean::false as
+                      compute
+                        bind ignored from perform
+                          (IO::panic "Error: No Smythfile.lq found (searched up from current directory)") then
+                          return start
+                        end
+                      end
+                  end
+              end)
+          end
+        end
+      end
+    end
+
+  define transparent locque-interpreter-name as "locque-interpreter"
+  define transparent locque-compiler-name as "locque-compiler"
+
+  define transparent resolve-file-path as
+    function root String path String returns String value
+      match (Path::is-absolute path) of-type Boolean as ignored returns String
+        case Boolean::true as path
+        case Boolean::false as Path::join root path
+      end
+    end
+
+  define transparent choose-run-cwd as
+    function root String returns computation String value
+      let value lib-path be Path::join root "lib" in
+        let value test-path be Path::join root "test" in
+          compute
+            bind lib-exists from perform (File::is-directory lib-path) then
+              perform
+                (match lib-exists of-type Boolean as ignored returns (computation String)
+                  case Boolean::true as compute return lib-path end
+                  case Boolean::false as
+                    compute
+                      bind test-exists from perform (File::is-directory test-path) then
+                        perform
+                          (match test-exists of-type Boolean as ignored returns (computation String)
+                            case Boolean::true as compute return test-path end
+                            case Boolean::false as compute return root end
+                          end)
+                      end
+                    end
+                end)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent print-if-not-empty as
+    function text String returns computation Unit value
+      match (S::is-empty text) of-type Boolean as ignored returns (computation Unit)
+        case Boolean::true as compute return tt end
+        case Boolean::false as IO::print text
+      end
+    end
+
+  define transparent handle-process-result as
+    function result (Pair Natural (Pair String String)) returns computation Unit value
+      match result of-type (Pair Natural (Pair String String)) as ignored returns (computation Unit)
+        case Pair::pair with code Natural output (Pair String String) as
+          match output of-type (Pair String String) as ignored returns (computation Unit)
+            case Pair::pair with stdout String stderr String as
+              compute
+                bind ignored from perform (print-if-not-empty stdout) then
+                  bind ignored from perform (print-if-not-empty stderr) then
+                    perform
+                      (match (Eq::equals Natural code 0) of-type Boolean as ignored returns (computation Unit)
+                        case Boolean::true as compute return tt end
+                        case Boolean::false as
+                          IO::panic (S::concat "command failed with exit code " (N::to-string code))
+                      end)
+                end
+              end
+          end
+        end
+      end
+    end
+
+  define transparent run-process as
+    function cwd String args (List String) returns computation Unit value
+      compute
+        bind result from perform (Process::run args (Option::some String cwd)) then
+          perform (handle-process-result result)
+        end
+      end
+    end
+
+  define transparent run-interpreter as
+    function root String args (List String) returns computation Unit value
+      compute
+        bind cwd from perform (choose-run-cwd root) then
+          perform (run-process cwd args)
+        end
+      end
+    end
+
+  define transparent split-on-double-dash as
+    function args (List String) returns (Pair (List String) (List String)) value
+      match args of-type (List String) as ignored returns (Pair (List String) (List String))
+        case List::empty as P::pair (List String) (List String) (P::nil String) (P::nil String)
+        case List::cons with h String t (List String) as
+          match (S::eq h "--") of-type Boolean as ignored returns (Pair (List String) (List String))
+            case Boolean::true as P::pair (List String) (List String) (P::nil String) t
+            case Boolean::false as
+              let value rest be recur t in
+                P::pair (List String) (List String)
+                  (P::cons String h (P::fst (List String) (List String) rest))
+                  (P::snd (List String) (List String) rest)
+              end
+          end
+      end
+    end
+
+  define transparent is-test-flag as
+    function arg String returns Boolean value
+      match (S::eq arg "--slow") of-type Boolean as ignored returns Boolean
+        case Boolean::true as true
+        case Boolean::false as S::eq arg "--verbose"
+      end
+    end
+
+  define transparent parse-test-opts-helper as
+    function args (List String)
+             file-opt (Option String)
+             out-opt (Option String)
+             flags (List String)
+    returns (Option (Pair (Pair (Option String) (Option String)) (List String))) value
+      match args of-type (List String) as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+        case List::empty as
+          Option::some (Pair (Pair (Option String) (Option String)) (List String))
+            (P::pair (Pair (Option String) (Option String)) (List String)
+              (P::pair (Option String) (Option String) file-opt out-opt)
+              (L::reverse String flags))
+        case List::cons with h String t (List String) as
+          match (S::starts-with "--" h) of-type Boolean as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+            case Boolean::true as
+              match (S::eq h "--out") of-type Boolean as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+                case Boolean::true as
+                  match t of-type (List String) as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+                    case List::empty as Option::none (Pair (Pair (Option String) (Option String)) (List String))
+                    case List::cons with out-path String rest (List String) as
+                      match out-opt of-type (Option String) as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+                        case Option::none as
+                          recur rest file-opt (Option::some String out-path) flags
+                        case Option::some with ignored String as Option::none (Pair (Pair (Option String) (Option String)) (List String))
+                      end
+                  end
+                case Boolean::false as
+                  match (is-test-flag h) of-type Boolean as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+                    case Boolean::true as recur t file-opt out-opt (P::cons String h flags)
+                    case Boolean::false as Option::none (Pair (Pair (Option String) (Option String)) (List String))
+                  end
+              end
+            case Boolean::false as
+              match file-opt of-type (Option String) as ignored returns (Option (Pair (Pair (Option String) (Option String)) (List String)))
+                case Option::none as recur t (Option::some String h) out-opt flags
+                case Option::some with ignored String as Option::none (Pair (Pair (Option String) (Option String)) (List String))
+              end
+          end
+      end
+    end
+
+  define transparent parse-test-opts as
+    function args (List String) returns (Option (Pair (Pair (Option String) (Option String)) (List String))) value
+      parse-test-opts-helper args (Option::none String) (Option::none String) (P::nil String)
+    end
+
+
+  define transparent assemble-test-args as
+    function opt-args (List String) run-args (List String) returns (List String) value
+      let value base be P::cons String "test" opt-args in
+        match run-args of-type (List String) as ignored returns (List String)
+          case List::empty as base
+          case List::cons with h String t (List String) as
+            P::append String base (P::cons String "--" run-args)
+        end
+      end
+    end
+
+  define transparent default-test-file as
+    function root String returns String value
+      Path::join (Path::join root "test") "main.lq"
+    end
+
+  define transparent strip-extension as
+    function path String returns String value
+      let value base be Path::basename path in
+        let value ext be Path::ext path in
+          match (S::is-empty ext) of-type Boolean as ignored returns String
+            case Boolean::true as base
+            case Boolean::false as
+              let value base-len be S::length base in
+                let value ext-len be S::length ext in
+                  let value stem-len be Ar::subtract base-len (Ar::add ext-len 1) in
+                    S::substring 0 stem-len base
+                  end
+                end
+              end
+          end
+        end
+      end
+    end
+
+  define transparent default-test-out-path as
+    function root String file String returns String value
+      let value base be strip-extension file in
+        Path::join (Path::join (Path::join root "tmp") "locque") (Path::join "bin" base)
+      end
+    end
+
+  define transparent build-test-compile-args as
+    function file String
+             out-opt (Option String)
+    returns (List String) value
+      let value base be [locque-compiler-name, "compile"] in
+        let value with-out be
+          match out-opt of-type (Option String) as ignored returns (List String)
+            case Option::none as base
+            case Option::some with out-path String as
+              P::append String base ["--out", out-path]
+          end
+        in
+          P::append String with-out [file]
+        end
+      end
+    end
+
+  define transparent build-test-run-args as
+    function out-path String run-args (List String) returns (List String) value
+      P::append String (P::append String [out-path] run-args) ["--locque-assertions"]
+    end
+
+  define transparent merge-output as
+    function stdout String stderr String returns String value
+      match (S::is-empty stdout) of-type Boolean as ignored returns String
+        case Boolean::true as stderr
+        case Boolean::false as
+          match (S::is-empty stderr) of-type Boolean as ignored returns String
+            case Boolean::true as stdout
+            case Boolean::false as
+              match (S::ends-with "\n" stdout) of-type Boolean as ignored returns String
+                case Boolean::true as S::concat stdout stderr
+                case Boolean::false as S::concat stdout (S::concat "\n" stderr)
+              end
+          end
+      end
+    end
+
+  define transparent assertion-prefix as "LOCQUE_ASSERTIONS="
+
+  define transparent is-assertion-line as
+    function line String returns Boolean value
+      S::starts-with assertion-prefix line
+    end
+
+  define transparent assertion-count-from-line as
+    function line String returns (Option Natural) value
+      match (is-assertion-line line) of-type Boolean as ignored returns (Option Natural)
+        case Boolean::false as Option::none Natural
+        case Boolean::true as
+          let value prefix-len be S::length assertion-prefix in
+            let value line-len be S::length line in
+              let value count-len be Ar::subtract line-len prefix-len in
+                let value digits be S::substring prefix-len count-len line in
+                  N::from-string digits
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent find-assertion-count as
+    function lines (List String) returns (Option Natural) value
+      match lines of-type (List String) as ignored returns (Option Natural)
+        case List::empty as Option::none Natural
+        case List::cons with h String t (List String) as
+          match (assertion-count-from-line h) of-type (Option Natural) as ignored returns (Option Natural)
+            case Option::some with count Natural as Option::some Natural count
+            case Option::none as recur t
+          end
+      end
+    end
+
+  define transparent strip-assertion-lines as
+    function lines (List String) returns (List String) value
+      match lines of-type (List String) as ignored returns (List String)
+        case List::empty as P::nil String
+        case List::cons with h String t (List String) as
+          match (is-assertion-line h) of-type Boolean as ignored returns (List String)
+            case Boolean::true as recur t
+            case Boolean::false as P::cons String h (recur t)
+          end
+      end
+    end
+
+  define transparent split-assertion-output as
+    function stdout String returns (Pair (Option Natural) (List String)) value
+      let value lines be lines-from-text stdout in
+        let value count-opt be find-assertion-count lines in
+          let value cleaned be strip-assertion-lines lines in
+            P::pair (Option Natural) (List String) count-opt cleaned
+          end
+        end
+      end
+    end
+
+  define transparent handle-assertion-count as
+    function count-opt (Option Natural) returns (computation (P::Either String Natural)) value
+      match count-opt of-type (Option Natural) as ignored returns (computation (P::Either String Natural))
+        case Option::some with count Natural as
+          compute return (Either::right String Natural count) end
+        case Option::none as
+          compute return (Either::left String Natural "Missing assertion count in test output") end
+      end
+    end
+
+  define transparent handle-positive-success-output as
+    function run-stdout String run-stderr String returns (computation (P::Either String Natural)) value
+      let value split be split-assertion-output run-stdout in
+        let value count-opt be P::fst (Option Natural) (List String) split in
+          let value cleaned-lines be P::snd (Option Natural) (List String) split in
+            compute
+              bind ignored from perform (print-lines cleaned-lines) then
+                bind ignored from perform (print-lines (lines-from-text run-stderr)) then
+                  perform (handle-assertion-count count-opt)
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent handle-positive-run-result as
+    function run-result (Pair Natural (Pair String String))
+    returns (computation (P::Either String Natural)) value
+      match run-result of-type (Pair Natural (Pair String String)) as ignored returns (computation (P::Either String Natural))
+        case Pair::pair with run-code Natural run-output (Pair String String) as
+          match run-output of-type (Pair String String) as ignored returns (computation (P::Either String Natural))
+            case Pair::pair with run-stdout String run-stderr String as
+              match (Eq::equals Natural run-code 0) of-type Boolean as ignored returns (computation (P::Either String Natural))
+                case Boolean::false as
+                  compute return (Either::left String Natural (merge-output run-stdout run-stderr)) end
+                case Boolean::true as
+                  handle-positive-success-output run-stdout run-stderr
+              end
+          end
+      end
+    end
+
+  define transparent handle-positive-compile-result as
+    function root String
+             out-path String
+             run-args (List String)
+             compile-result (Pair Natural (Pair String String))
+    returns (computation (P::Either String Natural)) value
+      match compile-result of-type (Pair Natural (Pair String String)) as ignored returns (computation (P::Either String Natural))
+        case Pair::pair with code Natural output (Pair String String) as
+          match output of-type (Pair String String) as ignored returns (computation (P::Either String Natural))
+            case Pair::pair with stdout String stderr String as
+              match (Eq::equals Natural code 0) of-type Boolean as ignored returns (computation (P::Either String Natural))
+                case Boolean::false as
+                  compute return (Either::left String Natural (merge-output stdout stderr)) end
+                case Boolean::true as
+                  compute
+                    bind run-result from perform
+                      (Process::run (build-test-run-args out-path run-args) (Option::some String root)) then
+                      perform (handle-positive-run-result run-result)
+                    end
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent stage-timings as
+    function compile-elapsed Natural run-elapsed Natural returns (List (Pair String Natural)) value
+      [
+        (P::pair String Natural "read" 0)
+      , (P::pair String Natural "parse" 0)
+      , (P::pair String Natural "digest" 0)
+      , (P::pair String Natural "cache-read" 0)
+      , (P::pair String Natural "typecheck" compile-elapsed)
+      , (P::pair String Natural "normalize" 0)
+      , (P::pair String Natural "transform" 0)
+      , (P::pair String Natural "annotate" 0)
+      , (P::pair String Natural "cache-write" 0)
+      , (P::pair String Natural "run" run-elapsed)
+      ]
+    end
+
+  define transparent format-stage-line as
+    function entry (Pair String Natural) returns String value
+      match entry of-type (Pair String Natural) as ignored returns String
+        case Pair::pair with name String micros Natural as
+          S::concat "  "
+            (S::concat name (S::concat " " (S::concat (N::to-string micros) "us")))
+      end
+    end
+
+  define transparent print-stage-timings as
+    function file String timings (List (Pair String Natural)) returns computation Unit value
+      compute
+        bind ignored from perform
+          (IO::print (S::concat "Stage timings (" (S::concat file "):"))) then
+          perform (print-lines (P::map (Pair String Natural) String format-stage-line timings))
+        end
+      end
+    end
+
+  define transparent run-positive-test-timed as
+    function root String
+             file String
+             out-path String
+             run-args (List String)
+    returns (computation (Pair (P::Either String Natural) (List (Pair String Natural)))) value
+      let value compile-args be build-test-compile-args file (Option::some String out-path) in
+        compute
+          bind compile-measured from perform
+            (Time::measure (Pair Natural (Pair String String))
+              (Process::run compile-args (Option::some String root))) then
+            perform
+              (match compile-measured of-type (Pair (Pair Natural (Pair String String)) Natural) as ignored returns (computation (Pair (P::Either String Natural) (List (Pair String Natural))))
+                case Pair::pair with compile-result (Pair Natural (Pair String String)) compile-elapsed Natural as
+                  match compile-result of-type (Pair Natural (Pair String String)) as ignored returns (computation (Pair (P::Either String Natural) (List (Pair String Natural))))
+                    case Pair::pair with code Natural output (Pair String String) as
+                      match (Eq::equals Natural code 0) of-type Boolean as ignored returns (computation (Pair (P::Either String Natural) (List (Pair String Natural))))
+                        case Boolean::false as
+                          match output of-type (Pair String String) as ignored returns (computation (Pair (P::Either String Natural) (List (Pair String Natural))))
+                            case Pair::pair with stdout String stderr String as
+                              compute
+                                return
+                                  (P::pair (P::Either String Natural) (List (Pair String Natural))
+                                    (Either::left String Natural (merge-output stdout stderr))
+                                    (stage-timings compile-elapsed 0))
+                              end
+                          end
+                        case Boolean::true as
+                          compute
+                            bind run-measured from perform
+                              (Time::measure (Pair Natural (Pair String String))
+                                (Process::run (build-test-run-args out-path run-args) (Option::some String root))) then
+                              bind run-result from perform
+                                (handle-positive-run-result
+                                  (P::fst (Pair Natural (Pair String String)) Natural run-measured)) then
+                                return
+                                  (P::pair (P::Either String Natural) (List (Pair String Natural))
+                                    run-result
+                                    (stage-timings compile-elapsed
+                                      (P::snd (Pair Natural (Pair String String)) Natural run-measured)))
+                              end
+                            end
+                          end
+                      end
+                  end
+              end)
+          end
+        end
+      end
+    end
+
+  define transparent error-tests-marker as "define transparent error-tests as"
+
+  define transparent extract-quoted-strings as
+    function parts (List String) index Natural returns (List String) value
+      match parts of-type (List String) as ignored returns (List String)
+        case List::empty as P::nil String
+        case List::cons with h String t (List String) as
+          let value rest be recur t (Ar::add index 1) in
+            match (Ar::odd index) of-type Boolean as ignored returns (List String)
+              case Boolean::true as P::cons String h rest
+              case Boolean::false as rest
+            end
+          end
+      end
+    end
+
+  define transparent pair-strings as
+    function parts (List String) returns (List (Pair String String)) value
+      match parts of-type (List String) as ignored returns (List (Pair String String))
+        case List::empty as P::nil (Pair String String)
+        case List::cons with first String rest (List String) as
+          match rest of-type (List String) as ignored returns (List (Pair String String))
+            case List::empty as P::nil (Pair String String)
+            case List::cons with second String tail (List String) as
+              P::cons (Pair String String)
+                (P::pair String String first second)
+                (recur tail)
+          end
+      end
+    end
+
+  define transparent parse-error-tests as
+    function contents String returns (List (Pair String String)) value
+      let value segments be S::split-on error-tests-marker contents in
+        match segments of-type (List String) as ignored returns (List (Pair String String))
+          case List::empty as P::nil (Pair String String)
+          case List::cons with ignored String rest (List String) as
+            match rest of-type (List String) as ignored returns (List (Pair String String))
+              case List::empty as P::nil (Pair String String)
+              case List::cons with after String ignored (List String) as
+                let value parts be S::split-on "\"" after in
+                  let value quoted be extract-quoted-strings parts 0 in
+                    pair-strings quoted
+                  end
+                end
+            end
+        end
+      end
+    end
+
+  define transparent load-error-tests as
+    function root String returns computation (List (Pair String String)) value
+      let value path be Path::join root smythfile-name in
+        compute
+          bind contents from perform (File::read-file path) then
+            return (parse-error-tests contents)
+          end
+        end
+      end
+    end
+
+  define transparent lookup-error-test as
+    function root String
+             resolved String
+             tests (List (Pair String String))
+    returns (Option (Pair String String)) value
+      match tests of-type (List (Pair String String)) as ignored returns (Option (Pair String String))
+        case List::empty as Option::none (Pair String String)
+        case List::cons with entry (Pair String String) rest (List (Pair String String)) as
+          match entry of-type (Pair String String) as ignored returns (Option (Pair String String))
+            case Pair::pair with path String expected String as
+              let value resolved-path be resolve-file-path root path in
+                match (Eq::equals String resolved resolved-path) of-type Boolean as ignored returns (Option (Pair String String))
+                  case Boolean::true as Option::some (Pair String String) entry
+                  case Boolean::false as recur root resolved rest
+                end
+              end
+          end
+      end
+    end
+
+  define transparent expected-error-mismatch as
+    function expected String actual String returns String value
+      S::concat "Expected error containing: "
+        (S::concat expected (S::concat "\nActual: " actual))
+    end
+
+  define transparent expected-failure-passed-msg as "Expected failure, but test passed"
+
+  define transparent check-expected-failure as
+    function path String expected String actual String returns (Option (Pair String String)) value
+      match (S::has-substring expected actual) of-type Boolean as ignored returns (Option (Pair String String))
+        case Boolean::true as Option::none (Pair String String)
+        case Boolean::false as
+          Option::some (Pair String String)
+            (P::pair String String path (expected-error-mismatch expected actual))
+      end
+    end
+
+  define transparent handle-expected-run-result as
+    function path String expected String run-result (Pair Natural (Pair String String))
+    returns (computation (Option (Pair String String))) value
+      match run-result of-type (Pair Natural (Pair String String)) as ignored returns (computation (Option (Pair String String)))
+        case Pair::pair with run-code Natural run-output (Pair String String) as
+          match run-output of-type (Pair String String) as ignored returns (computation (Option (Pair String String)))
+            case Pair::pair with run-stdout String run-stderr String as
+              match (Eq::equals Natural run-code 0) of-type Boolean as ignored returns (computation (Option (Pair String String)))
+                case Boolean::true as
+                  compute
+                    return
+                      (Option::some (Pair String String)
+                        (P::pair String String path expected-failure-passed-msg))
+                  end
+                case Boolean::false as
+                  compute
+                    return (check-expected-failure path expected (merge-output run-stdout run-stderr))
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent handle-expected-compile-result as
+    function root String
+             path String
+             expected String
+             out-path String
+             compile-result (Pair Natural (Pair String String))
+    returns (computation (Option (Pair String String))) value
+      match compile-result of-type (Pair Natural (Pair String String)) as ignored returns (computation (Option (Pair String String)))
+        case Pair::pair with code Natural output (Pair String String) as
+          match output of-type (Pair String String) as ignored returns (computation (Option (Pair String String)))
+            case Pair::pair with stdout String stderr String as
+              match (Eq::equals Natural code 0) of-type Boolean as ignored returns (computation (Option (Pair String String)))
+                case Boolean::false as
+                  compute
+                    return (check-expected-failure path expected (merge-output stdout stderr))
+                  end
+                case Boolean::true as
+                  compute
+                    bind run-result from perform (Process::run [out-path] (Option::some String root)) then
+                      perform (handle-expected-run-result path expected run-result)
+                    end
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent append-expected-error as
+    function errors (List (Pair String String))
+             result (Option (Pair String String))
+    returns (computation (List (Pair String String))) value
+      match result of-type (Option (Pair String String)) as ignored returns (computation (List (Pair String String)))
+        case Option::none as compute return errors end
+        case Option::some with err (Pair String String) as
+          compute return (P::cons (Pair String String) err errors) end
+      end
+    end
+
+  define transparent run-expected-failure as
+    function root String entry (Pair String String) returns computation (Option (Pair String String)) value
+      match entry of-type (Pair String String) as ignored returns (computation (Option (Pair String String)))
+        case Pair::pair with path String expected String as
+          let value resolved be resolve-file-path root path in
+            let value out-path be default-test-out-path root resolved in
+              let value compile-args be build-test-compile-args resolved (Option::some String out-path) in
+                compute
+                  bind compile-result from perform (Process::run compile-args (Option::some String root)) then
+                    perform (handle-expected-compile-result root path expected out-path compile-result)
+                  end
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent run-expected-failures as
+    function root String tests (List (Pair String String)) returns computation (List (Pair String String)) value
+      compute
+        bind reversed from perform
+          (P::fold-compute (Pair String String) (List (Pair String String))
+            (function acc (computation (List (Pair String String)))
+                      entry (Pair String String)
+            returns computation (List (Pair String String)) value
+              compute
+                bind errors from perform acc then
+                  bind result from perform (run-expected-failure root entry) then
+                    perform (append-expected-error errors result)
+                  end
+                end
+              end
+            end)
+            (compute return (P::nil (Pair String String)) end)
+            tests) then
+          return (L::reverse (Pair String String) reversed)
+        end
+      end
+    end
+
+  define transparent run-positive-test as
+    function stage-timing Boolean
+             root String
+             file String
+             out-path String
+             run-args (List String)
+    returns computation (P::Either String Natural) value
+      match stage-timing of-type Boolean as ignored returns (computation (P::Either String Natural))
+        case Boolean::false as
+          let value compile-args be build-test-compile-args file (Option::some String out-path) in
+            compute
+              bind compile-result from perform (Process::run compile-args (Option::some String root)) then
+                perform (handle-positive-compile-result root out-path run-args compile-result)
+              end
+            end
+          end
+        case Boolean::true as
+          compute
+            bind timed from perform (run-positive-test-timed root file out-path run-args) then
+              bind ignored from perform
+                (print-stage-timings file
+                  (P::snd (P::Either String Natural) (List (Pair String Natural)) timed)) then
+                return
+                  (P::fst (P::Either String Natural) (List (Pair String Natural)) timed)
+              end
+            end
+          end
+      end
+    end
+
+  define transparent run-test-suite as
+    function root String
+             stage-timing Boolean
+             file-opt (Option String)
+             file-path String
+             resolved-file String
+             out-path String
+             test-args (List String)
+             error-tests (List (Pair String String))
+    returns (computation (Pair Natural (Pair Natural (List (Pair String String))))) value
+      let value assemble-test-result be
+        function positive-result (P::Either String Natural)
+                 expected-tests (List (Pair String String))
+                 expected-errors (List (Pair String String))
+        returns (Pair Natural (Pair Natural (List (Pair String String)))) value
+          let value expected-total be L::length (Pair String String) expected-tests in
+            let value expected-count be
+              Ar::subtract expected-total (L::length (Pair String String) expected-errors)
+            in
+              let value assertions be
+                match positive-result of-type (P::Either String Natural) as ignored returns Natural
+                  case Either::right with count Natural as count
+                  case Either::left with ignored String as 0
+                end
+              in
+                let value positive-errors be
+                  match positive-result of-type (P::Either String Natural) as ignored returns (List (Pair String String))
+                    case Either::right with ignored Natural as P::nil (Pair String String)
+                    case Either::left with msg String as
+                      P::cons (Pair String String)
+                        (P::pair String String file-path msg)
+                        (P::nil (Pair String String))
+                  end
+                in
+                  let value all-errors be
+                    P::append (Pair String String) positive-errors expected-errors
+                  in
+                    P::pair Natural (Pair Natural (List (Pair String String)))
+                      assertions
+                      (P::pair Natural (List (Pair String String))
+                        expected-count
+                        all-errors)
+                  end
+                end
+              end
+            end
+          end
+        end
+      in
+      let value error-entry-opt be lookup-error-test root resolved-file error-tests in
+        let value expected-tests be
+          match file-opt of-type (Option String) as ignored returns (List (Pair String String))
+            case Option::none as error-tests
+            case Option::some with ignored String as
+              match error-entry-opt of-type (Option (Pair String String)) as ignored returns (List (Pair String String))
+                case Option::some with entry (Pair String String) as [entry]
+                case Option::none as P::nil (Pair String String)
+              end
+          end
+        in
+          let value should-run-positive be
+            match file-opt of-type (Option String) as ignored returns Boolean
+              case Option::none as true
+              case Option::some with ignored String as
+                match error-entry-opt of-type (Option (Pair String String)) as ignored returns Boolean
+                  case Option::some with ignored (Pair String String) as false
+                  case Option::none as true
+                end
+            end
+          in
+            compute
+              bind positive-result from perform
+                (match should-run-positive of-type Boolean as ignored returns (computation (P::Either String Natural))
+                  case Boolean::true as run-positive-test stage-timing root file-path out-path test-args
+                  case Boolean::false as compute return (Either::right String Natural 0) end
+                end) then
+                bind expected-errors from perform (run-expected-failures root expected-tests) then
+                  return (assemble-test-result positive-result expected-tests expected-errors)
+                end
+              end
+            end
+          end
+        end
+      end
+      end
+    end
+
+  define transparent format-tests-passed as
+    function assertions Natural expected Natural returns String value
+      S::concat "✓ All tests passed ("
+        (S::concat (N::to-string assertions)
+          (S::concat " assertions, "
+            (S::concat (N::to-string expected) " expected failures)")))
+    end
+
+  define transparent format-tests-passed-timed as
+    function assertions Natural expected Natural elapsed Natural returns String value
+      S::concat "✓ All tests passed ("
+        (S::concat (N::to-string assertions)
+          (S::concat " assertions, "
+            (S::concat (N::to-string expected)
+              (S::concat " expected failures, "
+                (S::concat (N::to-string elapsed) "us)")))))
+    end
+
+  define transparent format-tests-failed as
+    function count Natural returns String value
+      S::concat "✗ "
+        (S::concat (N::to-string count) " test(s) failed\n")
+    end
+
+  define transparent format-tests-failed-timed as
+    function count Natural elapsed Natural returns String value
+      S::concat "✗ "
+        (S::concat (N::to-string count)
+          (S::concat " test(s) failed ("
+            (S::concat (N::to-string elapsed) "us)\n")))
+    end
+
+  define transparent print-test-error as
+    function entry (Pair String String) returns computation Unit value
+      match entry of-type (Pair String String) as ignored returns (computation Unit)
+        case Pair::pair with file String msg String as
+          compute
+            bind ignored from perform (IO::print file) then
+              perform (IO::print (S::concat "  " msg))
+            end
+          end
+      end
+    end
+
+  define transparent print-test-errors as
+    function errors (List (Pair String String)) returns computation Unit value
+      P::sequence-unit
+        (P::map (Pair String String) (computation Unit) print-test-error errors)
+    end
+
+  define transparent handle-test-summary as
+    function verbose Boolean
+             full-run Boolean
+             measured (Pair (Pair Natural (Pair Natural (List (Pair String String)))) Natural)
+    returns (computation Unit) value
+      let value result be P::fst (Pair Natural (Pair Natural (List (Pair String String)))) Natural measured in
+        let value elapsed be P::snd (Pair Natural (Pair Natural (List (Pair String String)))) Natural measured in
+          let value assertions be P::fst Natural (Pair Natural (List (Pair String String))) result in
+            let value rest be P::snd Natural (Pair Natural (List (Pair String String))) result in
+              let value expected-count be P::fst Natural (List (Pair String String)) rest in
+                let value errors be P::snd Natural (List (Pair String String)) rest in
+                  match (L::is-empty (Pair String String) errors) of-type Boolean as ignored returns (computation Unit)
+                    case Boolean::true as
+                      match verbose of-type Boolean as ignored returns (computation Unit)
+                        case Boolean::true as compute return tt end
+                        case Boolean::false as
+                          compute
+                            bind ignored from perform
+                              (IO::print
+                                (match full-run of-type Boolean as ignored returns String
+                                  case Boolean::true as
+                                    format-tests-passed-timed assertions expected-count elapsed
+                                  case Boolean::false as
+                                    format-tests-passed assertions expected-count
+                                end)) then
+                              return tt
+                            end
+                          end
+                      end
+                    case Boolean::false as
+                      match verbose of-type Boolean as ignored returns (computation Unit)
+                        case Boolean::true as
+                          compute
+                            bind ignored from perform (print-test-errors errors) then
+                              perform (IO::panic "")
+                            end
+                          end
+                        case Boolean::false as
+                          compute
+                            bind ignored from perform
+                              (IO::print
+                                (match full-run of-type Boolean as ignored returns String
+                                  case Boolean::true as
+                                    format-tests-failed-timed (L::length (Pair String String) errors) elapsed
+                                  case Boolean::false as
+                                    format-tests-failed (L::length (Pair String String) errors)
+                                end)) then
+                              bind ignored from perform (print-test-errors errors) then
+                                perform (IO::panic "")
+                              end
+                            end
+                          end
+                      end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  define transparent default-targets-from-root as
+    function root String returns (List String) value
+      [
+        (Path::join root "lib")
+      , (Path::join root "test")
+      , (Path::join root smythfile-name)
+      ]
+    end
+
+  define transparent format-opts as
+    function root String args (List String) returns (Pair (List String) (List (Pair String String))) value
+      let value parsed be Cli::parse-options args in
+        let value positionals be Cli::options-positionals parsed in
+          let value flags be Cli::options-flags parsed in
+            match (L::is-empty String positionals) of-type Boolean as ignored returns (Pair (List String) (List (Pair String String)))
+              case Boolean::true as
+                P::pair (List String) (List (Pair String String))
+                  (default-targets-from-root root)
+                  flags
+              case Boolean::false as parsed
+            end
+          end
+        end
+      end
+    end
+
+  define transparent run-format as
+    function args (List String) returns computation Unit value
+      compute
+        bind cwd from perform (File::current-directory) then
+          bind root from perform (find-root cwd) then
+            perform
+              (let value opts be format-opts root args in
+                Formatter::run-with-options opts
+              end)
+          end
+        end
+      end
+    end
+
+  define transparent run-count as compute
+    bind cwd from perform (File::current-directory) then
+      bind root from perform (find-root cwd) then
+        bind lib-count from perform (count-dir (Path::join root "lib")) then
+          bind test-count from perform (count-dir (Path::join root "test")) then
+            perform
+              (let value total be add-count lib-count test-count in
+                P::sequence-unit
+                  [
+                    (IO::print "Locque line count (.lq only)")
+                  , (IO::print (format-count "lib" lib-count))
+                  , (IO::print (format-count "test" test-count))
+                  , (IO::print (format-count "total" total))
+                  ]
+              end)
+          end
+        end
+      end
+    end
+  end
+
+  define transparent run-run-file as
+    function file String returns computation Unit value
+      compute
+        bind cwd from perform (File::current-directory) then
+          bind root from perform (find-root cwd) then
+            perform
+              (let value resolved be resolve-file-path root file in
+                run-interpreter root [locque-interpreter-name, "run", resolved]
+              end)
+          end
+        end
+      end
+    end
+
+  define transparent dump-args as
+    function mode String file String name-opt (P::Option String) returns (List String) value
+      match name-opt of-type (P::Option String) as ignored returns (List String)
+        case Option::none as [locque-interpreter-name, "dump", mode, file]
+        case Option::some with name String as [locque-interpreter-name, "dump", mode, file, name]
+      end
+    end
+
+  define transparent run-dump-file as
+    function mode String file String name-opt (P::Option String) returns computation Unit value
+      compute
+        bind cwd from perform (File::current-directory) then
+          bind root from perform (find-root cwd) then
+            perform
+              (let value resolved be resolve-file-path root file in
+                let value args be dump-args mode resolved name-opt in
+                  run-interpreter root args
+                end
+              end)
+          end
+        end
+      end
+    end
+
+  define transparent print-help as compute
+    perform
+      (P::sequence-unit
+        [
+          (IO::print "smyth (locque) - build tool")
+        , (IO::print "")
+        , (IO::print "Usage:")
+        , (IO::print "  smyth run <file>     Type check and run a .lq/.lqs file")
+        , (IO::print "  smyth test [--slow] [--verbose] [--out <path>] [<file>] [-- <args>]  Compile and run tests (compiled only)")
+        , (IO::print "  smyth dump <mode> <file> [name]  Dump (core|normalized|elaborated|types|types-normalized|types-elaborated)")
+        , (IO::print "  smyth format [path]  Check .lq formatting in a file or directory")
+        , (IO::print "  smyth count          Count .lq lines in lib/ and test/")
+        , (IO::print "  smyth --help         Show this help")
+        ])
+  end
+
+  define transparent run-test-command as
+    function args (List String) returns (computation Unit) value
+      let value split be split-on-double-dash args in
+        let value opt-args be P::fst (List String) (List String) split in
+          let value run-args be P::snd (List String) (List String) split in
+            match (parse-test-opts opt-args) of-type (Option (Pair (Pair (Option String) (Option String)) (List String))) as ignored returns (computation Unit)
+              case Option::none as
+                compute
+                  bind ignored from perform
+                    (IO::print "Error: 'smyth test' expects [--slow] [--verbose] [--out <path>] [<file>] [-- <args>]") then
+                    perform print-help
+                  end
+                end
+              case Option::some with parsed (Pair (Pair (Option String) (Option String)) (List String)) as
+                compute
+                  bind cwd from perform (File::current-directory) then
+                    bind root from perform (find-root cwd) then
+                      perform
+                        (let value parsed-opts be P::fst (Pair (Option String) (Option String)) (List String) parsed in
+                          let value flag-args be P::snd (Pair (Option String) (Option String)) (List String) parsed in
+                            let value file-opt be P::fst (Option String) (Option String) parsed-opts in
+                              let value out-opt be P::snd (Option String) (Option String) parsed-opts in
+                                let value test-args be assemble-test-args opt-args run-args in
+                                  let value verbose be L::member String "--verbose" flag-args in
+                                    let value slow be L::member String "--slow" flag-args in
+                                      let value stage-timing be slow in
+                                        let value full-run be
+                                      match file-opt of-type (Option String) as ignored returns Boolean
+                                        case Option::none as true
+                                        case Option::some with ignored String as false
+                                      end
+                                    in
+                                      let value file-path be
+                                        match file-opt of-type (Option String) as ignored returns String
+                                          case Option::none as default-test-file root
+                                          case Option::some with file String as file
+                                        end
+                                      in
+                                        let value resolved-file be resolve-file-path root file-path in
+                                          let value out-path be
+                                            match out-opt of-type (Option String) as ignored returns String
+                                              case Option::none as default-test-out-path root resolved-file
+                                              case Option::some with out-string String as resolve-file-path root out-string
+                                            end
+                                          in
+                                            let value test-run be
+                                              compute
+                                                bind error-tests from perform (load-error-tests root) then
+                                                  perform
+                                                    (run-test-suite root stage-timing file-opt file-path resolved-file out-path test-args error-tests)
+                                                end
+                                              end
+                                            in
+                                              compute
+                                                bind measured from perform
+                                                  (Time::measure (Pair Natural (Pair Natural (List (Pair String String)))) test-run) then
+                                                  perform (handle-test-summary verbose full-run measured)
+                                                end
+                                              end
+                                            end
+                                          end
+                                        end
+                                        end
+                                    end
+                                  end
+                                end
+                              end
+                            end
+                          end
+                          end
+                        end
+                        end)
+                    end
+                  end
+                end
+            end
+        end
+      end
+    end
+  end
+
+
+
+  define transparent unknown-command as
+    function cmd String returns (computation Unit) value
+      compute
+        bind ignored from perform (IO::print "Unknown command. Use 'smyth --help' for usage.") then
+          perform print-help
+        end
+      end
+    end
+
+  define transparent run-count-command as
+    function args (List String) returns (computation Unit) value
+      match args of-type (List String) as ignored returns (computation Unit)
+        case List::empty as run-count
+        case List::cons with h String t (List String) as
+          compute
+            bind ignored from perform (IO::print "Error: 'smyth count' does not take arguments") then
+              perform print-help
+            end
+          end
+      end
+    end
+
+  define transparent run-run-command as
+    function args (List String) returns (computation Unit) value
+      match args of-type (List String) as ignored returns (computation Unit)
+        case List::empty as
+          compute
+            bind ignored from perform (IO::print "Error: 'smyth run' requires a file argument") then
+              perform print-help
+            end
+          end
+        case List::cons with file String rest (List String) as
+          match rest of-type (List String) as ignored returns (computation Unit)
+            case List::empty as run-run-file file
+            case List::cons with h String t (List String) as
+              compute
+                bind ignored from perform (IO::print "Error: 'smyth run' does not take extra arguments") then
+                  perform print-help
+                end
+              end
+          end
+      end
+    end
+
+  define transparent run-dump-command as
+    function args (List String) returns (computation Unit) value
+      match args of-type (List String) as ignored returns (computation Unit)
+        case List::empty as
+          compute
+            bind ignored from perform (IO::print "Error: 'smyth dump' requires a mode and file") then
+              perform print-help
+            end
+          end
+        case List::cons with mode String rest (List String) as
+          match rest of-type (List String) as ignored returns (computation Unit)
+            case List::empty as
+              compute
+                bind ignored from perform (IO::print "Error: 'smyth dump' requires a file argument") then
+                  perform print-help
+                end
+              end
+            case List::cons with file String rest2 (List String) as
+              match rest2 of-type (List String) as ignored returns (computation Unit)
+                case List::empty as run-dump-file mode file (Option::none String)
+                case List::cons with name String rest3 (List String) as
+                  match rest3 of-type (List String) as ignored returns (computation Unit)
+                    case List::empty as run-dump-file mode file (Option::some String name)
+                    case List::cons with h String t (List String) as
+                      compute
+                        bind ignored from perform (IO::print "Error: 'smyth dump' takes at most one name argument") then
+                          perform print-help
+                        end
+                      end
+                  end
+              end
+          end
+      end
+    end
+
+  define transparent run as
+    function args (List String) returns (computation Unit) value
+      match args of-type (List String) as ignored returns (computation Unit)
+        case List::empty as print-help
+        case List::cons with cmd String rest (List String) as
+          match (S::eq cmd "run") of-type Boolean as ignored returns (computation Unit)
+            case Boolean::true as run-run-command rest
+            case Boolean::false as
+              match (S::eq cmd "dump") of-type Boolean as ignored returns (computation Unit)
+                case Boolean::true as run-dump-command rest
+                case Boolean::false as
+                  match (S::eq cmd "format") of-type Boolean as ignored returns (computation Unit)
+                    case Boolean::true as run-format rest
+                    case Boolean::false as
+                      match (S::eq cmd "test") of-type Boolean as ignored returns (computation Unit)
+                        case Boolean::true as run-test-command rest
+                        case Boolean::false as
+                          match (S::eq cmd "count") of-type Boolean as ignored returns (computation Unit)
+                            case Boolean::true as run-count-command rest
+                            case Boolean::false as
+                              match (S::eq cmd "--help") of-type Boolean as ignored returns (computation Unit)
+                                case Boolean::true as print-help
+                                case Boolean::false as unknown-command cmd
+                              end
+                          end
+                      end
+              end
+          end
+      end
+    end
+    end
+
+  define transparent main as compute
+    bind args from perform Cli::args then
+      perform (run args)
+    end
+  end
+end

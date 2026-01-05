@@ -213,6 +213,7 @@ CBPV small-step semantics (informal rules)
 Namespaces and modules (current)
 
 - Module names use `::` and map to lowercase file paths: `Some::Module::Name` → `lib/some/module/name.lq` (tests: `Test::X::Y` → `test/x/y.lq`).
+- Standard library modules use `standard-library::Foo::Bar` and resolve via tool-provided stdlib roots (plus optional `LOCQUE_STDLIB`).
 - Imports precede opens; opens precede the module.
 - `open Alias exposing name1 name2 ... end` is explicit only; no wildcard opens.
 
@@ -234,4 +235,5 @@ Namespaces and modules (current)
 Entrypoints and tooling (current)
 
 - Interpreter CLI: `locque-interpreter run <file>`, `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`, `dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]`.
-- Smyth tool: `smyth run <file>`, `smyth test`, `smyth test <file>`, `smyth bench`.
+- Compiler CLI: `locque-compiler compile [--out <path>] <file> [-- <args>]`.
+- Smyth tool: `smyth run <file>`, `smyth test`, `smyth test <file>`, `smyth bench`, `smyth compile`, `smyth compile-test`, `smyth dump`, `smyth format`, `smyth count`.

@@ -29,7 +29,7 @@ data RunCache = RunCache
   } deriving (Show, Read)
 
 cacheVersionCurrent :: Int
-cacheVersionCurrent = 4
+cacheVersionCurrent = 5
 
 cacheRoot :: FilePath -> FilePath
 cacheRoot projectRoot = projectRoot </> "tmp" </> "locque" </> "cache"

@@ -81,6 +81,7 @@ Check formatting with `smyth format [path]` (a file or directory; defaults to `l
 - Tooling: install GHC to build `locque-interpreter` and `smyth` (https://www.haskell.org/ghcup/).
 - Tests: run `smyth test` from the repo root to check the full suite and expected failures (prints total time in microseconds). Use `smyth test --slow` to list the slowest suites.
 - Benchmarks: run `smyth bench` from the repo root to see benchmark timings and threshold checks.
+- Compile: build a native binary with `smyth compile <file> [--out <path>] [-- <args>]`.
 
 Reference grammar and canonical syntax live in `grammar.md`.
 

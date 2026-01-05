@@ -1,0 +1,23 @@
+import prelude as P
+import assert as A
+import process as Process
+import typeclass::equality as Eq
+
+open P exposing Option Option::none end
+open A exposing assert-eq end
+
+module test::process contains
+  define transparent check-run as compute
+    bind result from perform (Process::run ["true"] (Option::none String)) then
+      perform
+        (match result of-type (Pair Natural (Pair String String)) as ignored returns (computation Unit)
+          case Pair::pair with code Natural rest (Pair String String) as
+            assert-eq Natural code 0
+        end)
+    end
+  end
+
+  define transparent main as compute
+    perform check-run
+  end
+end

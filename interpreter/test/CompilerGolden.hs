@@ -46,7 +46,7 @@ main = hspec $ do
   describe "Compile argument helpers" $ do
     it "parses an output override" $ do
       parseCompileArgs ["--out", "bin/app", "test/compile/hello.lq"]
-        `shouldBe` Right (CompileOptions (Just "bin/app"), "test/compile/hello.lq")
+        `shouldBe` Right (CompileOptions (Just "bin/app") False, "test/compile/hello.lq")
 
     it "computes the default output path" $ do
       defaultCompileOutPath "/repo" "test/compile/hello.lq"

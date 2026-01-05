@@ -51,6 +51,8 @@
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`).
 - [x] `smyth bench` with benchmark rollup (`test/bench.lq`) and thresholds.
 - [x] `smyth compile-test` for interpreter vs compiled test suite parity.
+- [x] `smyth dump` views; `smyth format` and `smyth count` helpers.
+- [x] `smyth run --pid-file` and `--timeout` for long-running shell tests.
 - [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
 - [x] Run cache in `tmp/locque/cache` for annotated modules + ctor arity; keyed by module digest; used by `smyth test/run`.
 - [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.
@@ -85,7 +87,8 @@
 
 ## Standard Library
 - [x] Core: Prelude, List, String, IO, Assert; List.slice.
-- [x] File primitives + file module (helpers, walk, stat).
+- [x] File primitives + file module (helpers, walk, stat, walk-filter/walk-lq).
+- [x] Fix walk-filter skip-prefix handling so roots are not skipped.
 - [x] CLI helpers (args/options).
 - [x] Path utilities (join/dirname/basename/ext/is-absolute).
 - [x] Result/Option/Either data types in prelude.
@@ -102,6 +105,12 @@
 
 ## Documentation
 - [x] Document `lift`/`up`/`down` in grammar and reference docs.
+
+## Test Suite Performance
+- [x] Reworked `test/project.lq` to avoid `Character` refinement in uppercase checks, use dictionary-backed membership, and simplify prefix stripping.
+- [x] Consolidated `smyth dump` usage in shell tests (multi-file bundling) to reduce process launches.
+- [x] Moved fuzzy-match checks into `Smythfile.lq` error-tests to remove `smyth run` subprocesses from shell suite.
+- [x] Updated `test/shell/lhttp.lq` to use pid-file/timeout flags and avoid `ps|grep|awk` polling.
 
 ## Milestones (rolled up)
 - Test runner (`smyth test`) and modular tests.

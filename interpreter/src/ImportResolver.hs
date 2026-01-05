@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import System.Directory (doesFileExist)
-import System.Environment (lookupEnv)
+import System.Environment (getExecutablePath, lookupEnv)
 import System.FilePath ((</>), (<.>), splitSearchPath, takeDirectory)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -112,12 +112,42 @@ computeStdlibRoots :: FilePath -> IO [FilePath]
 computeStdlibRoots projectRoot = do
   env <- lookupEnv "LOCQUE_STDLIB"
   let envRoots = maybe [] splitSearchPath env
-  auto <- findStdlibRoot (takeDirectory projectRoot)
-  let roots = dedupePaths (envRoots ++ maybeToList auto)
+  exeRoot <- findStdlibRootFromExecutable
+  repoRoot <- findStdlibRootFromRepo projectRoot
+  let roots = dedupePaths (envRoots ++ maybeToList exeRoot ++ maybeToList repoRoot)
   pure roots
   where
     maybeToList Nothing = []
     maybeToList (Just path) = [path]
+
+findStdlibRootFromExecutable :: IO (Maybe FilePath)
+findStdlibRootFromExecutable = do
+  exePath <- getExecutablePath
+  findStdlibRoot (takeDirectory exePath)
+
+findStdlibRootFromRepo :: FilePath -> IO (Maybe FilePath)
+findStdlibRootFromRepo projectRoot = search projectRoot
+  where
+    search dir = do
+      isRepo <- isLocqueRepoRoot dir
+      if isRepo
+        then pure (Just (dir </> "lib"))
+        else do
+          let parent = takeDirectory dir
+          if parent == dir
+            then pure Nothing
+            else search parent
+
+    isLocqueRepoRoot dir = do
+      let libRoot = dir </> "lib"
+          preludeLq = libRoot </> "prelude.lq"
+          preludeLqs = libRoot </> "prelude.lqs"
+          compilerRuntime = dir </> "compiler" </> "src" </> "LocqueRuntime.hs"
+          interpreterCabal = dir </> "interpreter" </> "locque-interpreter.cabal"
+      hasPrelude <- or <$> mapM doesFileExist [preludeLq, preludeLqs]
+      hasCompiler <- doesFileExist compilerRuntime
+      hasInterpreter <- doesFileExist interpreterCabal
+      pure (hasPrelude && (hasCompiler || hasInterpreter))
 
 resolveCompilerSrc :: FilePath -> IO FilePath
 resolveCompilerSrc projectRoot = do

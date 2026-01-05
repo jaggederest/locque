@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+cd "$ROOT"
+
+smyth compile --out "$ROOT/tmp/locque/bin/smyth" lib/main.lq
+
+echo "Wrote $ROOT/tmp/locque/bin/smyth"

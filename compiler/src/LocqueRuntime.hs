@@ -45,6 +45,7 @@ module LocqueRuntime
   , captureOutputPrim
   , foreverPrim
   , assertHitPrim
+  , assertionCountPrim
   , getLinePrim
   , cliArgsPrim
   , currentDirectoryPrim
@@ -52,6 +53,7 @@ module LocqueRuntime
   , readFilePrim
   , writeFilePrim
   , shellPrim
+  , processRunPrim
   , appendFilePrim
   , copyFilePrim
   , copyTreePrim
@@ -128,7 +130,7 @@ import System.IO (hClose, openTempFile)
 import System.Posix.Process (exitImmediately)
 import System.Posix.Signals (Signal)
 import qualified System.Posix.Signals as Signals
-import System.Process (proc, readCreateProcessWithExitCode, shell)
+import System.Process (CreateProcess(..), proc, readCreateProcessWithExitCode, shell)
 import System.Timeout (timeout)
 import Data.Time.Clock.POSIX (getPOSIXTime, utcTimeToPOSIXSeconds)
 import Unsafe.Coerce (unsafeCoerce)
@@ -286,6 +288,9 @@ assertHitPrim = Comp $ do
   modifyIORef' assertionCounter (P.+ 1)
   pure ()
 
+assertionCountPrim :: Comp Natural
+assertionCountPrim = Comp (readIORef assertionCounter)
+
 getLinePrim :: Comp String
 getLinePrim = Comp $ do
   line <- TIO.getLine
@@ -320,6 +325,22 @@ shellPrim cmd =
   Comp $ do
     (_exitCode, stdoutText, stderrText) <- readCreateProcessWithExitCode (shell (T.unpack cmd)) ""
     pure (T.pack (stdoutText ++ stderrText))
+
+processRunPrim :: List String -> Option String -> Comp (Pair Natural (Pair String String))
+processRunPrim args cwdOpt =
+  case args of
+    [] -> P.error "process-run-prim expects a non-empty argv list"
+    cmd : rest ->
+      Comp $ do
+        let procSpec =
+              (proc (T.unpack cmd) (map T.unpack rest))
+                { cwd = fmap T.unpack cwdOpt
+                }
+        (exitCode, stdoutText, stderrText) <- readCreateProcessWithExitCode procSpec ""
+        let code = case exitCode of
+              ExitSuccess -> 0
+              ExitFailure n -> fromIntegral n
+        pure (code, (T.pack stdoutText, T.pack stderrText))
 
 appendFilePrim :: String -> String -> Comp Unit
 appendFilePrim path contents =

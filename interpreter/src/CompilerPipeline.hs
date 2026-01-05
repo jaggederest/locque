@@ -1,7 +1,9 @@
 {-# LANGUAGE TypeApplications #-}
 module CompilerPipeline
   ( loadAnnotatedModule
+  , loadAnnotatedModuleWithImports
   , loadCoreModule
+  , loadCoreModuleWithDebug
   ) where
 
 import Control.Exception (SomeException, try, evaluate)
@@ -21,15 +23,22 @@ import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (SmythConfig(..))
 import Utils (qualifyName)
 import Validator (checkParens)
+import qualified Type as LT
 import qualified RunCache as RC
 import qualified TypeChecker as TC
 
+import Locque.Compiler.Codegen (DebugAnnotation(..), DebugInfo)
 import qualified Locque.Compiler.Core as Core
 
 loadCoreModule :: SmythConfig -> FilePath -> IO (Either String Core.CoreModule)
 loadCoreModule config file = do
   annotated <- loadAnnotatedModuleWithImports config file
   pure (fmap lowerModule annotated)
+
+loadCoreModuleWithDebug :: SmythConfig -> FilePath -> IO (Either String (Core.CoreModule, DebugInfo))
+loadCoreModuleWithDebug config file = do
+  annotated <- loadAnnotatedModuleWithImportsDebug config file
+  pure (fmap (\(modEntry, debugInfo) -> (lowerModule modEntry, debugInfo)) annotated)
 
 loadAnnotatedModule :: SmythConfig -> FilePath -> IO (Either String Module)
 loadAnnotatedModule config file =
@@ -51,7 +60,7 @@ loadAnnotatedModuleWithScope config scope file = do
             Just entry -> pure (Right (RC.cacheAnnotated entry))
             Nothing -> do
               tcAttempt <- try (evaluate (TC.typeCheckAndNormalizeWithEnv importedEnv m))
-                :: IO (Either SomeException (Either TC.TypeError (TC.TypeEnv, Module)))
+                :: IO (Either SomeException (Either TC.TypeError (TC.TCEnv, Module)))
               case tcAttempt of
                 Left err -> pure (Left ("Type check phase error: " ++ show err))
                 Right (Left tcErr) -> pure (Left ("Type error: " ++ show tcErr))
@@ -64,18 +73,57 @@ loadAnnotatedModuleWithScope config scope file = do
                   case prepared of
                     Left msg -> pure (Left msg)
                     Right preparedModule -> do
-                      transformed <- transformModuleWithEnvsScope (projectRoot config) scope preparedModule
-                      case TC.annotateModule env transformed of
+                      case TC.annotateModule env preparedModule of
                         Left annotErr -> pure (Left ("Annotation error: " ++ show annotErr))
-                        Right annotatedM -> do
+                        Right annotatedPrepared -> do
+                          transformed <- transformModuleWithEnvsScope (projectRoot config) scope annotatedPrepared
                           let entry = RC.RunCache
                                 { RC.cacheVersion = RC.cacheVersionCurrent
                                 , RC.cacheDigest = digest
-                                , RC.cacheAnnotated = annotatedM
+                                , RC.cacheAnnotated = transformed
                                 , RC.cacheCtorArity = arity
                                 }
                           RC.writeRunCache (projectRoot config) file entry
-                          pure (Right annotatedM)
+                          pure (Right transformed)
+
+loadAnnotatedModuleWithScopeDebug :: SmythConfig -> ImportScope -> FilePath -> IO (Either String (Module, DebugInfo))
+loadAnnotatedModuleWithScopeDebug config scope file = do
+  contents <- TIO.readFile file
+  case parseAny file contents of
+    Left err -> pure (Left err)
+    Right m -> do
+      digestAttempt <- try @SomeException
+        (TC.moduleDigestWithImportsScope (projectRoot config) scope contents m)
+      case digestAttempt of
+        Left err -> pure (Left ("Type check phase error: " ++ show err))
+        Right (digest, importedEnv) -> do
+          tcAttempt <- try (evaluate (TC.typeCheckAndNormalizeWithEnv importedEnv m))
+            :: IO (Either SomeException (Either TC.TypeError (TC.TCEnv, Module)))
+          case tcAttempt of
+            Left err -> pure (Left ("Type check phase error: " ++ show err))
+            Right (Left tcErr) -> pure (Left ("Type error: " ++ show tcErr))
+            Right (Right (env, normalized)) -> do
+              let arity = ctorArityMap normalized
+                  recDefs = recursorDefs normalized
+              prepared <- case insertRecursors m recDefs of
+                Left msg -> pure (Left ("Transform error: " ++ msg))
+                Right ok -> pure (Right ok)
+              case prepared of
+                Left msg -> pure (Left msg)
+                Right preparedModule -> do
+                  case TC.annotateModule env preparedModule of
+                    Left annotErr -> pure (Left ("Annotation error: " ++ show annotErr))
+                    Right annotatedPrepared -> do
+                      transformed <- transformModuleWithEnvsScope (projectRoot config) scope annotatedPrepared
+                      let entry = RC.RunCache
+                            { RC.cacheVersion = RC.cacheVersionCurrent
+                            , RC.cacheDigest = digest
+                            , RC.cacheAnnotated = transformed
+                            , RC.cacheCtorArity = arity
+                            }
+                      RC.writeRunCache (projectRoot config) file entry
+                      let debugInfo = buildDebugInfo file contents env transformed
+                      pure (Right (transformed, debugInfo))
 
 parseAny :: FilePath -> T.Text -> Either String Module
 parseAny file contents =
@@ -99,6 +147,22 @@ loadAnnotatedModuleWithImports config file = do
           let combined = Module (modName modEntry) [] [] (dedupeDefs defs)
           in pure (Right combined)
 
+loadAnnotatedModuleWithImportsDebug
+  :: SmythConfig
+  -> FilePath
+  -> IO (Either String (Module, DebugInfo))
+loadAnnotatedModuleWithImportsDebug config file = do
+  entry <- loadAnnotatedModuleWithScopeDebug config ProjectScope file
+  case entry of
+    Left err -> pure (Left err)
+    Right (modEntry, debugEntry) -> do
+      defsResult <- flattenModuleDebug config ProjectScope Set.empty modEntry debugEntry
+      case defsResult of
+        Left err -> pure (Left err)
+        Right (defs, debugInfo) ->
+          let combined = Module (modName modEntry) [] [] (dedupeDefs defs)
+          in pure (Right (combined, debugInfo))
+
 flattenModule :: SmythConfig -> ImportScope -> Set.Set T.Text -> Module -> IO (Either String [Definition])
 flattenModule config scope visiting modEntry = do
   depsResult <- loadImports config scope visiting (modImports modEntry)
@@ -108,10 +172,36 @@ flattenModule config scope visiting modEntry = do
       let locals = renameModuleDefs Nothing modEntry
       pure (Right (deps ++ locals))
 
+flattenModuleDebug
+  :: SmythConfig
+  -> ImportScope
+  -> Set.Set T.Text
+  -> Module
+  -> DebugInfo
+  -> IO (Either String ([Definition], DebugInfo))
+flattenModuleDebug config scope visiting modEntry debugEntry = do
+  depsResult <- loadImportsDebug config scope visiting (modImports modEntry)
+  case depsResult of
+    Left err -> pure (Left err)
+    Right (deps, depsDebug) -> do
+      let locals = renameModuleDefs Nothing modEntry
+          debugCombined = mergeDebugInfo depsDebug debugEntry
+      pure (Right (deps ++ locals, debugCombined))
+
 loadImports :: SmythConfig -> ImportScope -> Set.Set T.Text -> [Import] -> IO (Either String [Definition])
 loadImports config scope visiting imports = do
   results <- mapM (loadImport config scope visiting) imports
   pure (concatEither results)
+
+loadImportsDebug
+  :: SmythConfig
+  -> ImportScope
+  -> Set.Set T.Text
+  -> [Import]
+  -> IO (Either String ([Definition], DebugInfo))
+loadImportsDebug config scope visiting imports = do
+  results <- mapM (loadImportDebug config scope visiting) imports
+  pure (concatEitherDebug results)
 
 loadImport :: SmythConfig -> ImportScope -> Set.Set T.Text -> Import -> IO (Either String [Definition])
 loadImport config scope visiting (Import modName alias) = do
@@ -132,11 +222,39 @@ loadImport config scope visiting (Import modName alias) = do
               let qualified = renameModuleDefs (Just alias) modImported
               pure (Right (deps ++ qualified))
 
+loadImportDebug
+  :: SmythConfig
+  -> ImportScope
+  -> Set.Set T.Text
+  -> Import
+  -> IO (Either String ([Definition], DebugInfo))
+loadImportDebug config scope visiting (Import modName alias) = do
+  if modName `Set.member` visiting
+    then pure (Left ("Import cycle detected: " ++ T.unpack modName))
+    else do
+      ResolvedModule modPath nextScope <-
+        resolveModulePath (projectRoot config) (libRoot config) scope modName
+      imported <- loadAnnotatedModuleWithScopeDebug config nextScope modPath
+      case imported of
+        Left err -> pure (Left err)
+        Right (modImported, debugImported) -> do
+          let visiting' = Set.insert modName visiting
+          depsResult <- loadImportsDebug config nextScope visiting' (modImports modImported)
+          case depsResult of
+            Left err -> pure (Left err)
+            Right (deps, depsDebug) -> do
+              let qualified = renameModuleDefs (Just alias) modImported
+                  qualifiedDebug = applyAliasDebugInfo (Just alias) debugImported
+                  debugCombined = mergeDebugInfo depsDebug qualifiedDebug
+              pure (Right (deps ++ qualified, debugCombined))
+
 dedupeDefs :: [Definition] -> [Definition]
 dedupeDefs defs =
-  Map.elems (foldl insertDef Map.empty defs)
+  reverse (snd (foldl step (Set.empty, []) defs))
   where
-    insertDef acc def = Map.insert (defName def) def acc
+    step (seen, acc) def
+      | Set.member (defName def) seen = (seen, acc)
+      | otherwise = (Set.insert (defName def) seen, def : acc)
 
 renameModuleDefs :: Maybe T.Text -> Module -> [Definition]
 renameModuleDefs maybeAlias modEntry =
@@ -168,9 +286,15 @@ ctorNames (Module _ _ _ defs) =
   concatMap defCtorNames defs
 
 defCtorNames :: Definition -> [T.Text]
-defCtorNames defn = case defBody defn of
+defCtorNames defn = case stripTypeExpr (defBody defn) of
   EData _ _ cases -> map dataCaseName cases
   _ -> []
+
+stripTypeExpr :: Expr -> Expr
+stripTypeExpr expr = case expr of
+  EAnnot inner _ -> stripTypeExpr inner
+  ETyped inner _ -> stripTypeExpr inner
+  _ -> expr
 
 renameExpr :: Map.Map T.Text T.Text -> Map.Map T.Text T.Text -> Set.Set T.Text -> Set.Set T.Text -> Expr -> Expr
 renameExpr renameMap openMap localNames bound expr =
@@ -361,3 +485,47 @@ concatEither results =
       (Left err, _) -> Left err
       (_, Left err) -> Left err
       (Right defs, Right rest) -> Right (defs ++ rest)
+
+concatEitherDebug :: [Either String ([Definition], DebugInfo)] -> Either String ([Definition], DebugInfo)
+concatEitherDebug results =
+  foldl combine (Right ([], Map.empty)) results
+  where
+    combine acc next = case (acc, next) of
+      (Left err, _) -> Left err
+      (_, Left err) -> Left err
+      (Right (defsAcc, debugAcc), Right (defs, debug)) ->
+        Right (defsAcc ++ defs, mergeDebugInfo debugAcc debug)
+
+mergeDebugInfo :: DebugInfo -> DebugInfo -> DebugInfo
+mergeDebugInfo earlier later =
+  Map.union later earlier
+
+applyAliasDebugInfo :: Maybe T.Text -> DebugInfo -> DebugInfo
+applyAliasDebugInfo Nothing info = info
+applyAliasDebugInfo (Just alias) info =
+  Map.mapKeys renameName info
+  where
+    renameName name =
+      Core.Name (qualifyName alias (Core.unName name))
+
+buildDebugInfo :: FilePath -> T.Text -> TC.TCEnv -> Module -> DebugInfo
+buildDebugInfo file contents env modEntry =
+  let lineMap = TC.definitionLineMap contents
+  in foldl (addDef lineMap) Map.empty (modDefs modEntry)
+  where
+    addDef lineMap acc defn =
+      let name = defName defn
+          line = Map.lookup name lineMap
+          ty = Map.lookup name (TC.tcEnvTypes env)
+          hasInfo = case (line, ty) of
+            (Nothing, Nothing) -> False
+            _ -> True
+      in if hasInfo
+        then
+          let annotation = DebugAnnotation
+                { debugSourceFile = Just file
+                , debugSourceLine = line
+                , debugType = LT.prettyType <$> ty
+                }
+          in Map.insert (Core.Name name) annotation acc
+        else acc

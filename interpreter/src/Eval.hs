@@ -44,7 +44,7 @@ import           System.Posix.Process (exitImmediately)
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.IO (hPutStrLn, hFlush, stderr)
 import           GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import           System.Process (readCreateProcessWithExitCode, shell)
+import           System.Process (CreateProcess(..), readCreateProcessWithExitCode, shell, proc)
 import qualified System.Posix.Signals as Signals
 import           System.Timeout (timeout)
 import qualified Network.Socket as NS
@@ -162,6 +162,7 @@ primEnv = Map.fromList
   , (T.pack "timeout-prim", BVal (VPrim primTimeout))
   , (T.pack "panic-prim", BVal (VPrim primPanic))
   , (T.pack "assert-hit-prim", BVal (VComp primAssertHit))
+  , (T.pack "assertion-count-prim", BVal (VComp primAssertionCount))
   , (T.pack "get-line-prim", BVal (VComp primGetLine))
   , (T.pack "cli-args-prim", BVal (VComp primCliArgs))
   , (T.pack "current-directory-prim", BVal (VComp primCurrentDirectory))
@@ -169,6 +170,7 @@ primEnv = Map.fromList
   , (T.pack "read-file-prim", BVal (VPrim primReadFile))
   , (T.pack "write-file-prim", BVal (VPrim primWriteFile))
   , (T.pack "shell-prim", BVal (VPrim primShell))
+  , (T.pack "process-run-prim", BVal (VPrim primProcessRun))
   , (T.pack "list-dir-prim", BVal (VPrim primListDir))
   , (T.pack "path-exists-prim", BVal (VPrim primPathExists))
   , (T.pack "is-directory-prim", BVal (VPrim primIsDirectory))
@@ -536,6 +538,11 @@ primAssertHit :: IO Value
 primAssertHit = do
   modifyIORef' assertionCounter (+1)
   pure VUnit
+
+primAssertionCount :: IO Value
+primAssertionCount = do
+  count <- readIORef assertionCounter
+  pure (VNatural (fromIntegral count))
 
 expectListener :: Value -> IO NS.Socket
 expectListener v = case v of
@@ -919,6 +926,33 @@ primShell [VString cmd] = do
     pure $ VString (T.pack (stdout ++ stderrText))))
 primShell _ = error "shell-prim expects 1 string arg (command)"
 
+expectStringList :: Value -> IO [Text]
+expectStringList v = case v of
+  VList xs -> mapM expectString xs
+  _ -> error $ "expected List String, got " ++ show v
+
+expectOptionString :: Value -> IO (Maybe FilePath)
+expectOptionString v = case v of
+  VData "Option::none" [] -> pure Nothing
+  VData "Option::some" [val] -> Just . T.unpack <$> expectString val
+  _ -> error $ "expected Option String, got " ++ show v
+
+primProcessRun :: [Value] -> IO Value
+primProcessRun [argsVal, cwdVal] = do
+  args <- expectStringList argsVal
+  cwd <- expectOptionString cwdVal
+  case args of
+    [] -> error "process-run-prim expects a non-empty argv list"
+    (cmd:rest) ->
+      pure $ VComp $ do
+        let spec = (proc (T.unpack cmd) (map T.unpack rest)) { cwd = cwd }
+        (exitCode, stdout, stderrText) <- readCreateProcessWithExitCode spec ""
+        let code = case exitCode of
+              ExitSuccess -> 0
+              ExitFailure n -> fromIntegral n
+        pure (VPair (VNatural code) (VPair (VString (T.pack stdout)) (VString (T.pack stderrText))))
+primProcessRun _ = error "process-run-prim expects (argv, cwd-option)"
+
 primCons :: [Value] -> IO Value
 primCons [ty, h, VList t] = do
   expectTypeArg ty
@@ -1020,7 +1054,7 @@ expectString v           = error $ "expected String, got " ++ show v
 bindModule :: CtorArityMap -> Module -> Env -> Env
 bindModule ctorArity (Module _modName _ _ defs) base =
   let env = foldl addDef base defs
-      addDef e (Definition _ name body) = case body of
+      addDef e (Definition _ name body) = case stripTypeExpr body of
         EData params _ cases ->
           let e' = Map.insert name (BVal (VTypeData name)) e
               ctorBindings = map (ctorBinding params) cases
@@ -1271,10 +1305,11 @@ loadImport projectRoot scope visiting (Import modName alias) = do
           prepared <- case insertRecursors parsed recDefs of
             Left msg -> error $ "Transform error in import " ++ T.unpack modName ++ ": " ++ msg
             Right m -> pure m
-          transformed <- transformModuleWithEnvsScope projectRoot nextScope prepared
-          case TC.annotateModule env transformed of
+          case TC.annotateModule env prepared of
             Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
-            Right m -> pure (m, normalized)
+            Right annotatedPrepared -> do
+              transformed <- transformModuleWithEnvsScope projectRoot nextScope annotatedPrepared
+              pure (transformed, normalized)
       let arity = ctorArityMap normalized
           cacheEntry = RC.RunCache
             { RC.cacheVersion = RC.cacheVersionCurrent
@@ -1310,7 +1345,7 @@ loadImport projectRoot scope visiting (Import modName alias) = do
         Nothing -> env  -- Definition not in environment
 
     defCtorNames :: Definition -> [Text]
-    defCtorNames def = case defBody def of
+    defCtorNames def = case stripTypeExpr (defBody def) of
       EData _ _ cases -> map dataCaseName cases
       _ -> []
 
@@ -1323,12 +1358,18 @@ ctorArityMap :: Module -> CtorArityMap
 ctorArityMap (Module _ _ _ defs) =
   Map.fromList (concatMap defCtorArity defs)
   where
-    defCtorArity (Definition _ _ body) = case body of
+    defCtorArity (Definition _ _ body) = case stripTypeExpr body of
       EData params _ cases ->
         [ (ctorName, (countFreeDataParams params ctorTy, countForAll ctorTy))
         | DataCase ctorName ctorTy <- cases
         ]
       _ -> []
+
+stripTypeExpr :: Expr -> Expr
+stripTypeExpr expr = case expr of
+  EAnnot inner _ -> stripTypeExpr inner
+  ETyped inner _ -> stripTypeExpr inner
+  _ -> expr
 
 -- Process open statements to bring unqualified names into scope
 processOpens :: [Open] -> Env -> Env

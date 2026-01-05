@@ -3,8 +3,10 @@ module Parser
   ( parseModuleFile
   , parseMExprFile
   , exprToSExprText
+  , exprToSExprTextTyped
   , exprToMExprText
   , moduleToSExprText
+  , moduleToSExprTextTyped
   , moduleToMExprText
   ) where
 
@@ -1112,6 +1114,150 @@ renderExpr expr = case expr of
 
 exprToSExprText :: Expr -> DT.Text
 exprToSExprText = renderExpr
+
+--------------------------------------------------------------------------------
+-- Typed S-expression pretty-printer (keeps inferred annotations)
+
+moduleToSExprTextTyped :: Module -> DT.Text
+moduleToSExprTextTyped (Module name imports opens defs) =
+  let importLines = map renderImport imports
+      openLines = map renderOpen opens
+      moduleLine = renderModuleTyped name defs
+  in DT.unlines (importLines ++ openLines ++ [moduleLine])
+
+renderModuleTyped :: Text -> [Definition] -> DT.Text
+renderModuleTyped name defs =
+  case defs of
+    [] -> "(module " <> name <> ")"
+    _  -> "(module " <> name <> " " <> DT.unwords (map renderDefTyped defs) <> ")"
+
+renderDefTyped :: Definition -> DT.Text
+renderDefTyped (Definition tr name body) =
+  "(define " <> renderTransparency tr <> " " <> name <> " " <> renderExprTyped body <> ")"
+  where
+    renderTransparency Transparent = "transparent"
+    renderTransparency Opaque      = "opaque"
+
+stripTypeAnn :: Expr -> Expr
+stripTypeAnn expr = case expr of
+  EAnnot e _ -> stripTypeAnn e
+  ETyped e _ -> stripTypeAnn e
+  _ -> expr
+
+renderTypeTyped :: Expr -> DT.Text
+renderTypeTyped = T.typeToSExpr . stripTypeAnn
+
+renderExprTyped :: Expr -> DT.Text
+renderExprTyped expr = case expr of
+  EVar t          -> t
+  ELit lit        -> renderLit lit
+  EListLiteral elems ->
+    "(list" <> renderList elems <> ")"
+  ETypeConst tc   -> T.typeConstName tc
+  ETypeUniverse n -> "Type" <> DT.pack (show n)
+  EForAll v dom cod ->
+    "(for-all (" <> v <> " " <> renderTypeTyped dom <> ") " <> renderTypeTyped cod <> ")"
+  EThereExists v dom cod ->
+    "(there-exists (" <> v <> " " <> renderTypeTyped dom <> ") " <> renderTypeTyped cod <> ")"
+  ECompType eff t ->
+    if isEffectAny eff
+      then "(computation " <> renderTypeTyped t <> ")"
+      else "(computation " <> renderTypeTyped eff <> " " <> renderTypeTyped t <> ")"
+  EEqual ty lhs rhs ->
+    "(equal " <> renderTypeTyped ty <> " " <> renderExprTyped lhs <> " " <> renderExprTyped rhs <> ")"
+  EReflexive ty term ->
+    "(reflexive " <> renderTypeTyped ty <> " " <> renderExprTyped term <> ")"
+  ERewrite family proof body ->
+    "(rewrite " <> renderExprTyped family <> " " <> renderExprTyped proof <> " " <> renderExprTyped body <> ")"
+  EPack v dom cod witness body ->
+    "(pack (" <> v <> " " <> renderTypeTyped dom <> ") " <> renderTypeTyped cod
+      <> " " <> renderExprTyped witness <> " " <> renderExprTyped body <> ")"
+  EUnpack packed x y body ->
+    "(unpack " <> renderExprTyped packed <> " (" <> x <> " " <> y <> ") "
+      <> renderExprTyped body <> ")"
+  ELift ty fromLevel toLevel ->
+    "(lift " <> renderTypeTyped ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> ")"
+  EUp ty fromLevel toLevel body ->
+    "(up " <> renderTypeTyped ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> " " <> renderExprTyped body <> ")"
+  EDown ty fromLevel toLevel body ->
+    "(down " <> renderTypeTyped ty <> " " <> renderUniverseAtom fromLevel
+      <> " " <> renderUniverseAtom toLevel <> " " <> renderExprTyped body <> ")"
+  EApp f args     -> "(" <> DT.unwords (renderExprTyped f : map renderExprTyped args) <> ")"
+  EFunction params constraints retTy body ->
+    "(function " <> DT.unwords (map renderParamTyped params)
+      <> (if null params then "" else " ")
+      <> renderConstraintsSTyped constraints
+      <> renderTypeTyped retTy <> " " <> renderFunctionBodyTyped body <> ")"
+  ELet name val body ->
+    "(let (" <> name <> " " <> renderExprTyped val <> ") " <> renderExprTyped body <> ")"
+  ECompute comp -> "(compute " <> renderCompTyped comp <> ")"
+  EMatch scrut scrutTy scrutName retTy cases ->
+    "(match (of-type " <> renderExprTyped scrut <> " " <> renderTypeTyped scrutTy <> ") "
+      <> scrutName <> " " <> renderTypeTyped retTy <> " "
+      <> DT.unwords (map renderMatchCaseTyped cases) <> ")"
+  EData params universe cases ->
+    "(data " <> DT.unwords (map renderParamTyped params ++ [renderExprTyped universe] ++ map renderDataCaseTyped cases) <> ")"
+  EAnnot e ty -> "(of-type " <> renderExprTyped e <> " " <> renderTypeTyped ty <> ")"
+  ETyped e ty -> "(typed " <> renderExprTyped e <> " " <> renderTypeTyped ty <> ")"
+  EDict className impls ->
+    "(dict " <> className <> " " <>
+    DT.intercalate " " [n <> " " <> renderExprTyped e | (n, e) <- impls] <> ")"
+  EDictAccess d method -> "(dict-access " <> renderExprTyped d <> " " <> method <> ")"
+  ETypeClass param kind methods ->
+    "(typeclass (" <> param <> " of-kind " <> renderTypeTyped kind <> ") "
+      <> DT.unwords (map renderClassMethodTyped methods) <> ")"
+  EInstance className instTy methods ->
+    "(instance " <> className <> " " <> renderTypeTyped instTy <> " "
+      <> DT.unwords (map renderInstanceMethodTyped methods) <> ")"
+  where
+    renderList elems =
+      case elems of
+        [] -> ""
+        _ -> " " <> DT.unwords (map renderExprTyped elems)
+
+exprToSExprTextTyped :: Expr -> DT.Text
+exprToSExprTextTyped = renderExprTyped
+
+renderParamTyped :: Param -> DT.Text
+renderParamTyped (Param name ty) = "(" <> name <> " " <> renderTypeTyped ty <> ")"
+
+renderConstraintsSTyped :: [Constraint] -> DT.Text
+renderConstraintsSTyped [] = ""
+renderConstraintsSTyped cs =
+  " (requires " <> DT.unwords (map renderConstraintSTyped cs) <> ") "
+
+renderConstraintSTyped :: Constraint -> DT.Text
+renderConstraintSTyped (Constraint className ty) =
+  "(" <> className <> " " <> renderTypeTyped ty <> ")"
+
+renderClassMethodTyped :: (Text, Expr) -> DT.Text
+renderClassMethodTyped (name, ty) =
+  "(" <> name <> " of-type " <> renderTypeTyped ty <> ")"
+
+renderInstanceMethodTyped :: (Text, Expr) -> DT.Text
+renderInstanceMethodTyped (name, body) =
+  "(" <> name <> " " <> renderExprTyped body <> ")"
+
+renderFunctionBodyTyped :: FunctionBody -> DT.Text
+renderFunctionBodyTyped body = case body of
+  FunctionValue e -> "(value " <> renderExprTyped e <> ")"
+  FunctionCompute c -> "(compute " <> renderCompTyped c <> ")"
+
+renderMatchCaseTyped :: MatchCase -> DT.Text
+renderMatchCaseTyped (MatchCase ctor binders body) =
+  "(case " <> ctor <> " " <> DT.unwords (map renderParamTyped binders ++ [renderExprTyped body]) <> ")"
+
+renderDataCaseTyped :: DataCase -> DT.Text
+renderDataCaseTyped (DataCase ctor ty) =
+  "(case " <> ctor <> " " <> renderTypeTyped ty <> ")"
+
+renderCompTyped :: Comp -> DT.Text
+renderCompTyped comp = case comp of
+  CReturn e      -> "(return " <> renderExprTyped e <> ")"
+  CPerform e     -> "(perform " <> renderExprTyped e <> ")"
+  CBind v c1 c2  -> "(bind (" <> v <> " " <> renderCompTyped c1 <> ") " <> renderCompTyped c2 <> ")"
 
 renderParam :: Param -> DT.Text
 renderParam (Param name ty) = "(" <> name <> " " <> T.typeToSExpr ty <> ")"
