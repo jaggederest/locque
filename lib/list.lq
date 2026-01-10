@@ -312,4 +312,63 @@ module list contains
           xs
       end
     end
+
+  define transparent find as
+    function A Type0 predicate (Types::Predicate A) xs (List A) returns (Option A) value
+      match xs of-type (List A) as ignored returns (Option A)
+        case List::empty as Option::none A
+        case List::cons with h A t (List A) as
+          match (predicate h) of-type Boolean as ignored returns (Option A)
+            case Boolean::true as Option::some A h
+            case Boolean::false as recur A predicate t
+          end
+      end
+    end
+
+  define transparent zip as
+    function A Type0 B Type0 xs (List A) ys (List B) returns (List (Pair A B)) value
+      match xs of-type (List A) as ignored returns (List (Pair A B))
+        case List::empty as P::nil (Pair A B)
+        case List::cons with hx A tx (List A) as
+          match ys of-type (List B) as ignored returns (List (Pair A B))
+            case List::empty as P::nil (Pair A B)
+            case List::cons with hy B ty (List B) as
+              P::cons (Pair A B) (P::pair A B hx hy) (recur A B tx ty)
+          end
+      end
+    end
+
+  define transparent unzip as
+    function A Type0 B Type0 xs (List (Pair A B)) returns (Pair (List A) (List B)) value
+      let value folded be
+        P::fold (Pair A B) (Pair (List A) (List B))
+          (function acc (Pair (List A) (List B)) x (Pair A B) returns (Pair (List A) (List B)) value
+            match acc of-type (Pair (List A) (List B)) as ignored returns (Pair (List A) (List B))
+              case Pair::pair with left (List A) right (List B) as
+                match x of-type (Pair A B) as ignored returns (Pair (List A) (List B))
+                  case Pair::pair with a A b B as
+                    P::pair (List A) (List B) (P::cons A a left) (P::cons B b right)
+                end
+            end
+          end)
+          (P::pair (List A) (List B) (P::nil A) (P::nil B))
+          xs
+      in
+        match folded of-type (Pair (List A) (List B)) as ignored returns (Pair (List A) (List B))
+          case Pair::pair with left (List A) right (List B) as
+            P::pair (List A) (List B) (reverse A left) (reverse B right)
+        end
+    end
+
+  define transparent removeFirst as
+    function A Type0 item A xs (List A) requires Equality A returns (List A) value
+      match xs of-type (List A) as ignored returns (List A)
+        case List::empty as P::nil A
+        case List::cons with h A t (List A) as
+          match (eq item h) of-type Boolean as ignored returns (List A)
+            case Boolean::true as t
+            case Boolean::false as P::cons A h (recur A item t)
+          end
+      end
+    end
 end

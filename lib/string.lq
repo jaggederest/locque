@@ -847,4 +847,37 @@ module string contains
     function start Natural len Natural s String returns String value
       substring start len s
     end
+
+  define transparent replace as
+    function needle String replacement String s String returns String value
+      join-with replacement (split-on needle s)
+    end
+
+  define transparent char-to-lower as
+    function c Character returns Character value
+      let value code be char-code c in
+        match (class-contains-code upper-class code) of-type Boolean as ignored returns Character
+          case Boolean::true as char-from-code (Ar::add code 32)
+          case Boolean::false as c
+        end
+      end
+
+  define transparent char-to-upper as
+    function c Character returns Character value
+      let value code be char-code c in
+        match (class-contains-code lower-class code) of-type Boolean as ignored returns Character
+          case Boolean::true as char-from-code (Ar::subtract code 32)
+          case Boolean::false as c
+        end
+      end
+
+  define transparent to-lower as
+    function s String returns String value
+      from-list (P::map Character Character char-to-lower (to-list s))
+    end
+
+  define transparent to-upper as
+    function s String returns String value
+      from-list (P::map Character Character char-to-upper (to-list s))
+    end
 end

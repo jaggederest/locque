@@ -17,20 +17,35 @@ lowerModule (AST.Module modName _imports _opens defs) =
   let typeNames = collectTypeNames defs
       ctorNames = collectCtorNames defs
       ctorArity = collectCtorArity defs
-      lowered = CoreModule (Name modName) (map (lowerDefinition typeNames ctorNames ctorArity Set.empty) defs)
+      constraintsMap = collectConstraintsMap defs
+      lowered = CoreModule (Name modName) (map (lowerDefinition typeNames ctorNames ctorArity constraintsMap Set.empty) defs)
    in simplifyModule lowered
 
-lowerDefinition :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.Definition -> CoreDecl
-lowerDefinition typeNames ctorNames ctorArity typeVars defn =
+lowerDefinition :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.Definition -> CoreDecl
+lowerDefinition typeNames ctorNames ctorArity constraintsMap typeVars defn =
   case AST.defBody defn of
     AST.EData params _universe cases ->
       CoreData (lowerDataDecl (AST.defName defn) params cases)
+    AST.ETypeClass paramName _kind methods ->
+      CoreData (lowerTypeClass (AST.defName defn) paramName methods)
+    AST.EInstance className _instType methods ->
+      CoreDef
+        (Name (AST.defName defn))
+        (lowerType Set.empty (getDefType defn))
+        (lowerInstance typeNames ctorNames ctorArity constraintsMap typeVars className methods)
     body ->
       let body' = rewriteRecurExpr (AST.defName defn) body
        in CoreDef
             (Name (AST.defName defn))
-            TyUnit
-            (lowerExpr typeNames ctorNames ctorArity typeVars body')
+            (lowerType Set.empty (getDefType defn))
+            (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body')
+
+getDefType :: AST.Definition -> AST.Expr
+getDefType defn =
+  case AST.defBody defn of
+    AST.ETyped _ t -> t
+    AST.EAnnot _ t -> t
+    _ -> AST.ETypeUniverse 0 -- Fallback, should not happen in typechecked code
 
 collectTypeNames :: [AST.Definition] -> Set.Set T.Text
 collectTypeNames defs =
@@ -116,8 +131,8 @@ isTypeFunctionExpr typeNames expr =
     AST.ETyped inner _ -> isTypeFunctionExpr typeNames inner
     _ -> False
 
-lowerExpr :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.Expr -> CoreValue
-lowerExpr typeNames ctorNames ctorArity typeVars expr =
+lowerExpr :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.Expr -> CoreValue
+lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars expr =
   case expr of
     AST.EVar name ->
       if name `Set.member` ctorNames
@@ -125,39 +140,57 @@ lowerExpr typeNames ctorNames ctorArity typeVars expr =
         else if isTypeExpr typeNames typeVars (AST.EVar name)
           then VErased
           else VVar (Name name)
+
     AST.ELit lit -> VLit (lowerLiteral lit)
-    AST.EListLiteral elems -> lowerListLiteral typeNames ctorNames ctorArity typeVars elems
-    AST.ECompute comp -> VCompute (lowerComp typeNames ctorNames ctorArity typeVars comp)
-    AST.EAnnot inner _ty -> lowerExpr typeNames ctorNames ctorArity typeVars inner
-    AST.ETyped inner _ty -> lowerExpr typeNames ctorNames ctorArity typeVars inner
+    AST.EListLiteral elems -> lowerListLiteral typeNames ctorNames ctorArity constraintsMap typeVars elems
+    AST.ECompute comp -> VCompute (lowerComp typeNames ctorNames ctorArity constraintsMap typeVars comp)
+    AST.EAnnot inner _ty -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars inner
+    AST.ETyped inner _ty -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars inner
     AST.EApp fn args ->
       if isTypeExpr typeNames typeVars fn
         then VErased
         else
-          case lowerAppArgs typeNames ctorNames ctorArity typeVars args of
-            [] -> lowerExpr typeNames ctorNames ctorArity typeVars fn
+          case lowerAppArgs typeNames ctorNames ctorArity constraintsMap typeVars args of
+            [] -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars fn
             args' ->
               case fn of
                 AST.EVar name | name `Set.member` ctorNames ->
                   VConstructor
                     (Name name)
                     (trimCtorArgs ctorArity name args')
-                _ -> foldl VApp (lowerExpr typeNames ctorNames ctorArity typeVars fn) args'
-    AST.EFunction params _constraints _retTy body ->
-      lowerFunction typeNames ctorNames ctorArity typeVars params body
+                _ ->
+                  let calleeName = getCalleeName fn
+                      dictArgs =
+                        case calleeName >>= (\name -> Map.lookup name constraintsMap) of
+                          Just constraints ->
+                            map (\(AST.Constraint cls _) -> VVar (Name (T.toLower cls <> "-dict"))) constraints
+                          Nothing -> []
+                      finalArgs = dictArgs ++ args'
+                  in foldl VApp (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars fn) finalArgs
+
+getCalleeName :: AST.Expr -> Maybe T.Text
+getCalleeName (AST.EVar name) = Just name
+getCalleeName (AST.EApp fn _) = getCalleeName fn
+getCalleeName (AST.ETyped e _) = getCalleeName e
+getCalleeName (AST.EAnnot e _) = getCalleeName e
+getCalleeName (AST.ELet _ _ body) = getCalleeName body
+getCalleeName (AST.EMatch _ _ _ _ [cse]) = getCalleeName (AST.matchCaseBody cse)
+getCalleeName _ = Nothing
+    AST.EFunction params constraints _retTy body ->
+      lowerFunction typeNames ctorNames ctorArity constraintsMap typeVars params constraints body
     AST.ELet name value body ->
       if isTypeExpr typeNames typeVars value
-        then lowerExpr typeNames ctorNames ctorArity (Set.insert name typeVars) body
+        then lowerExpr typeNames ctorNames ctorArity constraintsMap (Set.insert name typeVars) body
         else VLet
           (Name name)
-          (lowerExpr typeNames ctorNames ctorArity typeVars value)
-          (lowerExpr typeNames ctorNames ctorArity typeVars body)
+          (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars value)
+          (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body)
     AST.EMatch scrut _scrutTy _scrutName retTy cases ->
       if isUniverseExpr retTy
         then VErased
         else VMatch
-          (lowerExpr typeNames ctorNames ctorArity typeVars scrut)
-          (map (lowerValueMatchCase typeNames ctorNames ctorArity typeVars) cases)
+          (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars scrut)
+          (map (lowerValueMatchCase typeNames ctorNames ctorArity constraintsMap typeVars) cases)
     AST.EData _params _retTy _cases ->
       error "lowerExpr: data declarations are not supported yet"
     AST.ETypeConst _ -> VErased
@@ -167,95 +200,104 @@ lowerExpr typeNames ctorNames ctorArity typeVars expr =
     AST.ECompType {} -> VErased
     AST.EEqual {} -> VErased
     AST.EReflexive {} -> VErased
-    AST.ERewrite _family _proof term -> lowerExpr typeNames ctorNames ctorArity typeVars term
+    AST.ERewrite _family _proof term -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars term
     AST.EPack _ _ _ witness body ->
       VConstructor
         (Name "Pair::pair")
-        [ lowerExpr typeNames ctorNames ctorArity typeVars witness
-        , lowerExpr typeNames ctorNames ctorArity typeVars body
+        [ lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars witness
+        , lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body
         ]
     AST.EUnpack packed x y body ->
       VMatch
-        (lowerExpr typeNames ctorNames ctorArity typeVars packed)
+        (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars packed)
         [ CoreValueCase
             (Name "Pair::pair")
             [Name x, Name y]
-            (lowerExpr typeNames ctorNames ctorArity typeVars body)
+            (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body)
         ]
     AST.ELift {} -> VErased
-    AST.EUp _ty _from _to body -> lowerExpr typeNames ctorNames ctorArity typeVars body
-    AST.EDown _ty _from _to body -> lowerExpr typeNames ctorNames ctorArity typeVars body
+    AST.EUp _ty _from _to body -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body
+    AST.EDown _ty _from _to body -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body
     AST.ETypeClass {} -> VErased
     AST.EInstance {} -> VErased
     AST.EDict _ impls ->
-      lowerDict typeNames ctorNames ctorArity typeVars impls
+      lowerDict typeNames ctorNames ctorArity constraintsMap typeVars impls
     AST.EDictAccess dictExpr method ->
       VApp
         (VApp
           (VVar (Name "dict-access-prim"))
-          (lowerExpr typeNames ctorNames ctorArity typeVars dictExpr))
+          (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars dictExpr))
         (VLit (LitString method))
 
-lowerFunction :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> [AST.Param] -> AST.FunctionBody -> CoreValue
-lowerFunction typeNames ctorNames ctorArity typeVars params body =
+lowerFunction :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> [AST.Param] -> [AST.Constraint] -> AST.FunctionBody -> CoreValue
+lowerFunction typeNames ctorNames ctorArity constraintsMap typeVars params constraints body =
+  let paramValue = lowerFunction' typeNames ctorNames ctorArity constraintsMap typeVars params body
+   in foldr
+        (\(AST.Constraint cls _ty) acc ->
+           VLam (Name (T.toLower cls <> "-dict")) TyUnit acc)
+        paramValue
+        constraints
+lowerFunction' :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> [AST.Param] -> AST.FunctionBody -> CoreValue
+lowerFunction' typeNames ctorNames ctorArity constraintsMap typeVars params body =
   case params of
-    [] -> lowerFunctionBody typeNames ctorNames ctorArity typeVars body
+    [] -> lowerFunctionBody typeNames ctorNames ctorArity constraintsMap typeVars body
     (AST.Param name ty : rest) ->
       if isTypeParam ty
-        then lowerFunction typeNames ctorNames ctorArity (Set.insert name typeVars) rest body
-        else VLam (Name name) TyUnit (lowerFunction typeNames ctorNames ctorArity typeVars rest body)
+        then lowerFunction' typeNames ctorNames ctorArity constraintsMap (Set.insert name typeVars) rest body
+        else VLam (Name name) TyUnit (lowerFunction' typeNames ctorNames ctorArity constraintsMap typeVars rest body)
 
-lowerFunctionBody :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.FunctionBody -> CoreValue
-lowerFunctionBody typeNames ctorNames ctorArity typeVars body =
+lowerFunctionBody :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.FunctionBody -> CoreValue
+lowerFunctionBody typeNames ctorNames ctorArity constraintsMap typeVars body =
   case body of
-    AST.FunctionValue expr -> lowerExpr typeNames ctorNames ctorArity typeVars expr
-    AST.FunctionCompute comp -> VCompute (lowerComp typeNames ctorNames ctorArity typeVars comp)
+    AST.FunctionValue expr -> lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars expr
+    AST.FunctionCompute comp -> VCompute (lowerComp typeNames ctorNames ctorArity constraintsMap typeVars comp)
 
-lowerComp :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.Comp -> CoreComp
-lowerComp typeNames ctorNames ctorArity typeVars comp =
+lowerComp :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.Comp -> CoreComp
+lowerComp typeNames ctorNames ctorArity constraintsMap typeVars comp =
   case comp of
-    AST.CReturn expr -> CReturn (lowerExpr typeNames ctorNames ctorArity typeVars expr)
+    AST.CReturn expr -> CReturn (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars expr)
     AST.CBind name left right ->
       CBind
         (Name name)
-        (lowerComp typeNames ctorNames ctorArity typeVars left)
-        (lowerComp typeNames ctorNames ctorArity typeVars right)
-    AST.CPerform expr -> CPerform (lowerExpr typeNames ctorNames ctorArity typeVars expr)
+        (lowerComp typeNames ctorNames ctorArity constraintsMap typeVars left)
+        (lowerComp typeNames ctorNames ctorArity constraintsMap typeVars right)
+    AST.CPerform expr -> CPerform (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars expr)
 
-lowerAppArgs :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> [AST.Expr] -> [CoreValue]
-lowerAppArgs typeNames ctorNames ctorArity typeVars args =
-  mapMaybe (lowerAppArg typeNames ctorNames ctorArity typeVars) args
+lowerAppArgs :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> [AST.Expr] -> [CoreValue]
+lowerAppArgs typeNames ctorNames ctorArity constraintsMap typeVars args =
+  mapMaybe (lowerAppArg typeNames ctorNames ctorArity constraintsMap typeVars) args
 
-lowerAppArg :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.Expr -> Maybe CoreValue
-lowerAppArg typeNames ctorNames ctorArity typeVars arg
+lowerAppArg :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.Expr -> Maybe CoreValue
+lowerAppArg typeNames ctorNames ctorArity constraintsMap typeVars arg
   | isProofTerm arg = Just VErased
   | isTypeArg typeNames typeVars arg = Nothing
-  | otherwise = Just (lowerExpr typeNames ctorNames ctorArity typeVars arg)
+  | otherwise = Just (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars arg)
 
-lowerValueMatchCase :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.MatchCase -> CoreValueCase
-lowerValueMatchCase typeNames ctorNames ctorArity typeVars (AST.MatchCase ctor params body) =
+lowerValueMatchCase :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> AST.MatchCase -> CoreValueCase
+lowerValueMatchCase typeNames ctorNames ctorArity constraintsMap typeVars (AST.MatchCase ctor params body) =
   CoreValueCase
     (Name ctor)
     (map (Name . AST.paramName) params)
-    (lowerExpr typeNames ctorNames ctorArity typeVars body)
+    (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars body)
 
-lowerListLiteral :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> [AST.Expr] -> CoreValue
-lowerListLiteral typeNames ctorNames ctorArity typeVars elems =
+lowerListLiteral :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Map.Map T.Text [AST.Constraint] -> Set.Set T.Text -> [AST.Expr] -> CoreValue
+lowerListLiteral typeNames ctorNames ctorArity constraintsMap typeVars elems =
   foldr
     (\elemValue acc ->
         VConstructor
           (Name "List::cons")
-          [lowerExpr typeNames ctorNames ctorArity typeVars elemValue, acc])
+          [lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars elemValue, acc])
     (VConstructor (Name "List::empty") [])
     elems
 
 lowerDict :: Set.Set T.Text
           -> Set.Set T.Text
           -> Map.Map T.Text Int
+          -> Map.Map T.Text [AST.Constraint]
           -> Set.Set T.Text
           -> [(T.Text, AST.Expr)]
           -> CoreValue
-lowerDict typeNames ctorNames ctorArity typeVars entries =
+lowerDict typeNames ctorNames ctorArity constraintsMap typeVars entries =
   foldr
     (\(methodName, implExpr) acc ->
         VConstructor
@@ -263,7 +305,7 @@ lowerDict typeNames ctorNames ctorArity typeVars entries =
           [ VConstructor
               (Name "Pair::pair")
               [ VLit (LitString methodName)
-              , lowerExpr typeNames ctorNames ctorArity typeVars implExpr
+              , lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars implExpr
               ]
           , acc
           ])
@@ -791,3 +833,38 @@ lowerTypeConst tc =
     AST.TCDictionary -> TyCon (Name "Dictionary") []
     AST.TCListener -> TyCon (Name "Listener") []
     AST.TCSocket -> TyCon (Name "Socket") []
+
+lowerTypeClass :: T.Text -> T.Text -> [(T.Text, AST.Expr)] -> CoreDataDecl
+lowerTypeClass className paramName methods =
+  CoreDataDecl
+    (Name className)
+    [Name paramName]
+    [CoreCtor (Name (className <> ::dict)) (map (lowerType (Set.singleton paramName) . snd) methods)]
+
+lowerInstance :: Set.Set T.Text
+              -> Set.Set T.Text
+              -> Map.Map T.Text Int
+              -> Map.Map T.Text [AST.Constraint]
+              -> Set.Set T.Text
+              -> T.Text
+              -> [(T.Text, AST.Expr)]
+              -> CoreValue
+lowerInstance typeNames ctorNames ctorArity constraintsMap typeVars className methods =
+  VConstructor
+    (Name (className <> ::dict))
+    (map (lowerExpr typeNames ctorNames ctorArity constraintsMap typeVars . snd) methods)
+
+getDefConstraints :: AST.Expr -> [AST.Constraint]
+getDefConstraints expr =
+  case expr of
+    AST.EFunction _ c _ _ -> c
+    AST.ETyped e _ -> getDefConstraints e
+    AST.EAnnot e _ -> getDefConstraints e
+    _ -> []
+
+collectConstraintsMap :: [AST.Definition] -> Map.Map T.Text [AST.Constraint]
+collectConstraintsMap defs =
+  Map.fromList
+    [ (AST.defName defn, getDefConstraints (AST.defBody defn))
+    | defn <- defs
+    ]
