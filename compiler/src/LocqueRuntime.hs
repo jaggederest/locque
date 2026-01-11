@@ -122,7 +122,7 @@ import System.Directory
   , renameDirectory
   , renameFile
   )
-import System.Environment (getArgs)
+import System.Environment (getArgs, lookupEnv)
 import System.Exit (ExitCode(..))
 import System.FilePath (pathSeparator, (</>))
 import System.IO.Unsafe (unsafePerformIO)
@@ -770,9 +770,14 @@ validatePrim source =
     TIO.hPutStr handle normalized
     hClose handle
     let outPath = path <> ".lqs"
+    interpreterEnv <- lookupEnv "LOCQUE_INTERPRETER"
+    let interpreter = case interpreterEnv of
+          Just pathValue
+            | not (null pathValue) -> pathValue
+          _ -> "locque-interpreter"
     (exitCode, _out, _err) <-
       readCreateProcessWithExitCode
-        (proc "locque-interpreter" ["emit-lqs", path, outPath])
+        (proc interpreter ["emit-lqs", path, outPath])
         ""
     _ <- try (removeFile path) :: IO (Either SomeException ())
     _ <- try (removeFile outPath) :: IO (Either SomeException ())

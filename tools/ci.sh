@@ -10,11 +10,17 @@ run_build() {
 
 run_test() {
   echo "==> smyth test"
+  (cd "$ROOT/interpreter" && cabal build locque-interpreter)
+  export LOCQUE_INTERPRETER
+  LOCQUE_INTERPRETER="$(cd "$ROOT/interpreter" && cabal list-bin locque-interpreter)"
   (cd "$ROOT/interpreter" && cabal run smyth -- test "$@")
 }
 
 run_compile_test() {
   echo "==> smyth compile-test"
+  (cd "$ROOT/interpreter" && cabal build locque-interpreter)
+  export LOCQUE_INTERPRETER
+  LOCQUE_INTERPRETER="$(cd "$ROOT/interpreter" && cabal list-bin locque-interpreter)"
   (cd "$ROOT/interpreter" && cabal run smyth -- compile-test "$@")
 }
 
