@@ -339,6 +339,15 @@ module main contains
       end
     end
 
+  define transparent append-run-args as
+    function base (List String) run-args (List String) returns (List String) value
+      match run-args of-type (List String) as ignored returns (List String)
+        case List::empty as base
+        case List::cons with h String t (List String) as
+          P::append String base (P::cons String "--" run-args)
+      end
+    end
+
   define transparent is-test-flag as
     function arg String returns Boolean value
       match (S::eq arg "--slow") of-type Boolean as ignored returns Boolean
@@ -393,6 +402,91 @@ module main contains
       parse-test-opts-helper args (Option::none String) (Option::none String) (P::nil String)
     end
 
+  define transparent parse-compile-opts-helper as
+    function args (List String)
+             file-opt (Option String)
+             out-opt (Option String)
+             debug Boolean
+    returns (Option (Pair (Pair (Option String) Boolean) String)) value
+      match args of-type (List String) as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+        case List::empty as
+          match file-opt of-type (Option String) as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+            case Option::none as Option::none (Pair (Pair (Option String) Boolean) String)
+            case Option::some with file String as
+              Option::some (Pair (Pair (Option String) Boolean) String)
+                (P::pair (Pair (Option String) Boolean) String
+                  (P::pair (Option String) Boolean out-opt debug)
+                  file)
+          end
+        case List::cons with h String t (List String) as
+          match (S::starts-with "--" h) of-type Boolean as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+            case Boolean::true as
+              match (S::eq h "--out") of-type Boolean as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                case Boolean::true as
+                  match t of-type (List String) as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                    case List::empty as Option::none (Pair (Pair (Option String) Boolean) String)
+                    case List::cons with out-path String rest (List String) as
+                      match out-opt of-type (Option String) as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                        case Option::none as
+                          recur rest file-opt (Option::some String out-path) debug
+                        case Option::some with ignored String as Option::none (Pair (Pair (Option String) Boolean) String)
+                      end
+                  end
+                case Boolean::false as
+                  match (S::eq h "--debug") of-type Boolean as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                    case Boolean::true as
+                      match debug of-type Boolean as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                        case Boolean::true as Option::none (Pair (Pair (Option String) Boolean) String)
+                        case Boolean::false as recur t file-opt out-opt true
+                      end
+                    case Boolean::false as Option::none (Pair (Pair (Option String) Boolean) String)
+                  end
+              end
+            case Boolean::false as
+              match file-opt of-type (Option String) as ignored returns (Option (Pair (Pair (Option String) Boolean) String))
+                case Option::none as recur t (Option::some String h) out-opt debug
+                case Option::some with ignored String as Option::none (Pair (Pair (Option String) Boolean) String)
+              end
+          end
+      end
+    end
+
+  define transparent parse-compile-opts as
+    function args (List String) returns (Option (Pair (Pair (Option String) Boolean) String)) value
+      parse-compile-opts-helper args (Option::none String) (Option::none String) false
+    end
+
+  define transparent parse-compile-test-opts-helper as
+    function args (List String)
+             out-opt (Option String)
+    returns (Option (Option String)) value
+      match args of-type (List String) as ignored returns (Option (Option String))
+        case List::empty as Option::some (Option String) out-opt
+        case List::cons with h String t (List String) as
+          match (S::starts-with "--" h) of-type Boolean as ignored returns (Option (Option String))
+            case Boolean::true as
+              match (S::eq h "--out") of-type Boolean as ignored returns (Option (Option String))
+                case Boolean::true as
+                  match t of-type (List String) as ignored returns (Option (Option String))
+                    case List::empty as Option::none (Option String)
+                    case List::cons with out-path String rest (List String) as
+                      match out-opt of-type (Option String) as ignored returns (Option (Option String))
+                        case Option::none as recur rest (Option::some String out-path)
+                        case Option::some with ignored String as Option::none (Option String)
+                      end
+                  end
+                case Boolean::false as Option::none (Option String)
+              end
+            case Boolean::false as Option::none (Option String)
+          end
+      end
+    end
+
+  define transparent parse-compile-test-opts as
+    function args (List String) returns (Option (Option String)) value
+      parse-compile-test-opts-helper args (Option::none String)
+    end
+
 
   define transparent assemble-test-args as
     function opt-args (List String) run-args (List String) returns (List String) value
@@ -433,6 +527,34 @@ module main contains
     function root String file String returns String value
       let value base be strip-extension file in
         Path::join (Path::join (Path::join root "tmp") "locque") (Path::join "bin" base)
+      end
+    end
+
+  define transparent build-compile-args as
+    function file String
+             out-opt (Option String)
+             debug Boolean
+             run-args (List String)
+    returns (List String) value
+      let value base be [locque-compiler-name, "compile"] in
+        let value with-debug be
+          match debug of-type Boolean as ignored returns (List String)
+            case Boolean::true as P::append String base ["--debug"]
+            case Boolean::false as base
+          end
+        in
+          let value with-out be
+            match out-opt of-type (Option String) as ignored returns (List String)
+              case Option::none as with-debug
+              case Option::some with out-path String as
+                P::append String with-debug ["--out", out-path]
+            end
+          in
+            let value with-file be P::append String with-out [file] in
+              append-run-args with-file run-args
+            end
+          end
+        end
       end
     end
 
@@ -734,10 +856,9 @@ module main contains
                   end
                 end
             end
+          end
         end
       end
-    end
-
   define transparent load-error-tests as
     function root String returns computation (List (Pair String String)) value
       let value path be Path::join root smythfile-name in
@@ -1117,6 +1238,135 @@ module main contains
         end
       end
     end
+
+  define transparent print-output-or-empty as
+    function text String returns computation Unit value
+      match (S::is-empty text) of-type Boolean as ignored returns (computation Unit)
+        case Boolean::true as IO::print "<empty>"
+        case Boolean::false as print-text-lines text
+      end
+    end
+
+  define transparent report-compile-test-results as
+    function interp (Pair Natural (Pair String String))
+             compiled (Pair Natural (Pair String String))
+    returns (computation Unit) value
+      match interp of-type (Pair Natural (Pair String String)) as ignored returns (computation Unit)
+        case Pair::pair with interp-code Natural interp-output (Pair String String) as
+          match interp-output of-type (Pair String String) as ignored returns (computation Unit)
+            case Pair::pair with interp-stdout String interp-stderr String as
+              match compiled of-type (Pair Natural (Pair String String)) as ignored returns (computation Unit)
+                case Pair::pair with compiled-code Natural compiled-output (Pair String String) as
+                  match compiled-output of-type (Pair String String) as ignored returns (computation Unit)
+                    case Pair::pair with compiled-stdout String compiled-stderr String as
+                      let value exit-match be Eq::equals Natural interp-code compiled-code in
+                        let value out-match be S::eq interp-stdout compiled-stdout in
+                          let value err-match be S::eq interp-stderr compiled-stderr in
+                            let value interp-ok be Eq::equals Natural interp-code 0 in
+                              let value compiled-ok be Eq::equals Natural compiled-code 0 in
+                                let value success be
+                                  match interp-ok of-type Boolean as ignored returns Boolean
+                                    case Boolean::false as false
+                                    case Boolean::true as compiled-ok
+                                  end
+                                in
+                                  let value outputs-match be
+                                    match out-match of-type Boolean as ignored returns Boolean
+                                      case Boolean::false as false
+                                      case Boolean::true as err-match
+                                    end
+                                  in
+                                    let value all-match be
+                                      match success of-type Boolean as ignored returns Boolean
+                                        case Boolean::false as false
+                                        case Boolean::true as outputs-match
+                                      end
+                                    in
+                                      let value show-exit be
+                                        match success of-type Boolean as ignored returns Boolean
+                                          case Boolean::false as true
+                                          case Boolean::true as
+                                            match exit-match of-type Boolean as ignored returns Boolean
+                                              case Boolean::true as false
+                                              case Boolean::false as true
+                                            end
+                                        end
+                                      in
+                                        match all-match of-type Boolean as ignored returns (computation Unit)
+                                          case Boolean::true as IO::print "compile-test: OK (outputs match)"
+                                          case Boolean::false as
+                                            compute
+                                              perform
+                                                (let value exit-step be
+                                                  match show-exit of-type Boolean as ignored returns (computation Unit)
+                                                    case Boolean::true as
+                                                      compute
+                                                        bind ignored from perform
+                                                          (IO::print (S::concat "Interpreter exit: " (N::to-string interp-code))) then
+                                                          perform (IO::print (S::concat "Compiled exit: " (N::to-string compiled-code)))
+                                                        end
+                                                      end
+                                                    case Boolean::false as compute return tt end
+                                                  end
+                                                in
+                                                  let value stdout-step be
+                                                    match out-match of-type Boolean as ignored returns (computation Unit)
+                                                      case Boolean::true as compute return tt end
+                                                      case Boolean::false as
+                                                        compute
+                                                          bind ignored from perform (IO::print "Interpreter stdout:") then
+                                                            bind ignored from perform (print-output-or-empty interp-stdout) then
+                                                              bind ignored from perform (IO::print "Compiled stdout:") then
+                                                                perform (print-output-or-empty compiled-stdout)
+                                                              end
+                                                            end
+                                                          end
+                                                        end
+                                                    end
+                                                  in
+                                                    let value stderr-step be
+                                                      match err-match of-type Boolean as ignored returns (computation Unit)
+                                                        case Boolean::true as compute return tt end
+                                                        case Boolean::false as
+                                                          compute
+                                                            bind ignored from perform (IO::print "Interpreter stderr:") then
+                                                              bind ignored from perform (print-output-or-empty interp-stderr) then
+                                                                bind ignored from perform (IO::print "Compiled stderr:") then
+                                                                  perform (print-output-or-empty compiled-stderr)
+                                                                end
+                                                              end
+                                                            end
+                                                          end
+                                                      end
+                                                    in
+                                                      P::sequence-unit
+                                                        [
+                                                          (IO::print "compile-test: FAIL")
+                                                        , exit-step
+                                                        , stdout-step
+                                                        , stderr-step
+                                                        , (IO::panic "")
+                                                        ]
+                                                    end
+                                                  end
+                                                end)
+                                            end
+                                        end
+                                    end
+                                  end
+                                end
+                              end
+                            end
+                          end
+                        end
+                      end
+                  end
+              end
+          end
+      end
+    end
+    end
+
   define transparent default-targets-from-root as
     function root String returns (List String) value
       [
@@ -1225,6 +1475,8 @@ module main contains
         , (IO::print "Usage:")
         , (IO::print "  smyth run <file>     Type check and run a .lq/.lqs file")
         , (IO::print "  smyth test [--slow] [--verbose] [--out <path>] [<file>] [-- <args>]  Compile and run tests (compiled only)")
+        , (IO::print "  smyth compile [--out <path>] [--debug] <file> [-- <args>]  Compile a .lq/.lqs file to a native binary")
+        , (IO::print "  smyth compile-test [--out <path>] [-- <args>]  Compile and compare test suite output")
         , (IO::print "  smyth dump <mode> <file> [name]  Dump (core|normalized|elaborated|types|types-normalized|types-elaborated)")
         , (IO::print "  smyth format [path]  Check .lq formatting in a file or directory")
         , (IO::print "  smyth count          Count .lq lines in lib/ and test/")
@@ -1313,7 +1565,154 @@ module main contains
     end
   end
 
+  define transparent run-compile-command as
+    function args (List String) returns (computation Unit) value
+      let value split be split-on-double-dash args in
+        let value opt-args be P::fst (List String) (List String) split in
+          let value run-args be P::snd (List String) (List String) split in
+            match (parse-compile-opts opt-args) of-type (Option (Pair (Pair (Option String) Boolean) String)) as ignored returns (computation Unit)
+              case Option::none as
+                compute
+                  bind ignored from perform
+                    (IO::print "Error: 'smyth compile' expects [--out <path>] [--debug] <file> [-- <args>]") then
+                    perform print-help
+                  end
+                end
+              case Option::some with parsed (Pair (Pair (Option String) Boolean) String) as
+                match parsed of-type (Pair (Pair (Option String) Boolean) String) as ignored returns (computation Unit)
+                  case Pair::pair with opts (Pair (Option String) Boolean) file String as
+                    match opts of-type (Pair (Option String) Boolean) as ignored returns (computation Unit)
+                      case Pair::pair with out-opt (Option String) debug Boolean as
+                        compute
+                          bind cwd from perform (File::current-directory) then
+                            bind root from perform (find-root cwd) then
+                              perform
+                                (let value resolved-file be resolve-file-path root file in
+                                  let value resolved-out-opt be
+                                    match out-opt of-type (Option String) as ignored returns (Option String)
+                                      case Option::none as Option::none String
+                                      case Option::some with out-path String as
+                                        Option::some String (resolve-file-path root out-path)
+                                    end
+                                  in
+                                    let value compile-args be
+                                      build-compile-args resolved-file resolved-out-opt debug run-args
+                                    in
+                                      run-process root compile-args
+                                    end
+                                  end
+                                end)
+                            end
+                          end
+                        end
+                    end
+                end
+            end
+        end
+      end
+    end
+    end
 
+  define transparent run-compile-test as
+    function root String
+             out-opt (Option String)
+             run-args (List String)
+    returns (computation Unit) value
+      let value file be default-test-file root in
+        let value resolved-file be resolve-file-path root file in
+          let value resolved-out-opt be
+            match out-opt of-type (Option String) as ignored returns (Option String)
+              case Option::none as Option::none String
+              case Option::some with out-path String as
+                Option::some String (resolve-file-path root out-path)
+            end
+          in
+            let value out-path be
+              match resolved-out-opt of-type (Option String) as ignored returns String
+                case Option::none as default-test-out-path root resolved-file
+                case Option::some with resolved-out String as resolved-out
+              end
+            in
+              let value compile-args be
+                build-compile-args resolved-file (Option::some String out-path) false (P::nil String)
+              in
+                let value interp-args be
+                  append-run-args [locque-interpreter-name, "run", resolved-file] run-args
+                in
+                  let value compiled-args be
+                    build-test-run-args out-path run-args
+                  in
+                    compute
+                      bind compile-result from perform (Process::run compile-args (Option::some String root)) then
+                        perform
+                          (match compile-result of-type (Pair Natural (Pair String String)) as ignored returns (computation Unit)
+                            case Pair::pair with code Natural output (Pair String String) as
+                              match output of-type (Pair String String) as ignored returns (computation Unit)
+                                case Pair::pair with stdout String stderr String as
+                                  match (Eq::equals Natural code 0) of-type Boolean as ignored returns (computation Unit)
+                                    case Boolean::false as
+                                      compute
+                                        bind ignored from perform
+                                          (IO::print
+                                            (S::concat "smyth compile failed (" (S::concat (N::to-string code) "):"))) then
+                                          bind ignored from perform (print-output-or-empty (merge-output stdout stderr)) then
+                                            perform (IO::panic "")
+                                          end
+                                        end
+                                      end
+                                    case Boolean::true as
+                                      compute
+                                        bind interp-cwd from perform (choose-run-cwd root) then
+                                          bind interp-result from perform
+                                            (Process::run interp-args
+                                              (Option::some String interp-cwd)) then
+                                            bind compiled-result from perform
+                                              (Process::run compiled-args (Option::some String root)) then
+                                              perform (report-compile-test-results interp-result compiled-result)
+                                            end
+                                          end
+                                        end
+                                      end
+                                end
+                              end
+                          end)
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    end
+
+  define transparent run-compile-test-command as
+    function args (List String) returns (computation Unit) value
+      let value split be split-on-double-dash args in
+        let value opt-args be P::fst (List String) (List String) split in
+          let value run-args be P::snd (List String) (List String) split in
+            match (parse-compile-test-opts opt-args) of-type (Option (Option String)) as ignored returns (computation Unit)
+              case Option::none as
+                compute
+                  bind ignored from perform
+                    (IO::print "Error: 'smyth compile-test' expects [--out <path>] [-- <args>]") then
+                    perform print-help
+                  end
+                end
+              case Option::some with out-opt (Option String) as
+                compute
+                  bind cwd from perform (File::current-directory) then
+                    bind root from perform (find-root cwd) then
+                      perform (run-compile-test root out-opt run-args)
+                    end
+                  end
+                end
+            end
+        end
+      end
+    end
+    end
 
   define transparent unknown-command as
     function cmd String returns (computation Unit) value
@@ -1411,16 +1810,24 @@ module main contains
                       match (S::eq cmd "test") of-type Boolean as ignored returns (computation Unit)
                         case Boolean::true as run-test-command rest
                         case Boolean::false as
-                          match (S::eq cmd "count") of-type Boolean as ignored returns (computation Unit)
-                            case Boolean::true as run-count-command rest
+                          match (S::eq cmd "compile") of-type Boolean as ignored returns (computation Unit)
+                            case Boolean::true as run-compile-command rest
                             case Boolean::false as
-                              match (S::eq cmd "--help") of-type Boolean as ignored returns (computation Unit)
-                                case Boolean::true as print-help
-                                case Boolean::false as unknown-command cmd
+                              match (S::eq cmd "compile-test") of-type Boolean as ignored returns (computation Unit)
+                                case Boolean::true as run-compile-test-command rest
+                                case Boolean::false as
+                                  match (S::eq cmd "count") of-type Boolean as ignored returns (computation Unit)
+                                    case Boolean::true as run-count-command rest
+                                    case Boolean::false as
+                                      match (S::eq cmd "--help") of-type Boolean as ignored returns (computation Unit)
+                                        case Boolean::true as print-help
+                                        case Boolean::false as unknown-command cmd
+                                      end
+                                  end
                               end
                           end
-                      end
               end
+          end
           end
       end
     end

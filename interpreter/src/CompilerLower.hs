@@ -22,7 +22,7 @@ lowerModule (AST.Module modName _imports _opens defs) =
 
 lowerDefinition :: Set.Set T.Text -> Set.Set T.Text -> Map.Map T.Text Int -> Set.Set T.Text -> AST.Definition -> CoreDecl
 lowerDefinition typeNames ctorNames ctorArity typeVars defn =
-  case AST.defBody defn of
+  case stripTypeExpr (AST.defBody defn) of
     AST.EData params _universe cases ->
       CoreData (lowerDataDecl (AST.defName defn) params cases)
     body ->
@@ -38,7 +38,7 @@ collectTypeNames defs =
         Set.fromList
           [ AST.defName defn
           | defn <- defs
-          , AST.EData {} <- [AST.defBody defn]
+          , AST.EData {} <- [stripTypeExpr (AST.defBody defn)]
           ]
       initial = Set.union dataNames builtinTypeNames
    in growTypeNames defs initial
@@ -76,7 +76,7 @@ collectCtorNames defs =
         Set.fromList
           [ AST.dataCaseName dataCase
           | defn <- defs
-          , AST.EData _ _ cases <- [AST.defBody defn]
+          , AST.EData _ _ cases <- [stripTypeExpr (AST.defBody defn)]
           , dataCase <- cases
           ]
    in Set.union dataCtors builtinCtorNames
@@ -86,7 +86,7 @@ collectCtorArity defs =
   Map.fromList
     [ (AST.dataCaseName dataCase, length (collectCtorFields paramNames (AST.dataCaseType dataCase)))
     | defn <- defs
-    , AST.EData params _ cases <- [AST.defBody defn]
+    , AST.EData params _ cases <- [stripTypeExpr (AST.defBody defn)]
     , let paramNames = Set.fromList (map AST.paramName params)
     , dataCase <- cases
     ]
@@ -101,11 +101,17 @@ builtinCtorNames =
 
 isTypeDefinition :: Set.Set T.Text -> AST.Definition -> Bool
 isTypeDefinition typeNames defn =
-  case AST.defBody defn of
+  case stripTypeExpr (AST.defBody defn) of
     AST.EData {} -> True
     body ->
       isTypeExpr typeNames Set.empty body
         || isTypeFunctionExpr typeNames body
+
+stripTypeExpr :: AST.Expr -> AST.Expr
+stripTypeExpr expr = case expr of
+  AST.EAnnot inner _ -> stripTypeExpr inner
+  AST.ETyped inner _ -> stripTypeExpr inner
+  _ -> expr
 
 isTypeFunctionExpr :: Set.Set T.Text -> AST.Expr -> Bool
 isTypeFunctionExpr typeNames expr =
@@ -131,18 +137,19 @@ lowerExpr typeNames ctorNames ctorArity typeVars expr =
     AST.EAnnot inner _ty -> lowerExpr typeNames ctorNames ctorArity typeVars inner
     AST.ETyped inner _ty -> lowerExpr typeNames ctorNames ctorArity typeVars inner
     AST.EApp fn args ->
-      if isTypeExpr typeNames typeVars fn
+      let fn' = stripTypeExpr fn
+       in if isTypeExpr typeNames typeVars fn'
         then VErased
         else
           case lowerAppArgs typeNames ctorNames ctorArity typeVars args of
-            [] -> lowerExpr typeNames ctorNames ctorArity typeVars fn
+            [] -> lowerExpr typeNames ctorNames ctorArity typeVars fn'
             args' ->
-              case fn of
+              case fn' of
                 AST.EVar name | name `Set.member` ctorNames ->
                   VConstructor
                     (Name name)
                     (trimCtorArgs ctorArity name args')
-                _ -> foldl VApp (lowerExpr typeNames ctorNames ctorArity typeVars fn) args'
+                _ -> foldl VApp (lowerExpr typeNames ctorNames ctorArity typeVars fn') args'
     AST.EFunction params _constraints _retTy body ->
       lowerFunction typeNames ctorNames ctorArity typeVars params body
     AST.ELet name value body ->
