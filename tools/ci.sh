@@ -10,12 +10,12 @@ run_build() {
 
 run_test() {
   echo "==> smyth test"
-  (cd "$ROOT/interpreter" && cabal run smyth -- test)
+  (cd "$ROOT/interpreter" && cabal run smyth -- test "$@")
 }
 
 run_compile_test() {
   echo "==> smyth compile-test"
-  (cd "$ROOT/interpreter" && cabal run smyth -- compile-test)
+  (cd "$ROOT/interpreter" && cabal run smyth -- compile-test "$@")
 }
 
 run_build_smyth() {
@@ -26,23 +26,24 @@ run_build_smyth() {
 }
 
 mode="${1:-all}"
+shift || true
 case "$mode" in
   build)
     run_build
     ;;
   test)
-    run_test
+    run_test "$@"
     ;;
   compile-test)
-    run_compile_test
+    run_compile_test "$@"
     ;;
   build-smyth)
     run_build_smyth
     ;;
   all)
     run_build
-    run_test
-    run_compile_test
+    run_test "$@"
+    run_compile_test "$@"
     run_build_smyth
     ;;
   *)

@@ -9,7 +9,7 @@ env:
   CABAL_VERSION: "3.16.1.0"
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,52 +34,11 @@ jobs:
           key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
           restore-keys: |
             ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-
-      - name: Build
-        run: ./tools/ci.sh build
-
-      - name: Collect binaries
-        run: |
-          mkdir -p ci-artifacts/bin
-          cd interpreter
-          for exe in smyth locque-interpreter locque-compiler locque-lsp; do
-            cp "$(cabal list-bin "$exe")" "$GITHUB_WORKSPACE/ci-artifacts/bin/$exe"
-          done
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: locque-binaries
-          path: ci-artifacts/bin
-          if-no-files-found: error
-
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Haskell
-        uses: haskell-actions/setup@v2
-        with:
-          ghc-version: ${{ env.GHC_VERSION }}
-          cabal-version: ${{ env.CABAL_VERSION }}
-          cabal-update: true
-
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: locque-binaries
-          path: ci-artifacts/bin
 
       - name: Test
-        run: |
-          chmod +x ci-artifacts/bin/smyth
-          ./ci-artifacts/bin/smyth test
+        run: ./tools/ci.sh test --verbose
 
   compile-test:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -104,58 +63,6 @@ jobs:
           key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
           restore-keys: |
             ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: locque-binaries
-          path: ci-artifacts/bin
 
       - name: Compile-test
-        run: |
-          chmod +x ci-artifacts/bin/smyth
-          cabal --project-file=interpreter/cabal.project exec -- ./ci-artifacts/bin/smyth compile-test
-
-  build-smyth:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Haskell
-        uses: haskell-actions/setup@v2
-        with:
-          ghc-version: ${{ env.GHC_VERSION }}
-          cabal-version: ${{ env.CABAL_VERSION }}
-          cabal-update: true
-
-      - name: Cache cabal
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cabal/packages
-            ~/.cabal/store
-            dist-newstyle
-            compiler/dist-newstyle
-            interpreter/dist-newstyle
-          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
-          restore-keys: |
-            ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: locque-binaries
-          path: ci-artifacts/bin
-
-      - name: Build Smyth
-        run: |
-          chmod +x ci-artifacts/bin/smyth
-          mkdir -p "$GITHUB_WORKSPACE/smyth/tmp/locque/bin"
-          cd smyth
-          cabal --project-file="$GITHUB_WORKSPACE/interpreter/cabal.project" exec -- \
-            "$GITHUB_WORKSPACE/ci-artifacts/bin/smyth" \
-            compile \
-            --out "$GITHUB_WORKSPACE/smyth/tmp/locque/bin/smyth" \
-            lib/main.lq
+        run: ./tools/ci.sh compile-test -- --verbose
