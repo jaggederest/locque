@@ -8,13 +8,13 @@ import qualified Data.Text.IO as TIO
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath ((</>), isAbsolute)
+import System.FilePath ((</>), isAbsolute, takeDirectory)
 import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException, evaluate)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Char (toLower)
 import Data.IORef (newIORef, modifyIORef', readIORef)
-import System.Environment (lookupEnv)
+import System.Environment (getExecutablePath, lookupEnv, setEnv)
 
 import Parser (parseMExprFile)
 import qualified TypeChecker as TC
@@ -52,9 +52,20 @@ failureMessage (Failure kind msg) =
     AnnotFailure -> "Annotation error: " <> msg
     RuntimeFailure -> "Runtime error: " <> msg
 
+ensureSelfOnPath :: IO ()
+ensureSelfOnPath = do
+  exePath <- getExecutablePath
+  let exeDir = takeDirectory exePath
+  existing <- lookupEnv "PATH"
+  let newPath = case existing of
+        Nothing -> exeDir
+        Just path -> exeDir ++ ":" ++ path
+  setEnv "PATH" newPath
+
 -- | Run tests based on arguments
 runTests :: SmythConfig -> [String] -> IO ()
 runTests config args = do
+  ensureSelfOnPath
   -- Change to project root so all paths are relative to it
   setCurrentDirectory (projectRoot config)
   timingEnv <- lookupEnv "LOCQUE_TIMING"

@@ -40,6 +40,8 @@ jobs:
 
   compile-test:
     runs-on: ubuntu-latest
+    env:
+      LOCQUE_CABAL_PROJECT: ${{ github.workspace }}/interpreter/cabal.project
     steps:
       - name: Checkout
         uses: actions/checkout@v4

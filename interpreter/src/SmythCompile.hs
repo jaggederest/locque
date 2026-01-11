@@ -9,8 +9,9 @@ module SmythCompile
 import Control.Monad (unless)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Exit (ExitCode(..), exitFailure)
+import System.Environment (lookupEnv)
 import System.FilePath ((</>), takeBaseName, takeDirectory)
 import System.IO (hPutStr, stderr)
 import System.Process (proc, readCreateProcessWithExitCode)
@@ -103,9 +104,21 @@ runCompile config args = do
                      , mainPath
                      , genPath
                      ]
+          cabalProjectEnv <- lookupEnv "LOCQUE_CABAL_PROJECT"
+          cabalProject <- case cabalProjectEnv of
+            Just projectPath
+              | not (null projectPath) -> pure (Just projectPath)
+            _ -> do
+              let candidate = root </> "interpreter" </> "cabal.project"
+              exists <- doesFileExist candidate
+              pure (if exists then Just candidate else Nothing)
+          let (cmd, cmdArgs) = case cabalProject of
+                Just projectPath ->
+                  ("cabal", ["--project-file=" ++ projectPath, "exec", "--", "ghc"] ++ ghcArgs)
+                Nothing -> ("ghc", ghcArgs)
           compileResult <-
             readCreateProcessWithExitCode
-              (proc "ghc" ghcArgs)
+              (proc cmd cmdArgs)
               ""
           case compileResult of
             (ExitFailure code, out, err) ->

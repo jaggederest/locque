@@ -4,9 +4,9 @@ module SmythCompileTest
 
 import Control.Monad (unless, when)
 import System.Directory (setCurrentDirectory)
-import System.Environment (getExecutablePath)
+import System.Environment (getExecutablePath, lookupEnv, setEnv)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeDirectory)
 import System.IO (hPutStr, stderr)
 import System.Process (proc, readCreateProcessWithExitCode)
 
@@ -45,6 +45,7 @@ runProcessCapture path args = do
 
 runCompileTest :: SmythConfig -> [String] -> IO ()
 runCompileTest config args = do
+  ensureSelfOnPath
   setCurrentDirectory (projectRoot config)
   let (optArgs, extraArgs) = break (== "--") args
   case parseCompileTestArgs optArgs of
@@ -77,6 +78,16 @@ runCompileTest config args = do
       interpResult <- runProcessCapture exePath runArgsWithSeparator
       compiledResult <- runProcessCapture outPath runArgs
       reportResults interpResult compiledResult
+
+ensureSelfOnPath :: IO ()
+ensureSelfOnPath = do
+  exePath <- getExecutablePath
+  let exeDir = takeDirectory exePath
+  existing <- lookupEnv "PATH"
+  let newPath = case existing of
+        Nothing -> exeDir
+        Just path -> exeDir ++ ":" ++ path
+  setEnv "PATH" newPath
 
 reportResults :: ProcResult -> ProcResult -> IO ()
 reportResults interp compiled = do
