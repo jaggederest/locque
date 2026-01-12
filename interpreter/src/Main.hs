@@ -7,7 +7,7 @@ import qualified Data.Map.Strict as Map
 import           System.Environment (getArgs)
 import           System.Exit (die)
 import           System.Directory (getCurrentDirectory)
-import           System.FilePath (takeDirectory, takeExtension)
+import           System.FilePath (takeExtension)
 
 import           AST (Module(..), defName)
 import           Eval (ctorArityMap, runModuleMain)
@@ -17,6 +17,7 @@ import qualified Type as LT
 import qualified TypeChecker as TC
 import           DictPass (transformModuleWithEnvs)
 import           Recursor (recursorDefs, insertRecursors)
+import           SmythConfig (findSmythfile)
 
 main :: IO ()
 main = do
@@ -34,8 +35,7 @@ main = do
 
 runFile :: FilePath -> IO ()
 runFile file = do
-  cwd <- getCurrentDirectory
-  let projectRoot = takeDirectory cwd
+  projectRoot <- getProjectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
@@ -78,8 +78,7 @@ validateLqs file = do
 
 typecheckFile :: FilePath -> IO ()
 typecheckFile file = do
-  cwd <- getCurrentDirectory
-  let projectRoot = takeDirectory cwd
+  projectRoot <- getProjectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
@@ -118,8 +117,7 @@ emitLq file out = do
 
 dumpFile :: String -> FilePath -> Maybe Text -> IO ()
 dumpFile mode file selected = do
-  cwd <- getCurrentDirectory
-  let projectRoot = takeDirectory cwd
+  projectRoot <- getProjectRoot
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> die err
@@ -202,3 +200,10 @@ dumpTypes m env = do
               ])
   rendered <- mapM render names
   TIO.putStrLn (T.unlines rendered)
+
+getProjectRoot :: IO FilePath
+getProjectRoot = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Just root -> pure root
+    Nothing -> getCurrentDirectory
