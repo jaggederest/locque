@@ -274,6 +274,7 @@ module test::main contains
           end
         end
       end
+    end
   end
 
   define transparent main as compute
