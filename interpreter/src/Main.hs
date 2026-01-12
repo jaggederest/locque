@@ -10,7 +10,6 @@ import           System.Directory (getCurrentDirectory)
 import           System.FilePath (takeDirectory, takeExtension)
 
 import           AST (Module(..), defName)
-import           CompilerPipeline (loadAnnotatedModuleWithImports, loadCoreModule)
 import           Eval (ctorArityMap, runModuleMain)
 import           Parser
 import           Validator
@@ -18,13 +17,6 @@ import qualified Type as LT
 import qualified TypeChecker as TC
 import           DictPass (transformModuleWithEnvs)
 import           Recursor (recursorDefs, insertRecursors)
-import           SmythConfig (loadSmythConfig)
-import           StripTyped (stripRecursorsModule, stripTypedModule)
-import qualified Locque.Compiler.Core as Core
-import qualified Locque.Compiler.CoreErased as Erased
-import           Locque.Compiler.CorePretty (renderCoreModule)
-import           Locque.Compiler.CoreErasedPretty (renderErasedModule)
-import           Locque.Compiler.Erase (eraseModule)
 
 main :: IO ()
 main = do
@@ -69,7 +61,7 @@ usage = unlines
   , "  locque-interpreter emit-lqs <in.lq> <out.lqs> (M-expr -> S-expr)"
   , "  locque-interpreter emit-lq <in.lqs> <out.lq>  (S-expr -> M-expr)"
   , "  locque-interpreter validate <file.lqs>        (paren/structural check)"
-  , "  locque-interpreter dump (core|normalized|elaborated|elaborated-combined|typed|typed-normalized|typed-elaborated|types|types-normalized|types-elaborated|core-ir|erased-ir) <file> [name]"
+  , "  locque-interpreter dump (core|normalized|elaborated|typed|typed-normalized|types|types-normalized) <file> [name]"
   , "  locque-interpreter --help"
   ]
 
@@ -151,15 +143,6 @@ dumpFile mode file selected = do
               elaborated <- transformModuleWithEnvs projectRoot m
               m' <- selectModule elaborated selected
               TIO.putStrLn (moduleToSExprText m')
-        "elaborated-combined" -> do
-          config <- loadSmythConfig projectRoot
-          combinedResult <- loadAnnotatedModuleWithImports config file
-          case combinedResult of
-            Left err -> die err
-            Right elaboratedCombined -> do
-              let stripped = stripTypedModule elaboratedCombined
-              m' <- selectModule stripped selected
-              TIO.putStrLn (moduleToSExprText m')
         "typed" -> do
           typeResult <- TC.typeCheckAndNormalizeWithImports projectRoot file contents m
           case typeResult of
@@ -180,23 +163,6 @@ dumpFile mode file selected = do
                 Right annotated -> do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
-        "typed-elaborated" -> do
-          elaborated <- transformModuleWithEnvs projectRoot m
-          config <- loadSmythConfig projectRoot
-          combinedResult <- loadAnnotatedModuleWithImports config file
-          case combinedResult of
-            Left err -> die err
-            Right elaboratedCombined -> do
-              let stripped = stripRecursorsModule (stripTypedModule elaboratedCombined)
-              case TC.typeCheckModuleFull stripped of
-                Left tcErr -> die ("Type error: " ++ show tcErr)
-                Right env -> do
-                  let envWithOpens = TC.processOpens (modOpens elaborated) env
-                  case TC.annotateModule envWithOpens elaborated of
-                    Left annotErr -> die ("Annotation error: " ++ show annotErr)
-                    Right annotated -> do
-                      m' <- selectModule annotated selected
-                      TIO.putStrLn (moduleToSExprTextTyped m')
         "types" -> do
           typeResult <- TC.typeCheckModuleWithImports projectRoot file contents m
           case typeResult of
@@ -211,37 +177,6 @@ dumpFile mode file selected = do
             Right env -> do
               m' <- selectModule m selected
               dumpTypes m' env
-        "types-elaborated" -> do
-          elaborated <- transformModuleWithEnvs projectRoot m
-          config <- loadSmythConfig projectRoot
-          combinedResult <- loadAnnotatedModuleWithImports config file
-          case combinedResult of
-            Left err -> die err
-            Right elaboratedCombined -> do
-              let stripped = stripRecursorsModule (stripTypedModule elaboratedCombined)
-              case TC.typeCheckModuleFull stripped of
-                Left tcErr -> die ("Type error: " ++ show tcErr)
-                Right env -> do
-                  let envWithOpens = TC.processOpens (modOpens elaborated) env
-                  m' <- selectModule elaborated selected
-                  dumpTypes m' (TC.tcEnvTypes envWithOpens)
-        "core-ir" -> do
-          config <- loadSmythConfig projectRoot
-          coreResult <- loadCoreModule config file
-          case coreResult of
-            Left err -> die err
-            Right coreModule -> do
-              core' <- selectCoreModule coreModule selected
-              TIO.putStrLn (renderCoreModule core')
-        "erased-ir" -> do
-          config <- loadSmythConfig projectRoot
-          coreResult <- loadCoreModule config file
-          case coreResult of
-            Left err -> die err
-            Right coreModule -> do
-              let erasedModule = eraseModule coreModule
-              erased' <- selectErasedModule erasedModule selected
-              TIO.putStrLn (renderErasedModule erased')
         _ -> die usage
 
 selectModule :: Module -> Maybe Text -> IO Module
@@ -250,32 +185,6 @@ selectModule m (Just name) =
   case filter (\defn -> defName defn == name) (modDefs m) of
     [] -> die ("Definition not found: " ++ T.unpack name)
     defs -> pure m { modDefs = defs }
-
-selectCoreModule :: Core.CoreModule -> Maybe Text -> IO Core.CoreModule
-selectCoreModule m Nothing = pure m
-selectCoreModule (Core.CoreModule name decls) (Just target) =
-  case filter (\decl -> coreDeclName decl == target) decls of
-    [] -> die ("Definition not found: " ++ T.unpack target)
-    matches -> pure (Core.CoreModule name matches)
-
-coreDeclName :: Core.CoreDecl -> Text
-coreDeclName decl = case decl of
-  Core.CoreDef name _ _ -> Core.unName name
-  Core.CoreDefComp name _ _ -> Core.unName name
-  Core.CoreData dataDecl -> Core.unName (Core.dataName dataDecl)
-
-selectErasedModule :: Erased.ErasedModule -> Maybe Text -> IO Erased.ErasedModule
-selectErasedModule m Nothing = pure m
-selectErasedModule (Erased.ErasedModule name decls) (Just target) =
-  case filter (\decl -> erasedDeclName decl == target) decls of
-    [] -> die ("Definition not found: " ++ T.unpack target)
-    matches -> pure (Erased.ErasedModule name matches)
-
-erasedDeclName :: Erased.ErasedDecl -> Text
-erasedDeclName decl = case decl of
-  Erased.EDef name _ -> Core.unName name
-  Erased.EDefComp name _ -> Core.unName name
-  Erased.EData dataDecl -> Core.unName (Erased.erasedDataName dataDecl)
 
 dumpTypes :: Module -> TC.TypeEnv -> IO ()
 dumpTypes m env = do

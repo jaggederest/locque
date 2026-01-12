@@ -3,10 +3,8 @@ module ImportResolver
   ( ImportScope(..)
   , ResolvedModule(..)
   , resolveModulePath
-  , resolveCompilerSrc
   ) where
 
-import Control.Monad (filterM)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -142,51 +140,18 @@ findStdlibRootFromRepo projectRoot = search projectRoot
       let libRoot = dir </> "lib"
           preludeLq = libRoot </> "prelude.lq"
           preludeLqs = libRoot </> "prelude.lqs"
-          compilerRuntime = dir </> "compiler" </> "src" </> "LocqueRuntime.hs"
           interpreterCabal = dir </> "interpreter" </> "locque-interpreter.cabal"
       hasPrelude <- or <$> mapM doesFileExist [preludeLq, preludeLqs]
-      hasCompiler <- doesFileExist compilerRuntime
       hasInterpreter <- doesFileExist interpreterCabal
-      pure (hasPrelude && (hasCompiler || hasInterpreter))
-
-resolveCompilerSrc :: FilePath -> IO FilePath
-resolveCompilerSrc projectRoot = do
-  envSrc <- lookupEnv "LOCQUE_COMPILER_SRC"
-  envRoot <- lookupEnv "LOCQUE_COMPILER_ROOT"
-  stdlibPaths <- stdlibRoots projectRoot
-  let envCandidates =
-        dedupePaths $
-          maybeToList envSrc
-            ++ [root </> "compiler" </> "src" | root <- maybeToList envRoot]
-      localCandidate = projectRoot </> "compiler" </> "src"
-      stdlibCandidates =
-        [ takeDirectory libRoot </> "compiler" </> "src"
-        | libRoot <- stdlibPaths
-        ]
-      candidates = dedupePaths (envCandidates ++ [localCandidate] ++ stdlibCandidates)
-  resolved <- findCompilerSrc candidates
-  case resolved of
-    Just path -> pure path
-    Nothing ->
-      error "LocqueRuntime.hs not found; set LOCQUE_COMPILER_SRC or LOCQUE_COMPILER_ROOT"
-  where
-    maybeToList Nothing = []
-    maybeToList (Just path) = [path]
-
-findCompilerSrc :: [FilePath] -> IO (Maybe FilePath)
-findCompilerSrc paths = do
-  matches <- filterM hasRuntime paths
-  pure (List.find (const True) matches)
-  where
-    hasRuntime path = doesFileExist (path </> "LocqueRuntime.hs")
+      pure (hasPrelude && hasInterpreter)
 
 findStdlibRoot :: FilePath -> IO (Maybe FilePath)
 findStdlibRoot start = do
   let candidate = start </> "lib"
       preludeLq = candidate </> "prelude.lq"
       preludeLqs = candidate </> "prelude.lqs"
-  matches <- filterM doesFileExist [preludeLq, preludeLqs]
-  if not (null matches)
+  exists <- or <$> mapM doesFileExist [preludeLq, preludeLqs]
+  if exists
     then pure (Just candidate)
     else do
       let parent = takeDirectory start

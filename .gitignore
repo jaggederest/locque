@@ -2,8 +2,6 @@
 interpreter/dist-newstyle/
 interpreter/.ghc.environment.*
 interpreter/.stack-work/
-compiler/dist-newstyle/
-compiler/.ghc.environment.*
 
 # Cabal config
 /Users/justin/.config/cabal/config

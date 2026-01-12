@@ -50,25 +50,12 @@
 ## Core Tooling (smyth)
 - [x] `smyth test`, `smyth run`; Smythfile.lq; standalone binary (`~/.local/bin/smyth`).
 - [x] `smyth bench` with benchmark rollup (`test/bench.lq`) and thresholds.
-- [x] `smyth compile-test` for interpreter vs compiled test suite parity.
 - [x] `smyth dump` views; `smyth format` and `smyth count` helpers.
 - [x] `smyth run --pid-file` and `--timeout` for long-running shell tests.
 - [x] `locque-lsp`: diagnostics, go-to-definition, document symbols (Haskell).
 - [x] Run cache in `tmp/locque/cache` for annotated modules + ctor arity; keyed by module digest; used by `smyth test/run`.
 - [x] Reuse import env from digest to avoid double import loading on cache-miss typecheck/normalize.
 - [x] Cache per-module normalized/transform results for imports via RunCache in evaluator.
-
-## Compiler (Haskell backend bootstrap)
-- [x] M0: Core IR AST + pretty-printer + parser round-trips + conversion stubs (typed CBPV Core).
-- [x] M1: Erasure pass (types/proofs/refinements → runtime data only), preserving match/binders and module name.
-- [x] M2: LocqueRuntime shim (Comp/run/bind/return/perform), builtin type aliases, minimal primitive wrappers, tests.
-- [x] M3: Core → Haskell codegen (single module/entrypoint; imports LocqueRuntime; maps builtins).
-- [x] M4: `smyth emit-hs` CLI (outputs .hs via codegen; supports `--out-dir`).
-- [x] M5: Golden tests (compile/run hello + sequence; compare output vs interpreter).
-- [x] M6: Reuse run cache for `emit-hs` (skip typecheck/transform when cached).
-- [x] M7: `smyth compile` wrapper (ghc build, binary output, optional arg passthrough with `--`).
-- [x] Compiled test suite runs via `smyth compile test/main.lq` and `tmp/locque/bin/main`.
-- [x] M9: Dictionary lowering (EDict/EDictAccess) into runtime representation for codegen.
 
 ## Language Features
 - [x] Dependent types in checker (universes, Pi/Sigma) per new grammar.

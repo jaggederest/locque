@@ -1,5 +1,0 @@
-# Core Smyth definitions (placeholder)
-
-module smyth contains
-  define transparent version as "0.1.0"
-end

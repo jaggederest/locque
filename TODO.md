@@ -2,7 +2,7 @@
 
 ## Strategic assessment
 - Compiler backend now builds and runs the full test suite; next risk is semantics drift (dictionary values, erased types).
-- Short term focus should stay on compiler correctness/observability before deeper type system features.
+- Short term focus should stay on interpreter correctness/observability before deeper type system features.
 - Stdlib is stable; refinements/proofs and effect typing remain the main growth areas.
 
 ## Roadmap (prioritized)

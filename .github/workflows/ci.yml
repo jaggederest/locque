@@ -29,7 +29,6 @@ jobs:
             ~/.cabal/packages
             ~/.cabal/store
             dist-newstyle
-            compiler/dist-newstyle
             interpreter/dist-newstyle
           key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
           restore-keys: |
@@ -37,34 +36,3 @@ jobs:
 
       - name: Test
         run: ./tools/ci.sh test --verbose
-
-  compile-test:
-    runs-on: ubuntu-latest
-    env:
-      LOCQUE_CABAL_PROJECT: ${{ github.workspace }}/interpreter/cabal.project
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Haskell
-        uses: haskell-actions/setup@v2
-        with:
-          ghc-version: ${{ env.GHC_VERSION }}
-          cabal-version: ${{ env.CABAL_VERSION }}
-          cabal-update: true
-
-      - name: Cache cabal
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cabal/packages
-            ~/.cabal/store
-            dist-newstyle
-            compiler/dist-newstyle
-            interpreter/dist-newstyle
-          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
-          restore-keys: |
-            ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-
-      - name: Compile-test
-        run: ./tools/ci.sh compile-test -- --verbose

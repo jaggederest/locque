@@ -208,7 +208,7 @@ CBPV small-step semantics (informal rules)
   - Values are not reduced under function bodies (consistent with WHNF strategy).
 
 - Opacity at runtime:
-  - Opacity affects conversion, not runtime stepping: a transparent computation definition may be inlined at compile time, but runtime semantics is uniform once definitions are expanded by the compiler.
+  - Opacity affects conversion, not runtime stepping: a transparent computation definition may be inlined at compile time, but runtime semantics is uniform once definitions are expanded by the interpreter.
 
 Namespaces and modules (current)
 
@@ -235,5 +235,4 @@ Namespaces and modules (current)
 Entrypoints and tooling (current)
 
 - Interpreter CLI: `locque-interpreter run <file>`, `typecheck <file>`, `emit-lqs <in.lq> <out.lqs>`, `emit-lq <in.lqs> <out.lq>`, `validate <file.lqs>`, `dump (core|normalized|elaborated|types|types-normalized|types-elaborated) <file> [name]`.
-- Compiler CLI: `locque-compiler compile [--out <path>] <file> [-- <args>]`.
-- Smyth tool: `smyth run <file>`, `smyth test`, `smyth test <file>`, `smyth bench`, `smyth compile`, `smyth compile-test`, `smyth dump`, `smyth format`, `smyth count`.
+- Smyth tool: `smyth run <file>`, `smyth test`, `smyth test <file>`, `smyth bench`, `smyth dump`, `smyth format`, `smyth count`.
