@@ -113,18 +113,49 @@ module test::main contains
     end
 
   define transparent suite-end-line as
-    function name String elapsed Natural assertions Natural returns String value
+    function name String assertions Natural returns String value
       S::concat "end "
         (S::concat name
-          (S::concat " ("
-            (S::concat (N::to-string elapsed)
-              (S::concat "us, "
-                (S::concat (N::to-string assertions) " assertions)")))))
+          (S::concat " (assertions: "
+            (S::concat (N::to-string assertions) ")")))
+    end
+
+  define transparent format-duration as
+    function micros Natural returns String value
+      match (Order::less-than Natural micros 1000) of-type Boolean as ignored returns String
+        case Boolean::true as
+          S::concat (N::to-string micros) "us"
+        case Boolean::false as
+          match (Order::less-than Natural micros 1000000) of-type Boolean as ignored returns String
+            case Boolean::true as
+              S::concat (N::to-string (Ar::div-nat micros 1000)) "ms"
+            case Boolean::false as
+              S::concat (N::to-string (Ar::div-nat micros 1000000)) "s"
+          end
+      end
+    end
+
+  define transparent timing-line as
+    function entry (Pair String Natural) returns String value
+      match entry of-type (Pair String Natural) as ignored returns String
+        case Pair::pair with name String elapsed Natural as
+          S::concat "timing "
+            (S::concat name
+              (S::concat ": " (format-duration elapsed)))
+      end
+    end
+
+  define transparent summary-line as
+    function assertions Natural suites Natural returns String value
+      S::concat "summary: "
+        (S::concat (N::to-string assertions)
+          (S::concat " assertions, "
+            (S::concat (N::to-string suites) " suites")))
     end
 
   define transparent run-suite-verbose as
-    function entry (Pair String (computation Unit)) returns (computation Unit) value
-      match entry of-type (Pair String (computation Unit)) as ignored returns (computation Unit)
+    function entry (Pair String (computation Unit)) returns (computation (Pair String Natural)) value
+      match entry of-type (Pair String (computation Unit)) as ignored returns (computation (Pair String Natural))
         case Pair::pair with name String action (computation Unit) as
           compute
             bind ignored from perform (IO::print (suite-start-line name)) then
@@ -134,9 +165,9 @@ module test::main contains
                     bind ignored from perform
                       (IO::print
                         (let value assertions be Ar::subtract after before in
-                          suite-end-line name (P::snd Unit Natural measured) assertions
+                          suite-end-line name assertions
                         end)) then
-                      return Unit::tt
+                      return (P::pair String Natural name (P::snd Unit Natural measured))
                     end
                   end
                 end
@@ -229,8 +260,20 @@ module test::main contains
     end
 
   define transparent run-tests-verbose as compute
-    perform (P::sequence-unit
-      (P::map (Pair String (computation Unit)) (computation Unit) run-suite-verbose suites))
+    bind results from perform
+      (P::sequence (Pair String Natural)
+        (P::map (Pair String (computation Unit)) (computation (Pair String Natural)) run-suite-verbose suites)) then
+      bind assertions from perform A::assertion-count then
+        bind ignored from perform
+          (IO::print (summary-line assertions (P::length-list (Pair String Natural) results))) then
+          bind ignored from perform
+            (P::sequence-unit
+              (P::map String (computation Unit) IO::print
+                (P::map (Pair String Natural) String timing-line results))) then
+            return Unit::tt
+          end
+        end
+      end
   end
 
   define transparent main as compute

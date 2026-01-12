@@ -3,6 +3,7 @@ module SmythCompileTest
   ) where
 
 import Control.Monad (unless, when)
+import Data.List (isPrefixOf)
 import System.Directory (setCurrentDirectory)
 import System.Environment (getExecutablePath, lookupEnv, setEnv)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess)
@@ -77,7 +78,7 @@ runCompileTest config args = do
               else ["run", testFile, "--"] ++ runArgs
       interpResult <- runProcessCapture exePath runArgsWithSeparator
       compiledResult <- runProcessCapture outPath runArgs
-      reportResults interpResult compiledResult
+      reportResults (normalizeOutput (elem "--verbose" runArgs)) interpResult compiledResult
 
 ensureSelfOnPath :: IO ()
 ensureSelfOnPath = do
@@ -89,11 +90,15 @@ ensureSelfOnPath = do
         Just path -> exeDir ++ ":" ++ path
   setEnv "PATH" newPath
 
-reportResults :: ProcResult -> ProcResult -> IO ()
-reportResults interp compiled = do
-  let exitMatch = procExit interp == procExit compiled
-      outMatch = procOut interp == procOut compiled
-      errMatch = procErr interp == procErr compiled
+reportResults :: (String -> String) -> ProcResult -> ProcResult -> IO ()
+reportResults normalize interp compiled = do
+  let interpOut = normalize (procOut interp)
+      compiledOut = normalize (procOut compiled)
+      interpErr = procErr interp
+      compiledErr = procErr compiled
+      exitMatch = procExit interp == procExit compiled
+      outMatch = interpOut == compiledOut
+      errMatch = interpErr == compiledErr
       success = procExit interp == ExitSuccess && procExit compiled == ExitSuccess
   if success && outMatch && errMatch
     then do
@@ -121,3 +126,11 @@ printOutput output =
   if null output
     then putStrLn "<empty>"
     else putStrLn output
+
+normalizeOutput :: Bool -> String -> String
+normalizeOutput False output = output
+normalizeOutput True output =
+  unlines (filter (not . isTimingLine) (lines output))
+
+isTimingLine :: String -> Bool
+isTimingLine line = "timing " `isPrefixOf` line
