@@ -154,7 +154,7 @@ dumpFile mode file selected = do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "typed-normalized" -> do
-          typeResult <- TC.typeCheckAndNormalizeWithImports projectRoot file contents m
+          typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur projectRoot file contents m
           case typeResult of
             Left tcErr -> die ("Type error: " ++ show tcErr)
             Right (env, normalized) -> do

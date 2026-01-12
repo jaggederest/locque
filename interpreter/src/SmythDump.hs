@@ -104,7 +104,7 @@ dumpMode config file contents m (mode, selected) =
               m' <- selectModule annotated selected
               TIO.putStrLn (moduleToSExprTextTyped m')
     "typed-normalized" -> do
-      typeResult <- TC.typeCheckAndNormalizeWithImports (projectRoot config) file contents m
+      typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur (projectRoot config) file contents m
       case typeResult of
         Left tcErr -> failWith ("Type error: " ++ show tcErr)
         Right (env, normalized) -> do
@@ -167,7 +167,7 @@ dumpFile config mode file selected = do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "typed-normalized" -> do
-          typeResult <- TC.typeCheckAndNormalizeWithImports (projectRoot config) file contents m
+          typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur (projectRoot config) file contents m
           case typeResult of
             Left tcErr -> failWith ("Type error: " ++ show tcErr)
             Right (env, normalized) -> do

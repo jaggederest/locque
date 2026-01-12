@@ -6,6 +6,7 @@ module TypeChecker
   , typeCheckModuleWithImportsFull
   , typeCheckAndNormalizeWithEnv
   , typeCheckAndNormalizeWithImports
+  , typeCheckAndNormalizeWithImportsOpaqueRecur
   , normalizeModuleWithImports
   , normalizeTypeEnvWithImports
   , annotateModule
@@ -835,12 +836,16 @@ subst name replacement expr = go Set.empty expr
         scrutTy' <- go bound scrutTy
         if scrutName == name
           then do
-            cases' <- mapM (goCase bound) cases
-            pure (EMatch scrut' scrutTy' scrutName retTy cases')
+            let bound' = Set.insert scrutName bound
+            retTy' <- go bound' retTy
+            cases' <- mapM (goCase bound') cases
+            pure (EMatch scrut' scrutTy' scrutName retTy' cases')
           else do
             (scrutName', retTy') <- refreshBinder bound scrutName retTy
-            cases' <- mapM (goCase (Set.insert scrutName' bound)) cases
-            pure (EMatch scrut' scrutTy' scrutName' retTy' cases')
+            let bound' = Set.insert scrutName' bound
+            retTy'' <- go bound' retTy'
+            cases' <- mapM (goCase bound') cases
+            pure (EMatch scrut' scrutTy' scrutName' retTy'' cases')
       EData params universe cases -> do
         universe' <- go bound universe
         (params', cases') <- goDataParams bound params cases
@@ -2949,6 +2954,15 @@ normalizeTypeEnvWithImports projectRoot sourcePath sourceContents m = do
     env <- typeCheckModuleWithEnv envWithContext m
     normalizeTypeEnv env
 
+opaqueRecursiveDefs :: DefEnv -> DefEnv
+opaqueRecursiveDefs =
+  Map.map markRecursive
+  where
+    markRecursive (tr, body) =
+      if tr == Transparent && Set.member "recur" (freeVars body)
+        then (Opaque, body)
+        else (tr, body)
+
 typeCheckAndNormalizeWithEnv :: TCEnv -> Module -> Either TypeError (TCEnv, Module)
 typeCheckAndNormalizeWithEnv importedEnv m =
   runTypeCheck $ do
@@ -2972,6 +2986,24 @@ typeCheckAndNormalizeWithImports projectRoot sourcePath sourceContents m = do
   pure $ runTypeCheck $ do
     env <- typeCheckModuleWithEnv envWithContext m
     normalized <- normalizeModule env m
+    normalizedWithRecursors <- case injectRecursors "<module>" normalized of
+      Left msg -> lift (Left (MatchCaseError noLoc (T.pack msg)))
+      Right m' -> pure m'
+    pure (env, normalizedWithRecursors)
+
+typeCheckAndNormalizeWithImportsOpaqueRecur :: FilePath -> FilePath -> Text -> Module -> IO (Either TypeError (TCEnv, Module))
+typeCheckAndNormalizeWithImportsOpaqueRecur projectRoot sourcePath sourceContents m = do
+  importedEnv <- loadTypeImports projectRoot m
+  let envWithOpens = processOpens (modOpens m) importedEnv
+      envWithContext =
+        envWithOpens
+          { tcDefLines = definitionLineMap sourceContents
+          , tcSourceFile = Just sourcePath
+          }
+  pure $ runTypeCheck $ do
+    env <- typeCheckModuleWithEnv envWithContext m
+    let envOpaqueRecur = env { tcDefs = opaqueRecursiveDefs (tcDefs env) }
+    normalized <- normalizeModule envOpaqueRecur m
     normalizedWithRecursors <- case injectRecursors "<module>" normalized of
       Left msg -> lift (Left (MatchCaseError noLoc (T.pack msg)))
       Right m' -> pure m'
