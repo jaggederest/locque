@@ -1,7 +1,0 @@
-import test::helpers as TH
-
-module test::compile::hello contains
-  define transparent main as compute
-    perform (TH::assert-single-output Unit "hello" (print-prim "hello"))
-  end
-end

@@ -12,7 +12,7 @@ open Eq exposing Equality end
 module test::shell::dump contains
   define transparent test-dump-bundle as compute
     bind output from perform
-      (S::shell "smyth dump --multi lib/prelude.lq types core -- lib/assert.lq types-elaborated:assert-eq")
+      (S::shell "smyth dump --multi lib/prelude.lq types core -- lib/assert.lq elaborated:assert-eq")
     then
       perform (P::sequence-unit
         [

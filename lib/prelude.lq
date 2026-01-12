@@ -143,6 +143,61 @@ module prelude contains
         end
       end
     end
+  define transparent map-comp as
+    function A Type0 B Type0 f (Types::Function A B) comp (computation A) returns computation B value
+      compute
+        bind result from perform comp then
+          return (f result)
+        end
+      end
+    end
+  define transparent bind-comp as
+    function A Type0 B Type0 comp (computation A) f (Types::Function A (computation B)) returns computation B value
+      compute
+        bind result from perform comp then
+          perform (f result)
+        end
+      end
+    end
+  define transparent and-then as
+    function A Type0 B Type0 f (Types::Function A (computation B)) comp (computation A) returns computation B value
+      bind-comp A B comp f
+    end
+  define transparent tap as
+    function A Type0 f (Types::Function A (computation Unit)) comp (computation A) returns computation A value
+      compute
+        bind result from perform comp then
+          bind ignored from perform (f result) then
+            return result
+          end
+        end
+      end
+    end
+  define transparent when as
+    function cond Boolean action (computation Unit) returns computation Unit value
+      match cond of-type Boolean as ignored returns computation Unit
+        case Boolean::false as compute return Unit::tt end
+        case Boolean::true as action
+      end
+    end
+  define transparent unless as
+    function cond Boolean action (computation Unit) returns computation Unit value
+      when (not cond) action
+    end
+  define transparent guard as
+    function cond Boolean returns computation Unit value
+      compute
+        perform
+          match cond of-type Boolean as ignored returns (computation Unit)
+            case Boolean::true as compute return Unit::tt end
+            case Boolean::false as error (computation Unit) "guard failed"
+          end
+      end
+    end
+  define transparent sequence-when as
+    function cond Boolean xs (List (computation Unit)) returns computation Unit value
+      when cond (sequence-unit xs)
+    end
   define transparent map as
     function A Type0 B Type0 f (Types::Function A B) xs (List A) returns (List B) value
       match xs of-type (List A) as ignored returns (List B)

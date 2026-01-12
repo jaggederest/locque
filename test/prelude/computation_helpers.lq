@@ -1,0 +1,115 @@
+import prelude as P
+import arithmetic as Ar
+import assert as A
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::prelude::computation_helpers contains
+  define transparent assert-count-delta as
+    function expected Natural action (computation Unit) returns computation Unit value
+      compute
+        bind before from perform A::assertion-count then
+          bind ignored from perform action then
+            bind after from perform A::assertion-count then
+              perform (A::assert-eq Natural (Ar::subtract after before) expected)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent check-map-comp as compute
+    bind result from perform
+      (P::map-comp Natural Natural
+        (function n Natural returns Natural value
+          Ar::add n 2
+        end)
+        (compute return 3 end))
+    then
+      perform (A::assert-eq Natural result 5)
+    end
+  end
+
+  define transparent check-bind-comp as compute
+    bind result from perform
+      (P::bind-comp Natural Natural
+        (compute return 4 end)
+        (function n Natural returns (computation Natural) value
+          compute return (Ar::add n 6) end
+        end))
+    then
+      perform (A::assert-eq Natural result 10)
+    end
+  end
+
+  define transparent check-and-then as compute
+    bind result from perform
+      (P::and-then Natural Natural
+        (function n Natural returns (computation Natural) value
+          compute return (Ar::add n 5) end
+        end)
+        (compute return 1 end))
+    then
+      perform (A::assert-eq Natural result 6)
+    end
+  end
+
+  define transparent check-tap as compute
+    bind before from perform A::assertion-count then
+      bind result from perform
+        (P::tap Natural
+          (function ignored Natural returns (computation Unit) value
+            A::assert-hit
+          end)
+          (compute return 9 end))
+      then
+        bind after from perform A::assertion-count then
+          bind ignored from perform (A::assert-eq Natural (Ar::subtract after before) 1) then
+            perform (A::assert-eq Natural result 9)
+          end
+        end
+      end
+    end
+  end
+
+  define transparent check-when-true as
+    assert-count-delta 1 (P::when true A::assert-hit)
+
+  define transparent check-when-false as
+    assert-count-delta 0 (P::when false A::assert-hit)
+
+  define transparent check-unless-true as
+    assert-count-delta 0 (P::unless true A::assert-hit)
+
+  define transparent check-unless-false as
+    assert-count-delta 1 (P::unless false A::assert-hit)
+
+  define transparent check-guard-true as compute
+    perform (P::guard true)
+  end
+
+  define transparent check-sequence-when-true as
+    assert-count-delta 2 (P::sequence-when true [A::assert-hit, A::assert-hit])
+
+  define transparent check-sequence-when-false as
+    assert-count-delta 0 (P::sequence-when false [A::assert-hit, A::assert-hit])
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        check-map-comp
+      , check-bind-comp
+      , check-and-then
+      , check-tap
+      , check-when-true
+      , check-when-false
+      , check-unless-true
+      , check-unless-false
+      , check-guard-true
+      , check-sequence-when-true
+      , check-sequence-when-false
+      ])
+  end
+end

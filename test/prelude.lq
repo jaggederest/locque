@@ -3,6 +3,7 @@ import prelude as P
 
 import test::prelude::assertion_count as assertion_count
 import test::prelude::basics as basics
+import test::prelude::computation_helpers as computation_helpers
 import test::prelude::data as data
 import test::prelude::equality as equality
 import test::prelude::exists as exists
@@ -25,6 +26,7 @@ module test::prelude contains
       [
         assertion_count::main
       , basics::main
+      , computation_helpers::main
       , data::main
       , equality::main
       , lift::main

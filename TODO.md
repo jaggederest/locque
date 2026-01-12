@@ -1,14 +1,11 @@
 # Locque TODO
 
 ## Strategic assessment
-- Compiler backend now builds and runs the full test suite; next risk is semantics drift (dictionary values, erased types).
 - Short term focus should stay on interpreter correctness/observability before deeper type system features.
 - Stdlib is stable; refinements/proofs and effect typing remain the main growth areas.
 
 ## Roadmap (prioritized)
 ### Near term
-- Compiler: debug build mode (optional) with source-map + selected type annotations.
-- Compiler: simplify constant matches for nullary constructors (Boolean/Unit/List/etc.).
 - Smyth: add `smyth new` to scaffold a project (Smythfile.lq, lib/, test/).
 - Stdlib ergonomics: computation helpers (`when`, `unless`, `guard`, `tap`, `map-comp`, `bind-comp`, `and-then`, `sequence-when`).
 - Stdlib ergonomics: List traversal helpers (`traverse`, `map-compute`, `filter-compute`, `fold-compute`, `find-map`).
@@ -41,15 +38,6 @@
 - Webapp: refined todo IDs (e.g., `Natural` with `is-positive`) once predicate helpers land.
 - Theorem proving: expand predicate library; add decidable predicate helpers beyond equality.
 - Language features: definitional equality (eta), type holes, better inference, rows/records.
-
-## Compiler backend (context)
-### Project decisions (locked)
-- Typed CBPV Core IR; no ANF for now.
-- Full erasure in normal builds; debug flag later.
-- Dictionary-passing preserved; monomorphization later.
-- Builtins mapping: Option→Maybe, Either→Either, Result→Either, List→[], Pair→(,), Natural→Integer, String/Character→Text (upgrade later).
-- Computations: `newtype Comp a = Comp (IO a)` in runtime.
-- Haskell backend emits a single module per entrypoint; `LocqueRuntime` is shared.
 
 ## Parked backlog
 
