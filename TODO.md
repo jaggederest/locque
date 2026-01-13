@@ -7,12 +7,11 @@
 ## Roadmap (prioritized)
 ### Near term
 - Smyth: add `smyth new` to scaffold a project (Smythfile.lq, lib/, test/).
-- Stdlib ergonomics: computation helpers (`when`, `unless`, `guard`, `tap`, `map-comp`, `bind-comp`, `and-then`, `sequence-when`).
-- Stdlib ergonomics: List traversal helpers (`traverse`, `map-compute`, `filter-compute`, `fold-compute`, `find-map`).
-- Stdlib ergonomics: Option/Either/Result helpers (`unwrap-or`, `and-then`, `map-error`, `with-context`, conversions).
-- Stdlib ergonomics: String `lines`/`unlines`/`split-once` with consistent trailing-empty behavior.
+- Stdlib ergonomics: List traversal helpers (`traverse`, `map-compute`, `filter-compute`, `find-map`); `fold-compute` is already in prelude.
+- Stdlib ergonomics: Option/Either/Result helpers (`with-context`, `map-error` for Option/Either, additional conversions); `and-then` and `unwrap-or` are already implemented, and Result already has `map-error`.
+- Stdlib ergonomics: String `split-once` with consistent trailing-empty behavior (`lines`/`unlines` are already implemented).
 - Stdlib ergonomics: File/Process Result wrappers (`read-result`, `run-result`, `run-ok`) with consistent error formatting.
-- Stdlib ergonomics: CLI structured option parsing that returns flags/options/positionals.
+- Stdlib ergonomics: CLI structured option parsing that returns flags/options/positionals (current parse returns positionals + key/value pairs).
 - Diagnostics: contextual error helper combinator for structured breadcrumbs.
 - Tests: helper for per-suite assertion counts in verbose output.
 

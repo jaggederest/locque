@@ -74,6 +74,9 @@
 
 ## Standard Library
 - [x] Core: Prelude, List, String, IO, Assert; List.slice.
+- [x] Stdlib computation helpers in prelude (`map-comp`, `bind-comp`, `and-then`, `tap`, `when`, `unless`, `guard`, `sequence-when`, `fold-compute`).
+- [x] Option/Result helpers (`unwrap-or`, `unwrap-or-else`, `and-then`, Result `map-error`) + conversions (`Option`↔`Result`, `to-decidable` for Option/Result/Either).
+- [x] String helpers: `lines`/`unlines`.
 - [x] File primitives + file module (helpers, walk, stat, walk-filter/walk-lq).
 - [x] Fix walk-filter skip-prefix handling so roots are not skipped.
 - [x] CLI helpers (args/options).
