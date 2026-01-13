@@ -1,10 +1,9 @@
 import io as IO
+import prelude as P
 
 module shell::lecho contains
   define transparent lecho as
-    function s String returns computation String compute
-      bind ignored from perform (IO::print s) then
-        return s
-      end
+    function s String returns computation String value
+      P::tap String IO::print (compute return s end)
     end
 end

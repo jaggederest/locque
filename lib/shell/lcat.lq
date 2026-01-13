@@ -1,13 +1,10 @@
 import file as File
 import io as IO
+import prelude as P
 
 module shell::lcat contains
   define transparent lcat as
-    function path String returns computation String compute
-      bind contents from perform (File::read-file path) then
-        bind ignored from perform (IO::print contents) then
-          return contents
-        end
-      end
+    function path String returns computation String value
+      P::tap String IO::print (File::read-file path)
     end
 end

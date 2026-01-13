@@ -111,9 +111,7 @@ module cli contains
     end
 
   define transparent options as
-    compute
-      bind argv from perform args then
-        return (parse-options argv)
-      end
-    end
+    P::map-comp (List String) (Pair (List String) (List (Pair String String)))
+      parse-options
+      args
 end
