@@ -3,6 +3,7 @@
 import shell::lcat as Lcat
 import file as File
 import assert as A
+import prelude as P
 import test::helpers as TH
 import typeclass::equality as Eq
 import string as S
@@ -11,11 +12,14 @@ open A exposing assert-eq end
 open Eq exposing Equality end
 
 module test::shell::lcat contains
-  define transparent main as compute
-    bind ignored from perform (File::write-file "test/tmp/lcat.txt" "lcat") then
-      bind out from perform (TH::assert-single-output String "lcat" (Lcat::lcat "test/tmp/lcat.txt")) then
-        perform (assert-eq String out "lcat")
-      end
-    end
-  end
+  define transparent main as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp String Unit
+          (TH::assert-single-output String "lcat" (Lcat::lcat "test/tmp/lcat.txt"))
+          (function out String returns computation Unit value
+            assert-eq String out "lcat"
+          end)
+      end)
+      (File::write-file "test/tmp/lcat.txt" "lcat")
 end

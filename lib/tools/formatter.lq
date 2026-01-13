@@ -481,13 +481,15 @@ module tools::formatter contains
     function files (List String) returns computation (List String) value
       let value step be
         function acc (computation (List String)) path String returns computation (List String) value
-          compute
-            bind current from perform acc then
-              bind next from perform (check-file path) then
-                return (P::append String current next)
-              end
-            end
-          end
+          P::bind-comp (List String) (List String)
+            acc
+            (function current (List String) returns computation (List String) value
+              P::map-comp (List String) (List String)
+                (function next (List String) returns (List String) value
+                  P::append String current next
+                end)
+                (check-file path)
+            end)
         end
       in
         P::fold-compute String (List String) step (compute return (P::nil String) end) files
@@ -509,11 +511,11 @@ module tools::formatter contains
     function errors (List String) returns computation Unit value
       let value step be
         function acc (computation Unit) msg String returns computation Unit value
-          compute
-            bind ignored from perform acc then
-              perform (IO::print msg)
-            end
-          end
+          P::and-then Unit Unit
+            (function ignored Unit returns computation Unit value
+              IO::print msg
+            end)
+            acc
         end
       in
         P::fold-compute String Unit step (compute return tt end) errors
@@ -531,13 +533,15 @@ module tools::formatter contains
     function targets (List String) returns computation (List String) value
       let value step be
         function acc (computation (List String)) target String returns computation (List String) value
-          compute
-            bind current from perform acc then
-              bind next from perform (collect-files target) then
-                return (P::append String current next)
-              end
-            end
-          end
+          P::bind-comp (List String) (List String)
+            acc
+            (function current (List String) returns computation (List String) value
+              P::map-comp (List String) (List String)
+                (function next (List String) returns (List String) value
+                  P::append String current next
+                end)
+                (collect-files target)
+            end)
         end
       in
         P::fold-compute String (List String) step (compute return (P::nil String) end) targets
@@ -574,11 +578,11 @@ module tools::formatter contains
                           (match (L::is-empty String errors) of-type Boolean as ignored returns (computation Unit)
                             case Boolean::true as compute return tt end
                             case Boolean::false as
-                              compute
-                                bind ignored from perform (print-errors errors) then
-                                  return (P::error Unit "formatting failed")
-                                end
-                              end
+                              P::map-comp Unit Unit
+                                (function ignored Unit returns Unit value
+                                  P::error Unit "formatting failed"
+                                end)
+                                (print-errors errors)
                           end)
                       end
                     end

@@ -155,23 +155,30 @@ module test::main contains
     function entry (Pair String (computation Unit)) returns (computation (Pair String Natural)) value
       match entry of-type (Pair String (computation Unit)) as ignored returns (computation (Pair String Natural))
         case Pair::pair with name String action (computation Unit) as
-          compute
-            bind ignored from perform (IO::print (suite-start-line name)) then
-              bind before from perform A::assertion-count then
-                bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
-                  bind after from perform A::assertion-count then
-                    bind ignored from perform
-                      (IO::print
-                        (let value assertions be Ar::subtract after before in
-                          suite-end-line name assertions
-                        end)) then
-                      return (P::pair String Natural name (P::snd Unit Natural measured))
-                    end
-                  end
-                end
-              end
-            end
-          end
+          P::and-then Unit (Pair String Natural)
+            (function ignored Unit returns computation (Pair String Natural) value
+              P::bind-comp Natural (Pair String Natural)
+                A::assertion-count
+                (function before Natural returns computation (Pair String Natural) value
+                  P::bind-comp (Pair Unit Natural) (Pair String Natural)
+                    (Time::measure Unit (TH::assert-no-output Unit action))
+                    (function measured (Pair Unit Natural) returns computation (Pair String Natural) value
+                      P::bind-comp Natural (Pair String Natural)
+                        A::assertion-count
+                        (function after Natural returns computation (Pair String Natural) value
+                          P::map-comp Unit (Pair String Natural)
+                            (function ignored Unit returns (Pair String Natural) value
+                              P::pair String Natural name (P::snd Unit Natural measured)
+                            end)
+                            (IO::print
+                              (let value assertions be Ar::subtract after before in
+                                suite-end-line name assertions
+                              end))
+                        end)
+                    end)
+                end)
+            end)
+            (IO::print (suite-start-line name))
       end
     end
 
@@ -184,11 +191,11 @@ module test::main contains
     function entry (Pair String (computation Unit)) returns computation (Pair String Natural) value
       match entry of-type (Pair String (computation Unit)) as ignored returns computation (Pair String Natural)
         case Pair::pair with name String action (computation Unit) as
-          compute
-            bind measured from perform (Time::measure Unit (TH::assert-no-output Unit action)) then
-              return (P::pair String Natural name (P::snd Unit Natural measured))
-            end
-          end
+          P::map-comp (Pair Unit Natural) (Pair String Natural)
+            (function measured (Pair Unit Natural) returns (Pair String Natural) value
+              P::pair String Natural name (P::snd Unit Natural measured)
+            end)
+            (Time::measure Unit (TH::assert-no-output Unit action))
       end
     end
 
@@ -198,13 +205,15 @@ module test::main contains
         (function acc (computation (List (Pair String Natural)))
                   entry (Pair String (computation Unit))
         returns computation (List (Pair String Natural)) value
-          compute
-            bind results from perform acc then
-              bind measured from perform (measure-suite entry) then
-                return (P::cons (Pair String Natural) measured results)
-              end
-            end
-          end
+          P::bind-comp (List (Pair String Natural)) (List (Pair String Natural))
+            acc
+            (function results (List (Pair String Natural)) returns computation (List (Pair String Natural)) value
+              P::map-comp (Pair String Natural) (List (Pair String Natural))
+                (function measured (Pair String Natural) returns (List (Pair String Natural)) value
+                  P::cons (Pair String Natural) measured results
+                end)
+                (measure-suite entry)
+            end)
         end)
         (compute return (of-type [] (List (Pair String Natural))) end)
         xs
@@ -228,24 +237,20 @@ module test::main contains
       let value sorted be L::sort-by (Pair String Natural) compare-suites results in
         let value top be L::take (Pair String Natural) 5 sorted in
           let value lines be P::map (Pair String Natural) String suite-line top in
-            compute
-              bind ignored from perform (IO::print "Slowest test suites (us):") then
-                bind ignored from perform (P::sequence-unit
-                  (P::map String (computation Unit) IO::print lines)) then
-                  return Unit::tt
-                end
-              end
-            end
+            P::and-then Unit Unit
+              (function ignored Unit returns computation Unit value
+                P::sequence-unit (P::map String (computation Unit) IO::print lines)
+              end)
+              (IO::print "Slowest test suites (us):")
           end
         end
       end
     end
 
-  define transparent run-tests-slow as compute
-    bind results from perform (measure-suites suites) then
-      perform (report-slowest results)
-    end
-  end
+  define transparent run-tests-slow as
+    P::and-then (List (Pair String Natural)) Unit
+      report-slowest
+      (measure-suites suites)
 
   define transparent slow-enabled as
     function args (List String) returns Boolean value
@@ -257,35 +262,35 @@ module test::main contains
       L::member String "--verbose" args
     end
 
-  define transparent run-tests-verbose as compute
-    bind results from perform
+  define transparent run-tests-verbose as
+    P::bind-comp (List (Pair String Natural)) Unit
       (P::sequence (Pair String Natural)
-        (P::map (Pair String (computation Unit)) (computation (Pair String Natural)) run-suite-verbose suites)) then
-      bind assertions from perform A::assertion-count then
-        bind ignored from perform
-          (IO::print (summary-line assertions (P::length-list (Pair String Natural) results))) then
-          bind ignored from perform
-            (P::sequence-unit
-              (P::map String (computation Unit) IO::print
-                (P::map (Pair String Natural) String timing-line results))) then
-            return Unit::tt
-          end
-        end
-      end
-    end
-  end
+        (P::map (Pair String (computation Unit)) (computation (Pair String Natural)) run-suite-verbose suites))
+      (function results (List (Pair String Natural)) returns computation Unit value
+        P::bind-comp Natural Unit
+          A::assertion-count
+          (function assertions Natural returns computation Unit value
+            P::and-then Unit Unit
+              (function ignored Unit returns computation Unit value
+                P::sequence-unit
+                  (P::map String (computation Unit) IO::print
+                    (P::map (Pair String Natural) String timing-line results))
+              end)
+              (IO::print (summary-line assertions (P::length-list (Pair String Natural) results)))
+          end)
+      end)
 
-  define transparent main as compute
-    bind args from perform CLI::args then
-      perform
-        (match (slow-enabled args) of-type Boolean as ignored returns (computation Unit)
+  define transparent main as
+    P::and-then (List String) Unit
+      (function args (List String) returns computation Unit value
+        match (slow-enabled args) of-type Boolean as ignored returns (computation Unit)
           case Boolean::true as run-tests-slow
           case Boolean::false as
             match (verbose-enabled args) of-type Boolean as ignored returns (computation Unit)
               case Boolean::true as run-tests-verbose
               case Boolean::false as TH::assert-no-output Unit run-tests
             end
-        end)
-    end
-  end
+        end
+      end)
+      CLI::args
 end

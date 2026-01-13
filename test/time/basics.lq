@@ -9,29 +9,31 @@ open A exposing assert-eq end
 open P exposing Option Option::none Option::some end
 
 module test::time::basics contains
-  define transparent main as compute
-    bind ignored from perform (Time::sleep 0) then
-      bind measured from perform (Time::measure Natural (compute return 42 end)) then
-        bind timed-out from perform (Time::timeout Unit 0 (Time::sleep 1000)) then
-          perform
-            (match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
-              case Pair::pair with val Natural elapsed Natural as
-                compute
-                  perform (P::sequence-unit
-                    [
-                      (assert-eq Natural val 42)
-                    , (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
-                    , (assert-eq Boolean
-                        (match timed-out of-type (Option Unit) as ignored returns Boolean
-                          case Option::none as true
-                          case Option::some with ignored Unit as false
-                        end)
-                        true)
-                    ])
+  define transparent main as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp (Pair Natural Natural) Unit
+          (Time::measure Natural (compute return 42 end))
+          (function measured (Pair Natural Natural) returns computation Unit value
+            P::bind-comp (Option Unit) Unit
+              (Time::timeout Unit 0 (Time::sleep 1000))
+              (function timed-out (Option Unit) returns computation Unit value
+                match measured of-type (Pair Natural Natural) as ignored returns (computation Unit)
+                  case Pair::pair with val Natural elapsed Natural as
+                    P::sequence-unit
+                      [
+                        (assert-eq Natural val 42)
+                      , (assert-eq Boolean (Order::greater-or-equal Natural elapsed 0) true)
+                      , (assert-eq Boolean
+                          (match timed-out of-type (Option Unit) as ignored returns Boolean
+                            case Option::none as true
+                            case Option::some with ignored Unit as false
+                          end)
+                          true)
+                      ]
                 end
-            end)
-        end
-      end
-    end
-  end
+              end)
+          end)
+      end)
+      (Time::sleep 0)
 end

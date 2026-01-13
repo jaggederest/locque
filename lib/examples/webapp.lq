@@ -181,20 +181,17 @@ module examples::webapp contains
     end
 
   define transparent read-todos as
-    compute
-      bind exists from perform (File::path-exists todo-file) then
-        perform
-          match exists of-type Boolean as ignored returns (computation (List Todo))
-            case Boolean::false as compute return (P::nil Todo) end
-            case Boolean::true as
-              compute
-                bind lines from perform (File::read-lines todo-file) then
-                  return (parse-todos lines)
-                end
-              end
-          end
-      end
-    end
+    P::bind-comp Boolean (List Todo)
+      (File::path-exists todo-file)
+      (function exists Boolean returns (computation (List Todo)) value
+        match exists of-type Boolean as ignored returns (computation (List Todo))
+          case Boolean::false as compute return (P::nil Todo) end
+          case Boolean::true as
+            P::map-comp (List String) (List Todo)
+              parse-todos
+              (File::read-lines todo-file)
+        end
+      end)
 
   define transparent write-todos as
     function todos (List Todo) returns computation Unit value
@@ -226,22 +223,21 @@ module examples::webapp contains
 
   define transparent add-todo as
     function text String returns computation Response value
-      compute
-        bind todos from perform read-todos then
-          perform
-            (let value next-id be Ar::add (max-id todos) 1 in
-              let value new-todo be Todo::todo next-id false text in
-                let value updated be P::append Todo todos [new-todo] in
-                  compute
-                    bind ignored from perform (write-todos updated) then
-                      return (html-response (page-lines updated))
-                    end
-                  end
-                end
+      P::bind-comp (List Todo) Response
+        read-todos
+        (function todos (List Todo) returns computation Response value
+          let value next-id be Ar::add (max-id todos) 1 in
+            let value new-todo be Todo::todo next-id false text in
+              let value updated be P::append Todo todos [new-todo] in
+                P::map-comp Unit Response
+                  (function ignored Unit returns Response value
+                    html-response (page-lines updated)
+                  end)
+                  (write-todos updated)
               end
-            end)
-        end
-      end
+            end
+          end
+        end)
     end
 
   define transparent mark-done as
@@ -373,11 +369,11 @@ module examples::webapp contains
     end
 
   define transparent render-index as
-    compute
-      bind todos from perform read-todos then
-        return (html-response (page-lines todos))
-      end
-    end
+    P::map-comp (List Todo) Response
+      (function todos (List Todo) returns Response value
+        html-response (page-lines todos)
+      end)
+      read-todos
 
   define transparent handle-get as
     function path String returns computation Response value
@@ -410,18 +406,17 @@ module examples::webapp contains
       match (todo-id-from-path path) of-type (P::Option Natural) as ignored returns (computation Response)
         case Option::none as compute return (Resp::bad-request ["invalid todo id"]) end
         case Option::some with target Natural as
-          compute
-            bind todos from perform read-todos then
-              perform
-                (let value updated be mark-done target todos in
-                  compute
-                    bind ignored from perform (write-todos updated) then
-                      return (html-response (page-lines updated))
-                    end
-                  end
-                end)
-            end
-          end
+          P::bind-comp (List Todo) Response
+            read-todos
+            (function todos (List Todo) returns computation Response value
+              let value updated be mark-done target todos in
+                P::map-comp Unit Response
+                  (function ignored Unit returns Response value
+                    html-response (page-lines updated)
+                  end)
+                  (write-todos updated)
+              end
+            end)
       end
     end
 
@@ -430,18 +425,17 @@ module examples::webapp contains
       match (todo-id-from-path path) of-type (P::Option Natural) as ignored returns (computation Response)
         case Option::none as compute return (Resp::bad-request ["invalid todo id"]) end
         case Option::some with target Natural as
-          compute
-            bind todos from perform read-todos then
-              perform
-                (let value updated be remove-todo target todos in
-                  compute
-                    bind ignored from perform (write-todos updated) then
-                      return (html-response (page-lines updated))
-                    end
-                  end
-                end)
-            end
-          end
+          P::bind-comp (List Todo) Response
+            read-todos
+            (function todos (List Todo) returns computation Response value
+              let value updated be remove-todo target todos in
+                P::map-comp Unit Response
+                  (function ignored Unit returns Response value
+                    html-response (page-lines updated)
+                  end)
+                  (write-todos updated)
+              end
+            end)
       end
     end
 
@@ -519,8 +513,11 @@ module examples::webapp contains
     end
 
   define transparent main as compute
-    bind args from perform CLI::args then
-      perform (Server::serve-tcp-with handle-request (port-from-args args))
-    end
+    perform
+      (P::and-then (List String) Unit
+        (function args (List String) returns computation Unit value
+          Server::serve-tcp-with handle-request (port-from-args args)
+        end)
+        CLI::args)
   end
 end

@@ -7,14 +7,9 @@ module test::bench::tokenizer contains
   define transparent line as
     "define transparent example as function x Natural returns Natural value x end"
 
-  define transparent main as compute
-    bind ignored from perform
-      (Bench::bench-value (Pair (List String) Boolean)
-        "tokenizer scan-line"
-        200000
-        (Tokenizer::scan-line line))
-    then
-      return tt
-    end
-  end
+  define transparent main as
+    Bench::bench-value (Pair (List String) Boolean)
+      "tokenizer scan-line"
+      200000
+      (Tokenizer::scan-line line)
 end

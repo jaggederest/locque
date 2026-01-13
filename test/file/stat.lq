@@ -23,27 +23,29 @@ module test::file::stat contains
       ])
   end
 
-  define transparent check-file as compute
-    bind info from perform (File::stat (path "/data.txt")) then
-      perform (P::sequence-unit
-        [
-          (A::assert-eq String (File::stat-type info) "file")
-        , (A::assert-eq Natural (File::stat-size info) 4)
-        , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
-        ])
-    end
-  end
+  define transparent check-file as
+    P::bind-comp (Pair String (Pair Natural Natural)) Unit
+      (File::stat (path "/data.txt"))
+      (function info (Pair String (Pair Natural Natural)) returns computation Unit value
+        P::sequence-unit
+          [
+            (A::assert-eq String (File::stat-type info) "file")
+          , (A::assert-eq Natural (File::stat-size info) 4)
+          , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
+          ]
+      end)
 
-  define transparent check-dir as compute
-    bind info from perform (File::stat (path "/dir")) then
-      perform (P::sequence-unit
-        [
-          (A::assert-eq String (File::stat-type info) "directory")
-        , (A::assert-eq Natural (File::stat-size info) 0)
-        , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
-        ])
-    end
-  end
+  define transparent check-dir as
+    P::bind-comp (Pair String (Pair Natural Natural)) Unit
+      (File::stat (path "/dir"))
+      (function info (Pair String (Pair Natural Natural)) returns computation Unit value
+        P::sequence-unit
+          [
+            (A::assert-eq String (File::stat-type info) "directory")
+          , (A::assert-eq Natural (File::stat-size info) 0)
+          , (A::assert-eq Boolean (Order::greater-than Natural (File::stat-mtime info) 0) true)
+          ]
+      end)
 
   define transparent main as compute
     perform (P::sequence-unit

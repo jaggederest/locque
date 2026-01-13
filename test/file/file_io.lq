@@ -11,11 +11,16 @@ open Eq exposing Equality end
 
 module test::file::file_io contains
   define transparent roundtrip as compute
-    bind ignored from perform (File::write-file "test/tmp/test_tmp.txt" "abc") then
-      bind contents from perform (File::read-file "test/tmp/test_tmp.txt") then
-        perform (assert-eq String contents "abc")
-      end
-    end
+    perform
+      (P::bind-comp Unit Unit
+        (File::write-file "test/tmp/test_tmp.txt" "abc")
+        (function ignored Unit returns computation Unit value
+          P::bind-comp String Unit
+            (File::read-file "test/tmp/test_tmp.txt")
+            (function contents String returns computation Unit value
+              assert-eq String contents "abc"
+            end)
+        end))
   end
 
   define transparent main as compute

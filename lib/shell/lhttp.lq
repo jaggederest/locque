@@ -51,11 +51,14 @@ module shell::lhttp contains
       end
     end
 
-  define transparent main as compute
-    bind args from perform CLI::args then
-      bind ignored from perform install-signals then
-        perform (Server::serve-tcp-logged (port-from-args args))
-      end
-    end
-  end
+  define transparent main as
+    P::and-then (List String) Unit
+      (function args (List String) returns computation Unit value
+        P::and-then Unit Unit
+          (function ignored Unit returns computation Unit value
+            Server::serve-tcp-logged (port-from-args args)
+          end)
+          install-signals
+      end)
+      CLI::args
 end

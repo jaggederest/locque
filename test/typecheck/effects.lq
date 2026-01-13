@@ -14,9 +14,10 @@ module test::typecheck::effects contains
       c
     end
 
-  define transparent main as compute
-    bind ignored from perform (accept-io io-action) then
-      return 0
-    end
-  end
+  define transparent main as
+    P::map-comp Unit Natural
+      (function ignored Unit returns Natural value
+        0
+      end)
+      (accept-io io-action)
 end

@@ -14,20 +14,20 @@ module test::file::io contains
 
   define transparent assert-path-exists as
     function target String expected Boolean returns computation Unit value
-      compute
-        bind ok from perform (File::path-exists target) then
-          perform (A::assert-eq Boolean ok expected)
-        end
-      end
+      P::bind-comp Boolean Unit
+        (File::path-exists target)
+        (function ok Boolean returns computation Unit value
+          A::assert-eq Boolean ok expected
+        end)
     end
 
   define transparent assert-is-file as
     function target String expected Boolean returns computation Unit value
-      compute
-        bind ok from perform (File::is-file target) then
-          perform (A::assert-eq Boolean ok expected)
-        end
-      end
+      P::bind-comp Boolean Unit
+        (File::is-file target)
+        (function ok Boolean returns computation Unit value
+          A::assert-eq Boolean ok expected
+        end)
     end
 
   define transparent ensure-clean as compute
@@ -50,21 +50,27 @@ module test::file::io contains
     perform (File::write-file (path "/a.txt") "hi")
   end
 
-  define transparent append-and-read as compute
-    bind ignored from perform (File::append-file (path "/a.txt") " there") then
-      bind contents from perform (File::read-file (path "/a.txt")) then
-        perform (A::assert-eq String contents "hi there")
-      end
-    end
-  end
+  define transparent append-and-read as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp String Unit
+          (File::read-file (path "/a.txt"))
+          (function contents String returns computation Unit value
+            A::assert-eq String contents "hi there"
+          end)
+      end)
+      (File::append-file (path "/a.txt") " there")
 
-  define transparent copy-and-read as compute
-    bind ignored from perform (File::copy-file (path "/a.txt") (path "/b.txt")) then
-      bind contents from perform (File::read-file (path "/b.txt")) then
-        perform (A::assert-eq String contents "hi there")
-      end
-    end
-  end
+  define transparent copy-and-read as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp String Unit
+          (File::read-file (path "/b.txt"))
+          (function contents String returns computation Unit value
+            A::assert-eq String contents "hi there"
+          end)
+      end)
+      (File::copy-file (path "/a.txt") (path "/b.txt"))
 
   define transparent rename-copy as compute
     perform (File::rename-path (path "/b.txt") (path "/c.txt"))
@@ -74,19 +80,23 @@ module test::file::io contains
     perform (File::remove-file (path "/c.txt"))
   end
 
-  define transparent rename-dir as compute
-    bind ignored from perform (File::make-directory (path "/dir_old")) then
-      perform (File::rename-path (path "/dir_old") (path "/dir_new"))
-    end
-  end
+  define transparent rename-dir as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        File::rename-path (path "/dir_old") (path "/dir_new")
+      end)
+      (File::make-directory (path "/dir_old"))
 
-  define transparent remove-dir-recursive as compute
-    bind ignored from perform (File::make-directory (path "/dir_remove")) then
-      bind ignored from perform (File::write-file (path "/dir_remove/nested.txt") "x") then
-        perform (File::remove-directory (path "/dir_remove"))
-      end
-    end
-  end
+  define transparent remove-dir-recursive as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::and-then Unit Unit
+          (function ignored Unit returns computation Unit value
+            File::remove-directory (path "/dir_remove")
+          end)
+          (File::write-file (path "/dir_remove/nested.txt") "x")
+      end)
+      (File::make-directory (path "/dir_remove"))
 
   define transparent main as compute
     perform (P::sequence-unit

@@ -12,14 +12,9 @@ module test::bench::formatter contains
     , "end"
     ]
 
-  define transparent main as compute
-    bind ignored from perform
-      (Bench::bench-value (List String)
-        "formatter check-lines"
-        500000
-        (Formatter::check-lines "bench.lq" lines))
-    then
-      return tt
-    end
-  end
+  define transparent main as
+    Bench::bench-value (List String)
+      "formatter check-lines"
+      500000
+      (Formatter::check-lines "bench.lq" lines)
 end

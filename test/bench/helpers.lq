@@ -17,13 +17,11 @@ module test::bench::helpers contains
     function A Type0 tokens (List Unit) action (computation A) returns computation Unit value
       let value step be
         function acc (computation Unit) ignored Unit returns computation Unit value
-          compute
-            bind ignored from perform acc then
-              bind ignored from perform action then
-                return tt
-              end
-            end
-          end
+          P::and-then Unit Unit
+            (function ignored Unit returns computation Unit value
+              action
+            end)
+            acc
         end
       in
         P::fold Unit (computation Unit) step (compute return tt end) tokens
@@ -34,13 +32,15 @@ module test::bench::helpers contains
     function A Type0 tokens (List Unit) action (computation A) returns computation (List Natural) value
       let value step be
         function acc (computation (List Natural)) ignored Unit returns computation (List Natural) value
-          compute
-            bind collected from perform acc then
-              bind measured from perform (Time::measure A action) then
-                return (P::cons Natural (P::snd A Natural measured) collected)
-              end
-            end
-          end
+          P::bind-comp (List Natural) (List Natural)
+            acc
+            (function collected (List Natural) returns computation (List Natural) value
+              P::map-comp (Pair A Natural) (List Natural)
+                (function measured (Pair A Natural) returns (List Natural) value
+                  P::cons Natural (P::snd A Natural measured) collected
+                end)
+                (Time::measure A action)
+            end)
         end
       in
         P::fold Unit (computation (List Natural)) step
@@ -103,37 +103,30 @@ module test::bench::helpers contains
 
   define transparent measure-with-threshold as
     function A Type0 label String threshold Natural action (computation A) returns computation Unit value
-      compute
-        bind ignored from perform
-          (run-times A (N::to-peano bench-warmups) action)
-        then
-          bind timings from perform
+      P::and-then Unit Unit
+        (function ignored Unit returns computation Unit value
+          P::bind-comp (List Natural) Unit
             (measure-times A (N::to-peano bench-iterations) action)
-          then
-            bind count from perform (compute return (P::length-list Natural timings) end) then
-              bind total from perform (compute return (sum-list timings) end) then
-                bind avg from perform (compute return (Ar::div-nat total count) end) then
-                  bind min from perform (compute return (min-list timings) end) then
-                    bind max from perform (compute return (max-list timings) end) then
-                      bind ignored from perform
-                        (IO::print (stats-message label avg min max))
-                      then
-                        bind ignored from perform
-                          (A::assert-false
-                            (S::concat label (S::concat " exceeded threshold-us " (N::to-string threshold)))
-                            (Order::greater-than Natural max threshold))
-                        then
-                          return tt
-                        end
+            (function timings (List Natural) returns computation Unit value
+              let value count be P::length-list Natural timings in
+                let value total be sum-list timings in
+                  let value avg be Ar::div-nat total count in
+                    let value min be min-list timings in
+                      let value max be max-list timings in
+                        P::sequence-unit
+                          [
+                            (IO::print (stats-message label avg min max))
+                          , (A::assert-false
+                              (S::concat label (S::concat " exceeded threshold-us " (N::to-string threshold)))
+                              (Order::greater-than Natural max threshold))
+                          ]
                       end
                     end
                   end
                 end
-              end
-            end
-        end
-        end
-      end
+            end)
+        end)
+        (run-times A (N::to-peano bench-warmups) action)
     end
 
   define transparent bench-value as

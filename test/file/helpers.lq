@@ -53,60 +53,71 @@ module test::file::helpers contains
       ])
   end
 
-  define transparent check-lines as compute
-    bind ignored from perform (File::write-lines (path "/lines.txt")
-      ["a", "b"])
-    then
-      bind lines1 from perform (File::read-lines (path "/lines.txt")) then
-        bind ignored from perform
-          (A::assert-eq String (S::join-with "," lines1) "a,b")
-        then
-          bind ignored from perform (File::append-lines (path "/lines.txt")
-            ["c"])
-          then
-            bind lines2 from perform (File::read-lines (path "/lines.txt")) then
-              perform (A::assert-eq String (S::join-with "," lines2) "a,b,c")
-            end
-          end
-        end
-      end
-    end
-  end
+  define transparent check-lines as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp (List String) Unit
+          (File::read-lines (path "/lines.txt"))
+          (function lines1 (List String) returns computation Unit value
+            P::sequence-unit
+              [
+                (A::assert-eq String (S::join-with "," lines1) "a,b")
+              , (P::and-then Unit Unit
+                  (function ignored Unit returns computation Unit value
+                    P::bind-comp (List String) Unit
+                      (File::read-lines (path "/lines.txt"))
+                      (function lines2 (List String) returns computation Unit value
+                        A::assert-eq String (S::join-with "," lines2) "a,b,c"
+                      end)
+                  end)
+                  (File::append-lines (path "/lines.txt") ["c"]))
+              ]
+          end)
+      end)
+      (File::write-lines (path "/lines.txt") ["a", "b"])
 
-  define transparent check-walk as compute
-    bind entries from perform (File::walk (path "/src")) then
-      perform (P::sequence-unit
-        [
-          (A::assert-eq Boolean
-                                                              (contains-path (path "/src/file.txt") entries)
-                                                              true)
-        , (A::assert-eq Boolean
-                                                                (contains-path (path "/src/sub") entries)
+  define transparent check-walk as
+    P::bind-comp (List (Pair String Boolean)) Unit
+      (File::walk (path "/src"))
+      (function entries (List (Pair String Boolean)) returns computation Unit value
+        P::sequence-unit
+          [
+            (A::assert-eq Boolean
+                                                                (contains-path (path "/src/file.txt") entries)
                                                                 true)
-        , (A::assert-eq Boolean
-                                                                  (contains-path (path "/src/sub/nested.txt") entries)
+          , (A::assert-eq Boolean
+                                                                  (contains-path (path "/src/sub") entries)
                                                                   true)
-        , (A::assert-eq Boolean
-                                                                    (find-is-directory (path "/src/sub") entries)
+          , (A::assert-eq Boolean
+                                                                    (contains-path (path "/src/sub/nested.txt") entries)
                                                                     true)
-        , (A::assert-eq Boolean
-                                                                      (find-is-directory (path "/src/file.txt") entries)
-                                                                      false)
-        ])
-    end
-  end
+          , (A::assert-eq Boolean
+                                                                      (find-is-directory (path "/src/sub") entries)
+                                                                      true)
+          , (A::assert-eq Boolean
+                                                                        (find-is-directory (path "/src/file.txt") entries)
+                                                                        false)
+          ]
+      end)
 
-  define transparent check-copy-tree as compute
-    bind ignored from perform (File::copy-tree (path "/src") (path "/dest")) then
-      bind exists from perform (File::path-exists (path "/dest/sub/nested.txt")) then
-        bind ignored from perform (A::assert-eq Boolean exists true) then
-          bind contents from perform (File::read-file (path "/dest/sub/nested.txt")) then
-            perform (A::assert-eq String contents "nested")
-          end
-        end
-      end
-    end
-  end
+  define transparent check-copy-tree as
+    P::and-then Unit Unit
+      (function ignored Unit returns computation Unit value
+        P::bind-comp Boolean Unit
+          (File::path-exists (path "/dest/sub/nested.txt"))
+          (function exists Boolean returns computation Unit value
+            P::and-then Unit Unit
+              (function ignored Unit returns computation Unit value
+                P::bind-comp String Unit
+                  (File::read-file (path "/dest/sub/nested.txt"))
+                  (function contents String returns computation Unit value
+                    A::assert-eq String contents "nested"
+                  end)
+              end)
+              (A::assert-eq Boolean exists true)
+          end)
+      end)
+      (File::copy-tree (path "/src") (path "/dest"))
 
   define transparent main as compute
     perform (P::sequence-unit

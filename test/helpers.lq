@@ -17,17 +17,18 @@ module test::helpers contains
              action (computation A)
              check (Types::Function (List String) (Types::Function A (computation Unit)))
     returns computation A value
-      compute
-        bind result from perform (IO::capture-output A action) then
-          bind output from perform (compute return (P::fst (List String) A result) end) then
-            bind captured from perform (compute return (P::snd (List String) A result) end) then
-              bind ignored from perform (check output captured) then
-                return captured
-              end
-            end
+      P::bind-comp (Pair (List String) A) A
+        (IO::capture-output A action)
+        (function result (Pair (List String) A) returns computation A value
+          match result of-type (Pair (List String) A) as ignored returns (computation A)
+            case Pair::pair with output (List String) captured A as
+              P::map-comp Unit A
+                (function ignored Unit returns A value
+                  captured
+                end)
+                (check output captured)
           end
-        end
-      end
+        end)
     end
 
   define transparent output-string as
