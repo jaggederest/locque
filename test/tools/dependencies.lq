@@ -1,0 +1,94 @@
+import prelude as P
+import assert as A
+import string as S
+import list as L
+import option as Opt
+import tools::dependencies as Deps
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::tools::dependencies contains
+  define transparent test-path-to-module as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq String
+          (Deps::path-to-module "lib/prelude.lq")
+          "prelude")
+      , (assert-eq String
+          (Deps::path-to-module "lib/tools/formatter.lq")
+          "tools::formatter")
+      , (assert-eq String
+          (Deps::path-to-module "lib/typeclass/equality.lq")
+          "typeclass::equality")
+      ])
+  end
+
+  define transparent test-extract-import as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean
+          (Opt::is-some String (Deps::extract-import "import prelude as P"))
+          true)
+      , (assert-eq String
+          (Opt::unwrap-or String "" (Deps::extract-import "import prelude as P"))
+          "prelude")
+      , (assert-eq String
+          (Opt::unwrap-or String "" (Deps::extract-import "import tools::formatter as F"))
+          "tools::formatter")
+      , (assert-eq Boolean
+          (Opt::is-none String (Deps::extract-import "# a comment"))
+          true)
+      , (assert-eq Boolean
+          (Opt::is-none String (Deps::extract-import "define transparent x as 1"))
+          true)
+      ])
+  end
+
+  define transparent test-extract-imports as
+    let value source be
+      S::join-with "\n"
+        [
+          "import prelude as P"
+        , "import string as S"
+        , "# comment"
+        , ""
+        , "module test contains"
+        ]
+    in
+      compute
+        perform (P::sequence-unit
+          [
+            (assert-eq Boolean
+              (L::member String "prelude" (Deps::extract-imports source))
+              true)
+          , (assert-eq Boolean
+              (L::member String "string" (Deps::extract-imports source))
+              true)
+          ])
+      end
+    end
+
+  define transparent test-sort-strings as
+    let value sorted be Deps::sort-strings ["c", "a", "b"] in
+      compute
+        perform (P::sequence-unit
+          [
+            (assert-eq String (L::nth String 0 sorted) "a")
+          , (assert-eq String (L::nth String 1 sorted) "b")
+          , (assert-eq String (L::nth String 2 sorted) "c")
+          ])
+      end
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-path-to-module
+      , test-extract-import
+      , test-extract-imports
+      , test-sort-strings
+      ])
+  end
+end

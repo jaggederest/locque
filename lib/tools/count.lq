@@ -1,0 +1,95 @@
+import prelude as P
+import arithmetic as Ar
+import string as S
+import list as L
+import file as File
+import io as IO
+import natural as N
+
+module tools::count contains
+  define transparent skip-dirs as
+    [
+      "node_modules"
+    , ".git"
+    , "dist-newstyle"
+    , ".stack-work"
+    , "tmp"
+    ]
+
+  define transparent count-file-lines as
+    function path String returns computation Natural value
+      compute
+        bind contents from perform (File::read-file path) then
+          return (L::length String (S::split-on "\n" contents))
+        end
+      end
+    end
+
+  define transparent count-files as
+    function files (List String) returns computation (Pair Natural Natural) value
+      P::fold-compute String (Pair Natural Natural)
+        (function acc (computation (Pair Natural Natural)) path String
+        returns computation (Pair Natural Natural) value
+          compute
+            bind current from perform acc then
+              bind lines from perform (count-file-lines path) then
+                return
+                  (match current of-type (Pair Natural Natural) as ignored
+                    returns (Pair Natural Natural)
+                    case Pair::pair with file-count Natural line-count Natural as
+                      P::pair Natural Natural
+                        (Ar::add file-count 1)
+                        (Ar::add line-count lines)
+                  end)
+              end
+            end
+          end
+        end)
+        (compute return (P::pair Natural Natural 0 0) end)
+        files
+    end
+
+  define transparent format-count as
+    function label String count (Pair Natural Natural) returns String value
+      match count of-type (Pair Natural Natural) as ignored returns String
+        case Pair::pair with files Natural lines Natural as
+          S::concat label
+            (S::concat ": "
+              (S::concat (N::to-string lines)
+                (S::concat " lines ("
+                  (S::concat (N::to-string files) " files)"))))
+      end
+    end
+
+  define transparent add-counts as
+    function a (Pair Natural Natural) b (Pair Natural Natural)
+    returns (Pair Natural Natural) value
+      match a of-type (Pair Natural Natural) as ignored
+        returns (Pair Natural Natural)
+        case Pair::pair with af Natural al Natural as
+          match b of-type (Pair Natural Natural) as ignored
+            returns (Pair Natural Natural)
+            case Pair::pair with bf Natural bl Natural as
+              P::pair Natural Natural (Ar::add af bf) (Ar::add al bl)
+          end
+      end
+    end
+
+  define transparent main as compute
+    bind lib-files from perform (File::walk-lq "lib" skip-dirs) then
+      bind test-files from perform (File::walk-lq "test" skip-dirs) then
+        bind lib-count from perform (count-files lib-files) then
+          bind test-count from perform (count-files test-files) then
+            bind ignored from perform (IO::print "Locque line count (.lq only)") then
+              bind ignored from perform (IO::print (format-count "lib" lib-count)) then
+                bind ignored from perform (IO::print (format-count "test" test-count)) then
+                  perform (IO::print (format-count "total" (add-counts lib-count test-count)))
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end

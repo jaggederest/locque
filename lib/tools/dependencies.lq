@@ -1,0 +1,369 @@
+import prelude as P
+import arithmetic as Ar
+import string as S
+import list as L
+import file as File
+import io as IO
+import typeclass::equality as Eq
+
+open P exposing Option::none Option::some end
+
+module tools::dependencies contains
+  define transparent skip-dirs as
+    [
+      "node_modules"
+    , ".git"
+    , "dist-newstyle"
+    , ".stack-work"
+    , "tmp"
+    ]
+
+  # Convert a file path under lib/ to a module name
+  # e.g. "lib/tools/formatter.lq" -> "tools::formatter"
+  #      "lib/prelude.lq" -> "prelude"
+  define transparent path-to-module as
+    function path String returns String value
+      let value without-prefix be
+        match (S::starts-with "lib/" path) of-type Boolean as ignored returns String
+          case Boolean::true as S::substring 4 (Ar::subtract (S::length path) 4) path
+          case Boolean::false as path
+        end
+      in
+        let value without-ext be
+          match (S::ends-with ".lq" without-prefix) of-type Boolean as ignored returns String
+            case Boolean::true as S::substring 0 (Ar::subtract (S::length without-prefix) 3) without-prefix
+            case Boolean::false as without-prefix
+          end
+        in
+          S::join-with "::" (S::split-on "/" without-ext)
+        end
+      end
+    end
+
+  # Extract module name from a single import line
+  # "import prelude as P" -> some "prelude"
+  # "# comment" -> none
+  define transparent extract-import as
+    function line String returns (P::Option String) value
+      let value trimmed be S::trim-left line in
+        match (S::starts-with "import " trimmed) of-type Boolean as ignored
+          returns (P::Option String)
+          case Boolean::false as Option::none String
+          case Boolean::true as
+            let value rest be S::substring 7 (Ar::subtract (S::length trimmed) 7) trimmed in
+              let value parts be S::split-on " " rest in
+                match parts of-type (List String) as ignored returns (P::Option String)
+                  case List::empty as Option::none String
+                  case List::cons with module-name String ignored (List String) as
+                    match (S::is-empty module-name) of-type Boolean as ignored
+                      returns (P::Option String)
+                      case Boolean::true as Option::none String
+                      case Boolean::false as Option::some String module-name
+                    end
+                end
+              end
+            end
+        end
+      end
+    end
+
+  # Extract all imports from file contents
+  define transparent extract-imports as
+    function contents String returns (List String) value
+      let value file-lines be S::split-on "\n" contents in
+        P::fold String (List String)
+          (function acc (List String) line String returns (List String) value
+            match (extract-import line) of-type (P::Option String) as ignored
+              returns (List String)
+              case Option::none as acc
+              case Option::some with name String as P::cons String name acc
+            end
+          end)
+          (P::nil String)
+          file-lines
+      end
+    end
+
+  # Load a single module entry: (module-name, [dependency-names])
+  define transparent load-module as
+    function path String returns computation (Pair String (List String)) value
+      compute
+        bind contents from perform (File::read-file path) then
+          return
+            (let value mod-name be path-to-module path in
+              let value deps be extract-imports contents in
+                P::pair String (List String) mod-name deps
+              end
+            end)
+        end
+      end
+    end
+
+  # Load all modules from a list of file paths
+  define transparent load-modules as
+    function files (List String)
+    returns computation (List (Pair String (List String))) value
+      P::fold-compute String (List (Pair String (List String)))
+        (function acc (computation (List (Pair String (List String))))
+                  path String
+        returns computation (List (Pair String (List String))) value
+          compute
+            bind current from perform acc then
+              bind entry from perform (load-module path) then
+                return (P::cons (Pair String (List String)) entry current)
+              end
+            end
+          end
+        end)
+        (compute return (of-type [] (List (Pair String (List String)))) end)
+        files
+    end
+
+  # Check if a module name is in the graph (is a lib module)
+  define transparent is-lib-module as
+    function name String graph (List (Pair String (List String))) returns Boolean value
+      L::any (Pair String (List String))
+        (function entry (Pair String (List String)) returns Boolean value
+          match entry of-type (Pair String (List String)) as ignored returns Boolean
+            case Pair::pair with mod-name String ignored (List String) as
+              Eq::equals String mod-name name
+          end
+        end)
+        graph
+    end
+
+  # Get dependencies for a module from the graph
+  define transparent get-deps as
+    function name String graph (List (Pair String (List String)))
+    returns (List String) value
+      P::fold (Pair String (List String)) (List String)
+        (function acc (List String) entry (Pair String (List String))
+        returns (List String) value
+          match entry of-type (Pair String (List String)) as ignored
+            returns (List String)
+            case Pair::pair with mod-name String deps (List String) as
+              match (Eq::equals String mod-name name) of-type Boolean as ignored
+                returns (List String)
+                case Boolean::true as deps
+                case Boolean::false as acc
+              end
+          end
+        end)
+        (P::nil String)
+        graph
+    end
+
+  # Check if a module is imported by any other module
+  define transparent is-imported-by-any as
+    function name String graph (List (Pair String (List String))) returns Boolean value
+      L::any (Pair String (List String))
+        (function entry (Pair String (List String)) returns Boolean value
+          match entry of-type (Pair String (List String)) as ignored returns Boolean
+            case Pair::pair with ignored String deps (List String) as
+              L::member String name deps
+          end
+        end)
+        graph
+    end
+
+  # Find root modules (not imported by any other lib module)
+  define transparent find-roots as
+    function graph (List (Pair String (List String))) returns (List String) value
+      let value all-names be
+        P::map (Pair String (List String)) String
+          (function entry (Pair String (List String)) returns String value
+            match entry of-type (Pair String (List String)) as ignored returns String
+              case Pair::pair with name String ignored (List String) as name
+            end
+          end)
+          graph
+      in
+        P::filter String
+          (function name String returns Boolean value
+            P::not (is-imported-by-any name graph)
+          end)
+          all-names
+      end
+    end
+
+  # Sort a list of strings alphabetically
+  define transparent sort-strings as
+    function xs (List String) returns (List String) value
+      L::sort-by String S::string-less-than xs
+    end
+
+  # Print tree with indentation, tracking visited and path for cycles
+  define transparent print-tree as
+    function graph (List (Pair String (List String)))
+             name String
+             prefix String
+             is-last Boolean
+             path (List String)
+             seen (List String)
+    returns computation (List String) value
+      let value in-path be L::member String name path in
+        let value is-external be P::not (is-lib-module name graph) in
+          let value already-seen be L::member String name seen in
+            let value label be
+              match in-path of-type Boolean as ignored returns String
+                case Boolean::true as S::concat name " (cycle)"
+                case Boolean::false as
+                  match is-external of-type Boolean as ignored returns String
+                    case Boolean::true as S::concat name " (external)"
+                    case Boolean::false as
+                      match already-seen of-type Boolean as ignored returns String
+                        case Boolean::true as S::concat name " (shared)"
+                        case Boolean::false as name
+                      end
+                  end
+              end
+            in
+              let value line be
+                match (S::is-empty prefix) of-type Boolean as ignored returns String
+                  case Boolean::true as label
+                  case Boolean::false as
+                    S::concat prefix
+                      (match is-last of-type Boolean as ignored returns String
+                        case Boolean::true as S::concat "`- " label
+                        case Boolean::false as S::concat "|- " label
+                      end)
+                end
+              in
+                let value is-terminal be
+                  match in-path of-type Boolean as ignored returns Boolean
+                    case Boolean::true as true
+                    case Boolean::false as
+                      match is-external of-type Boolean as ignored returns Boolean
+                        case Boolean::true as true
+                        case Boolean::false as already-seen
+                      end
+                  end
+                in
+                  compute
+                    bind ignored from perform (IO::print line) then
+                      perform
+                        (match is-terminal of-type Boolean as ignored
+                          returns (computation (List String))
+                          case Boolean::true as
+                            compute return (P::cons String name seen) end
+                          case Boolean::false as
+                            let value deps be sort-strings (get-deps name graph) in
+                              let value next-prefix be
+                                S::concat prefix
+                                  (match is-last of-type Boolean as ignored returns String
+                                    case Boolean::true as "   "
+                                    case Boolean::false as "|  "
+                                  end)
+                              in
+                                let value next-path be P::cons String name path in
+                                  let value next-seen be P::cons String name seen in
+                                    print-children graph deps next-prefix next-path next-seen
+                                  end
+                                end
+                              end
+                            end
+                        end)
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+  define transparent print-children as
+    function graph (List (Pair String (List String)))
+             deps (List String)
+             prefix String
+             path (List String)
+             seen (List String)
+    returns computation (List String) value
+      let value total be L::length String deps in
+        print-children-indexed graph deps prefix path seen 1 total
+      end
+    end
+
+  define transparent print-children-indexed as
+    function graph (List (Pair String (List String)))
+             deps (List String)
+             prefix String
+             path (List String)
+             seen (List String)
+             index Natural
+             total Natural
+    returns computation (List String) value
+      match deps of-type (List String) as ignored returns (computation (List String))
+        case List::empty as compute return seen end
+        case List::cons with dep String rest (List String) as
+          let value is-last-child be Eq::equals Natural index total in
+            compute
+              bind seen2 from perform
+                (print-tree graph dep prefix is-last-child path seen)
+              then
+                perform
+                  (recur graph rest prefix path seen2 (Ar::add index 1) total)
+              end
+            end
+          end
+      end
+    end
+
+  define transparent print-forest as
+    function graph (List (Pair String (List String)))
+             roots (List String)
+    returns computation Unit value
+      compute
+        bind ignored from perform
+          (P::fold-compute String (List String)
+            (function acc (computation (List String)) root String
+            returns computation (List String) value
+              compute
+                bind seen from perform acc then
+                  perform (print-tree graph root "" true (P::nil String) seen)
+                end
+              end
+            end)
+            (compute return (of-type [] (List String)) end)
+            roots)
+        then
+          return tt
+        end
+      end
+    end
+
+  define transparent graph-names as
+    function graph (List (Pair String (List String))) returns (List String) value
+      P::map (Pair String (List String)) String
+        (function entry (Pair String (List String)) returns String value
+          match entry of-type (Pair String (List String)) as ignored
+            returns String
+            case Pair::pair with name String ignored (List String) as name
+          end
+        end)
+        graph
+    end
+
+  define transparent choose-roots as
+    function roots (List String) graph (List (Pair String (List String)))
+    returns (List String) value
+      match (L::is-empty String roots) of-type Boolean as ignored
+        returns (List String)
+        case Boolean::true as sort-strings (graph-names graph)
+        case Boolean::false as roots
+      end
+    end
+
+  define transparent main as compute
+    bind files from perform (File::walk-lq "lib" skip-dirs) then
+      bind graph from perform (load-modules files) then
+        bind ignored from perform (IO::print "Dependencies (lib/)") then
+          perform
+            (print-forest graph
+              (choose-roots (sort-strings (find-roots graph)) graph))
+        end
+      end
+    end
+  end
+end

@@ -1,0 +1,46 @@
+import prelude as P
+import assert as A
+import arithmetic as Ar
+import string as S
+import list as L
+import tools::count as Count
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::tools::count contains
+  define transparent test-format-count as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq String
+          (Count::format-count "lib" (P::pair Natural Natural 10 500))
+          "lib: 500 lines (10 files)")
+      , (assert-eq String
+          (Count::format-count "test" (P::pair Natural Natural 0 0))
+          "test: 0 lines (0 files)")
+      ])
+  end
+
+  define transparent test-add-counts as
+    let value a be P::pair Natural Natural 3 100 in
+      let value b be P::pair Natural Natural 5 200 in
+        let value result be Count::add-counts a b in
+          compute
+            perform (P::sequence-unit
+              [
+                (assert-eq (Pair Natural Natural) result (P::pair Natural Natural 8 300))
+              ])
+          end
+        end
+      end
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-format-count
+      , test-add-counts
+      ])
+  end
+end

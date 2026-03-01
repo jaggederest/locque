@@ -34,7 +34,7 @@ executable locque-interpreter
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
+  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythDump, SmythFormat, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:

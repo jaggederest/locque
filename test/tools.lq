@@ -6,6 +6,8 @@ import test::tools::tokenizer as tokenizer
 import test::tools::validator as validator
 import test::tools::formatter as formatter
 import test::tools::formatter_indent as formatter_indent
+import test::tools::count as count
+import test::tools::dependencies as dependencies
 
 module test::tools contains
   define transparent main as compute
@@ -15,6 +17,8 @@ module test::tools contains
       , validator::main
       , formatter::main
       , formatter_indent::main
+      , count::main
+      , dependencies::main
       ])
   end
 end

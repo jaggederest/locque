@@ -4,15 +4,15 @@ module Main (main) where
 import System.Environment (getArgs, withArgs)
 import System.Exit (exitFailure)
 
-import SmythConfig (findSmythfile, loadSmythConfig)
+import SmythConfig (findSmythfile, loadSmythConfig, SmythConfig(..))
 import SmythBench (runBench)
-import SmythCount (runCount)
-import SmythDependencies (runDependencies)
 import SmythDump (runDump)
 import SmythFormat (runFormat)
 import SmythTest (runTests)
-import SmythRun (RunOptions(..), defaultRunOptions, runFileWithOptions)
+import SmythRun (RunOptions(..), defaultRunOptions, runFileNoExit, runFileWithOptions)
 import Text.Read (readMaybe)
+import System.Directory (setCurrentDirectory)
+import System.FilePath ((</>))
 
 main :: IO ()
 main = do
@@ -102,15 +102,7 @@ runBenchCommand args = do
 runCountCommand :: [String] -> IO ()
 runCountCommand args = do
   case args of
-    [] -> do
-      maybeRoot <- findSmythfile
-      case maybeRoot of
-        Nothing -> do
-          putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
-          exitFailure
-        Just root -> do
-          config <- loadSmythConfig root
-          runCount config
+    [] -> runLocqueTool "lib/tools/count.lq"
     _ -> do
       putStrLn "Error: 'smyth count' does not take arguments"
       putStrLn "Usage: smyth count"
@@ -118,14 +110,12 @@ runCountCommand args = do
 
 runDependenciesCommand :: [String] -> IO ()
 runDependenciesCommand args = do
-  maybeRoot <- findSmythfile
-  case maybeRoot of
-    Nothing -> do
-      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+  case args of
+    [] -> runLocqueTool "lib/tools/dependencies.lq"
+    _ -> do
+      putStrLn "Error: 'smyth dependencies' does not take arguments"
+      putStrLn "Usage: smyth dependencies"
       exitFailure
-    Just root -> do
-      config <- loadSmythConfig root
-      runDependencies config args
 
 runFormatCommand :: [String] -> IO ()
 runFormatCommand args = do
@@ -148,6 +138,21 @@ runDumpCommand args = do
     Just root -> do
       config <- loadSmythConfig root
       runDump config args
+
+-- | Run a locque tool (.lq file) relative to the project root.
+runLocqueTool :: FilePath -> IO ()
+runLocqueTool toolPath = do
+  maybeRoot <- findSmythfile
+  case maybeRoot of
+    Nothing -> do
+      putStrLn "Error: No Smythfile.lq found (searched up from current directory)"
+      exitFailure
+    Just root -> do
+      config <- loadSmythConfig root
+      setCurrentDirectory (projectRoot config)
+      let fullPath = projectRoot config </> toolPath
+      ok <- runFileNoExit config fullPath
+      if ok then pure () else exitFailure
 
 printHelp :: IO ()
 printHelp = do
