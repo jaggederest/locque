@@ -38,10 +38,8 @@ module http::server contains
 
   define transparent is-get-root as
     function req Request returns Boolean value
-      match (Eq::equals String (Req::method req) "GET") of-type Boolean as ignored returns Boolean
-        case Boolean::true as Eq::equals String (Req::path req) "/"
-        case Boolean::false as false
-      end
+      P::and-bool (Eq::equals String (Req::method req) "GET")
+        (Eq::equals String (Req::path req) "/")
     end
 
   define transparent handle-request-option as
@@ -49,10 +47,7 @@ module http::server contains
       match parsed of-type (P::Option Request) as ignored returns Response
         case Option::none as Resp::bad-request ["bad request"]
         case Option::some with req Request as
-          match (is-get-root req) of-type Boolean as ignored returns Response
-            case Boolean::true as Resp::ok ["ok"]
-            case Boolean::false as Resp::not-found ["not found"]
-          end
+          P::choose Response (is-get-root req) (Resp::ok ["ok"]) (Resp::not-found ["not found"])
       end
     end
 

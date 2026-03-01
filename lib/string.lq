@@ -249,10 +249,7 @@ module string contains
           match haystack of-type (List Character) as ignored returns Boolean
             case List::empty as false
             case List::cons with h Character ht (List Character) as
-              match (char-eq n h) of-type Boolean as ignored returns Boolean
-                case Boolean::false as false
-                case Boolean::true as recur nt ht
-              end
+              P::and-bool (char-eq n h) (recur nt ht)
           end
       end
     end
@@ -260,19 +257,12 @@ module string contains
   define transparent list-eq-chars as
     function xs (List Character) ys (List Character) returns Boolean value
       match xs of-type (List Character) as ignored returns Boolean
-        case List::empty as
-          match ys of-type (List Character) as ignored returns Boolean
-            case List::empty as true
-            case List::cons with ignored Character ignored-tail (List Character) as false
-          end
+        case List::empty as L::is-empty Character ys
         case List::cons with x Character xt (List Character) as
           match ys of-type (List Character) as ignored returns Boolean
             case List::empty as false
             case List::cons with y Character yt (List Character) as
-              match (char-eq x y) of-type Boolean as ignored returns Boolean
-                case Boolean::false as false
-                case Boolean::true as recur xt yt
-              end
+              P::and-bool (char-eq x y) (recur xt yt)
           end
       end
     end
@@ -304,10 +294,7 @@ module string contains
     function prefixes (List String) s String returns Boolean value
       P::fold String Boolean
         (function acc Boolean prefix String returns Boolean value
-          match acc of-type Boolean as ignored returns Boolean
-            case Boolean::true as true
-            case Boolean::false as starts-with prefix s
-          end
+          P::or-bool acc (starts-with prefix s)
         end)
         false
         prefixes
@@ -319,11 +306,8 @@ module string contains
         let value s-chars be to-list s in
           let value suffix-length be P::length-list Character suffix-chars in
             let value s-length be P::length-list Character s-chars in
-              match (Order::less-than Natural s-length suffix-length) of-type Boolean as ignored returns Boolean
-                case Boolean::true as false
-                case Boolean::false as
-                  list-eq-chars (L::drop Character (Ar::subtract s-length suffix-length) s-chars) suffix-chars
-              end
+              P::and-bool (P::not (Order::less-than Natural s-length suffix-length))
+                (list-eq-chars (L::drop Character (Ar::subtract s-length suffix-length) s-chars) suffix-chars)
             end
           end
         end
@@ -332,20 +316,15 @@ module string contains
 
   define transparent has-substring as
     function needle String haystack String returns Boolean value
-      match (Eq::equals Natural (length needle) 0) of-type Boolean as ignored returns Boolean
-        case Boolean::true as true
-        case Boolean::false as Order::less-than Natural (index-of needle haystack) (length haystack)
-      end
+      P::or-bool (Eq::equals Natural (length needle) 0)
+        (Order::less-than Natural (index-of needle haystack) (length haystack))
     end
 
   define transparent contains-any as
     function needles (List String) haystack String returns Boolean value
       P::fold String Boolean
         (function acc Boolean needle String returns Boolean value
-          match acc of-type Boolean as ignored returns Boolean
-            case Boolean::true as true
-            case Boolean::false as has-substring needle haystack
-          end
+          P::or-bool acc (has-substring needle haystack)
         end)
         false
         needles
@@ -354,25 +333,15 @@ module string contains
   define transparent chars-less-than as
     function xs (List Character) ys (List Character) returns Boolean value
       match xs of-type (List Character) as ignored returns Boolean
-        case List::empty as
-          match ys of-type (List Character) as ignored returns Boolean
-            case List::empty as false
-            case List::cons with ignored Character ignored-tail (List Character) as true
-          end
+        case List::empty as P::not (L::is-empty Character ys)
         case List::cons with x Character xt (List Character) as
           match ys of-type (List Character) as ignored returns Boolean
             case List::empty as false
             case List::cons with y Character yt (List Character) as
               let value x-code be char-code x in
                 let value y-code be char-code y in
-                  match (Order::less-than Natural x-code y-code) of-type Boolean as ignored returns Boolean
-                    case Boolean::true as true
-                    case Boolean::false as
-                      match (Eq::equals Natural x-code y-code) of-type Boolean as ignored returns Boolean
-                        case Boolean::true as recur xt yt
-                        case Boolean::false as false
-                      end
-                  end
+                  P::or-bool (Order::less-than Natural x-code y-code)
+                    (P::and-bool (Eq::equals Natural x-code y-code) (recur xt yt))
                 end
               end
           end
@@ -386,10 +355,7 @@ module string contains
 
   define transparent string-less-or-equal as
     function a String b String returns Boolean value
-      match (string-less-than a b) of-type Boolean as ignored returns Boolean
-        case Boolean::true as true
-        case Boolean::false as eq a b
-      end
+      P::or-bool (string-less-than a b) (eq a b)
     end
 
   define transparent string-greater-than as
@@ -399,10 +365,7 @@ module string contains
 
   define transparent string-greater-or-equal as
     function a String b String returns Boolean value
-      match (string-greater-than a b) of-type Boolean as ignored returns Boolean
-        case Boolean::true as true
-        case Boolean::false as eq a b
-      end
+      P::or-bool (string-greater-than a b) (eq a b)
     end
 
   define transparent LessThan-String as instance LessThan String where
@@ -486,22 +449,9 @@ module string contains
   define transparent char-is-space as
     function c Character returns Boolean value
       let value s be character-string c in
-        match (eq s " ") of-type Boolean as ignored returns Boolean
-          case Boolean::true as true
-          case Boolean::false as
-            match (eq s "\n") of-type Boolean as ignored returns Boolean
-              case Boolean::true as true
-              case Boolean::false as
-                match (eq s "\t") of-type Boolean as ignored returns Boolean
-                  case Boolean::true as true
-                  case Boolean::false as
-                    match (eq s "\r") of-type Boolean as ignored returns Boolean
-                      case Boolean::true as true
-                      case Boolean::false as false
-                    end
-                end
-            end
-        end
+        P::or-bool (eq s " ")
+          (P::or-bool (eq s "\n")
+            (P::or-bool (eq s "\t") (eq s "\r")))
       end
     end
 
@@ -564,10 +514,8 @@ module string contains
 
   define transparent code-in-range as
     function index Natural start Natural stop Natural returns Boolean value
-      match (Order::less-or-equal Natural start index) of-type Boolean as ignored returns Boolean
-        case Boolean::false as false
-        case Boolean::true as Order::less-or-equal Natural index stop
-      end
+      P::and-bool (Order::less-or-equal Natural start index)
+        (Order::less-or-equal Natural index stop)
     end
 
   define transparent CharacterClass as data in Type0
@@ -649,44 +597,25 @@ module string contains
   define transparent char-is-letter as
     function c Character returns Boolean value
       let value code be char-code c in
-        match (class-contains-code upper-class code)
-        of-type Boolean as ignored returns Boolean
-          case Boolean::true as true
-          case Boolean::false as class-contains-code lower-class code
-        end
+        P::or-bool (class-contains-code upper-class code)
+          (class-contains-code lower-class code)
       end
     end
 
   define transparent char-is-alnum as
     function c Character returns Boolean value
       let value code be char-code c in
-        match (class-contains-code upper-class code)
-        of-type Boolean as ignored returns Boolean
-          case Boolean::true as true
-          case Boolean::false as
-            match (class-contains-code lower-class code)
-            of-type Boolean as ignored returns Boolean
-              case Boolean::true as true
-              case Boolean::false as class-contains-code digit-class code
-            end
-        end
+        P::or-bool (class-contains-code upper-class code)
+          (P::or-bool (class-contains-code lower-class code)
+            (class-contains-code digit-class code))
       end
     end
 
   define transparent char-is-word as
     function c Character returns Boolean value
-      match (char-is-alnum c) of-type Boolean as ignored returns Boolean
-        case Boolean::true as true
-        case Boolean::false as
-          match (char-is c "_") of-type Boolean as ignored returns Boolean
-            case Boolean::true as true
-            case Boolean::false as
-              match (char-is c "-") of-type Boolean as ignored returns Boolean
-                case Boolean::true as true
-                case Boolean::false as char-is c ":"
-              end
-          end
-      end
+      P::or-bool (char-is-alnum c)
+        (P::or-bool (char-is c "_")
+          (P::or-bool (char-is c "-") (char-is c ":")))
     end
 
   define transparent ascii-predicate as

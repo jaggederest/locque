@@ -50,10 +50,7 @@ module typeclass::equality contains
             match ys of-type (List A) as ignored returns Boolean
               case List::empty as false
               case List::cons with hy A ty (List A) as
-                match (eq hx hy) of-type Boolean as ignored returns Boolean
-                  case Boolean::false as false
-                  case Boolean::true as recur A tx ty
-                end
+                P::and-bool (eq hx hy) (recur A tx ty)
             end
         end
       end
@@ -66,10 +63,7 @@ module typeclass::equality contains
           case Pair::pair with left-a A left-b A as
             match right of-type (Pair A A) as ignored returns Boolean
               case Pair::pair with right-a A right-b A as
-                match (eq left-a right-a) of-type Boolean as ignored returns Boolean
-                  case Boolean::false as false
-                  case Boolean::true as eq left-b right-b
-                end
+                P::and-bool (eq left-a right-a) (eq left-b right-b)
             end
         end
       end

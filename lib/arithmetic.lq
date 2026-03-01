@@ -11,26 +11,17 @@ module arithmetic contains
 
   define transparent min as
     function a Natural b Natural returns Natural value
-      match (Order::less-than Natural a b) of-type Boolean as ignored returns Natural
-        case Boolean::false as b
-        case Boolean::true as a
-      end
+      P::choose Natural (Order::less-than Natural a b) a b
     end
 
   define transparent max as
     function a Natural b Natural returns Natural value
-      match (Order::greater-than Natural a b) of-type Boolean as ignored returns Natural
-        case Boolean::false as b
-        case Boolean::true as a
-      end
+      P::choose Natural (Order::greater-than Natural a b) a b
     end
 
   define transparent abs-diff as
     function a Natural b Natural returns Natural value
-      match (Order::greater-than Natural a b) of-type Boolean as ignored returns Natural
-        case Boolean::false as subtract b a
-        case Boolean::true as subtract a b
-      end
+      P::choose Natural (Order::greater-than Natural a b) (subtract a b) (subtract b a)
     end
 
   define transparent clamp as

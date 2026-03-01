@@ -198,6 +198,27 @@ module prelude contains
     function cond Boolean xs (List (computation Unit)) returns computation Unit value
       when cond (sequence-unit xs)
     end
+  define transparent choose as
+    function A Type0 cond Boolean yes A no A returns A value
+      match cond of-type Boolean as ignored returns A
+        case Boolean::true as yes
+        case Boolean::false as no
+      end
+    end
+  define transparent or-bool as
+    function a Boolean b Boolean returns Boolean value
+      match a of-type Boolean as ignored returns Boolean
+        case Boolean::true as true
+        case Boolean::false as b
+      end
+    end
+  define transparent and-bool as
+    function a Boolean b Boolean returns Boolean value
+      match a of-type Boolean as ignored returns Boolean
+        case Boolean::false as false
+        case Boolean::true as b
+      end
+    end
   define transparent map as
     function A Type0 B Type0 f (Types::Function A B) xs (List A) returns (List B) value
       match xs of-type (List A) as ignored returns (List B)

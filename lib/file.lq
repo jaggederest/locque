@@ -1,3 +1,4 @@
+import prelude as P
 import string as S
 
 module file contains
@@ -21,15 +22,11 @@ module file contains
   define transparent walk-filter as walk-filter-prim
   define transparent walk-path as
     function entry (Pair String Boolean) returns String value
-      match entry of-type (Pair String Boolean) as ignored returns String
-        case Pair::pair with path String isdir Boolean as path
-      end
+      P::fst String Boolean entry
     end
   define transparent walk-is-directory as
     function entry (Pair String Boolean) returns Boolean value
-      match entry of-type (Pair String Boolean) as ignored returns Boolean
-        case Pair::pair with path String isdir Boolean as isdir
-      end
+      P::snd String Boolean entry
     end
 
   define transparent walk-lq as
@@ -40,36 +37,20 @@ module file contains
   define transparent stat as stat-prim
   define transparent stat-type as
     function info (Pair String (Pair Natural Natural)) returns String value
-      match info of-type (Pair String (Pair Natural Natural)) as ignored returns String
-        case Pair::pair with kind String rest (Pair Natural Natural) as kind
-      end
+      P::fst String (Pair Natural Natural) info
     end
   define transparent stat-size as
     function info (Pair String (Pair Natural Natural)) returns Natural value
-      match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
-        case Pair::pair with kind String rest (Pair Natural Natural) as
-          match rest of-type (Pair Natural Natural) as ignored returns Natural
-            case Pair::pair with size Natural mtime Natural as size
-          end
-      end
+      P::fst Natural Natural (P::snd String (Pair Natural Natural) info)
     end
   define transparent stat-mtime as
     function info (Pair String (Pair Natural Natural)) returns Natural value
-      match info of-type (Pair String (Pair Natural Natural)) as ignored returns Natural
-        case Pair::pair with kind String rest (Pair Natural Natural) as
-          match rest of-type (Pair Natural Natural) as ignored returns Natural
-            case Pair::pair with size Natural mtime Natural as mtime
-          end
-      end
+      P::snd Natural Natural (P::snd String (Pair Natural Natural) info)
     end
 
   define transparent read-lines as
     function path String returns computation (List String) value
-      compute
-        bind contents from perform (read-file path) then
-          return (S::split-on "\n" contents)
-        end
-      end
+      P::map-comp String (List String) (S::split-on "\n") (read-file path)
     end
 
   define transparent write-lines as
@@ -82,31 +63,23 @@ module file contains
   define transparent append-lines as
     function path String lines (List String) returns computation Unit value
       let value suffix be S::join-with "\n" lines in
-        compute
-          perform
-            (match (S::is-empty suffix) of-type Boolean as ignored returns (computation Unit)
-              case Boolean::true as compute return tt end
-              case Boolean::false as
-                compute
-                  bind exists from perform (path-exists path) then
-                    perform
-                      (match exists of-type Boolean as ignored returns (computation Unit)
-                        case Boolean::false as write-file path suffix
-                        case Boolean::true as
-                          compute
-                            bind contents from perform (read-file path) then
-                              perform
-                                (match (S::is-empty contents) of-type Boolean as ignored returns (computation Unit)
-                                  case Boolean::true as append-file path suffix
-                                  case Boolean::false as append-file path (S::concat "\n" suffix)
-                                end)
-                            end
-                          end
-                      end)
+        P::unless (S::is-empty suffix)
+          (compute
+            bind exists from perform (path-exists path) then
+              match exists of-type Boolean as ignored returns (computation Unit)
+                case Boolean::false as
+                  compute perform (write-file path suffix) end
+                case Boolean::true as
+                  compute
+                    bind contents from perform (read-file path) then
+                      perform (P::choose (computation Unit) (S::is-empty contents)
+                        (append-file path suffix)
+                        (append-file path (S::concat "\n" suffix)))
+                    end
                   end
-                end
-            end)
-        end
+              end
+            end
+          end)
       end
     end
 end

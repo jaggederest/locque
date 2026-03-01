@@ -60,19 +60,10 @@ module tools::formatter contains
 
   define transparent add-error-when as
     function cond Boolean msg String errors (List String) returns (List String) value
-      match cond of-type Boolean as ignored returns (List String)
-        case Boolean::true as add-error msg errors
-        case Boolean::false as errors
-      end
+      P::choose (List String) cond (add-error msg errors) errors
     end
 
-  define transparent choose as
-    function A Type0 cond Boolean yes A no A returns A value
-      match cond of-type Boolean as ignored returns A
-        case Boolean::true as yes
-        case Boolean::false as no
-      end
-    end
+  define transparent choose as P::choose
 
   define transparent next-state as
     function indent Natural pending Natural pending-line Natural in-block Boolean line-no Natural errors (List String)

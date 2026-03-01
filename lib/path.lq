@@ -15,10 +15,7 @@ module path contains
       match xs of-type (List String) as ignored returns (List String)
         case List::empty as P::nil String
         case List::cons with h String t (List String) as
-          match (Eq::equals String h "") of-type Boolean as ignored returns (List String)
-            case Boolean::true as recur t
-            case Boolean::false as xs
-          end
+          P::choose (List String) (Eq::equals String h "") (recur t) xs
       end
     end
 
@@ -49,94 +46,59 @@ module path contains
     function has-root Boolean segs (List String) returns String value
       let value cleaned be drop-leading-empty segs in
         let value joined be S::join-with "/" cleaned in
-          match has-root of-type Boolean as ignored returns String
-            case Boolean::false as joined
-            case Boolean::true as
-              match (Eq::equals String joined "") of-type Boolean as ignored returns String
-                case Boolean::true as "/"
-                case Boolean::false as S::concat "/" joined
-              end
-          end
+          P::choose String has-root
+            (P::choose String (Eq::equals String joined "") "/" (S::concat "/" joined))
+            joined
         end
       end
     end
 
   define transparent join as
     function base String child String returns String value
-      match (Eq::equals String base "") of-type Boolean as ignored returns String
-        case Boolean::true as child
-        case Boolean::false as
-          match (Eq::equals String child "") of-type Boolean as ignored returns String
-            case Boolean::true as base
-            case Boolean::false as
-              match (is-absolute child) of-type Boolean as ignored returns String
-                case Boolean::true as child
-                case Boolean::false as
-                  match (S::ends-with "/" base) of-type Boolean as ignored returns String
-                    case Boolean::true as S::concat base child
-                    case Boolean::false as S::concat base (S::concat "/" child)
-                  end
-              end
-          end
-      end
+      P::choose String (Eq::equals String base "") child
+        (P::choose String (Eq::equals String child "") base
+          (P::choose String (is-absolute child) child
+            (P::choose String (S::ends-with "/" base)
+              (S::concat base child)
+              (S::concat base (S::concat "/" child)))))
     end
 
   define transparent basename as
     function path String returns String value
-      match (Eq::equals String path "/") of-type Boolean as ignored returns String
-        case Boolean::true as "/"
-        case Boolean::false as
-          let value segs be segments path in
-            match segs of-type (List String) as ignored returns String
-              case List::empty as ""
-              case List::cons with h String t (List String) as L::last String segs
-            end
+      P::choose String (Eq::equals String path "/") "/"
+        (let value segs be segments path in
+          match segs of-type (List String) as ignored returns String
+            case List::empty as ""
+            case List::cons with h String t (List String) as L::last String segs
           end
-      end
+        end)
     end
 
   define transparent dirname as
     function path String returns String value
-      match (Eq::equals String path "/") of-type Boolean as ignored returns String
-        case Boolean::true as "/"
-        case Boolean::false as
-          let value segs be segments path in
-            match segs of-type (List String) as ignored returns String
-              case List::empty as ""
-              case List::cons with h String t (List String) as
-                join-segments (is-absolute path) (L::init String segs)
-            end
+      P::choose String (Eq::equals String path "/") "/"
+        (let value segs be segments path in
+          match segs of-type (List String) as ignored returns String
+            case List::empty as ""
+            case List::cons with h String t (List String) as
+              join-segments (is-absolute path) (L::init String segs)
           end
-      end
+        end)
     end
 
   define transparent ext as
     function path String returns String value
       let value base be basename path in
         let value len be S::length base in
-          match (Eq::equals Natural len 0) of-type Boolean as ignored returns String
-            case Boolean::true as ""
-            case Boolean::false as
-              let value rev be S::reverse base in
-                let value rev-index be S::index-of "." rev in
-                  match (Eq::equals Natural rev-index len) of-type Boolean as ignored returns String
-                    case Boolean::true as ""
-                    case Boolean::false as
-                      let value len-minus-one be Ar::subtract len 1 in
-                        let value dot-index be Ar::subtract len-minus-one rev-index in
-                          match (Eq::equals Natural dot-index 0) of-type Boolean as ignored returns String
-                            case Boolean::true as ""
-                            case Boolean::false as
-                              let value start be Ar::subtract len rev-index in
-                                S::substring start rev-index base
-                              end
-                          end
-                        end
-                      end
-                  end
+          P::choose String (Eq::equals Natural len 0) ""
+            (let value rev be S::reverse base in
+              let value rev-index be S::index-of "." rev in
+                P::choose String (Eq::equals Natural rev-index len) ""
+                  (let value dot-index be Ar::subtract (Ar::subtract len 1) rev-index in
+                    P::choose String (Eq::equals Natural dot-index 0) ""
+                      (S::substring (Ar::subtract len rev-index) rev-index base))
                 end
-              end
-          end
+              end)
         end
       end
     end

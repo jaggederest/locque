@@ -35,50 +35,9 @@ module tools::formatter_indent contains
 
   define transparent is-opener as
     function token String returns Boolean value
-      match (Eq::equals String token "module") of-type Boolean as ignored returns Boolean
-        case Boolean::true as true
-        case Boolean::false as
-          match (Eq::equals String token "open") of-type Boolean as ignored returns Boolean
-            case Boolean::true as true
-            case Boolean::false as
-              match (Eq::equals String token "function") of-type Boolean as ignored returns Boolean
-                case Boolean::true as true
-                case Boolean::false as
-                  match (Eq::equals String token "compute") of-type Boolean as ignored returns Boolean
-                    case Boolean::true as true
-                    case Boolean::false as
-                          match (Eq::equals String token "let") of-type Boolean as ignored returns Boolean
-                            case Boolean::true as true
-                            case Boolean::false as
-                              match (Eq::equals String token "bind") of-type Boolean as ignored returns Boolean
-                                case Boolean::true as true
-                                case Boolean::false as
-                                  match (Eq::equals String token "match") of-type Boolean as ignored returns Boolean
-                                    case Boolean::true as true
-                                    case Boolean::false as
-                                      match (Eq::equals String token "pack") of-type Boolean as ignored returns Boolean
-                                        case Boolean::true as true
-                                        case Boolean::false as
-                                          match (Eq::equals String token "unpack") of-type Boolean as ignored returns Boolean
-                                            case Boolean::true as true
-                                            case Boolean::false as
-                                              match (Eq::equals String token "typeclass") of-type Boolean as ignored returns Boolean
-                                                case Boolean::true as true
-                                                case Boolean::false as
-                                                  match (Eq::equals String token "instance") of-type Boolean as ignored returns Boolean
-                                                    case Boolean::true as true
-                                                    case Boolean::false as Eq::equals String token "data"
-                                                  end
-                                              end
-                                          end
-                                      end
-                                  end
-                              end
-                          end
-                  end
-              end
-          end
-      end
+      L::member String token
+        ["module", "open", "function", "compute", "let", "bind",
+         "match", "pack", "unpack", "typeclass", "instance", "data"]
     end
 
   define transparent count-openers as
@@ -86,24 +45,14 @@ module tools::formatter_indent contains
       match tokens of-type (List String) as ignored returns Natural
         case List::empty as 0
         case List::cons with h String t (List String) as
-          match (Eq::equals String h "import") of-type Boolean as ignored returns Natural
-            case Boolean::true as 0
-            case Boolean::false as
-              let value rest be recur has-function t in
-                match (is-opener h) of-type Boolean as ignored returns Natural
-                  case Boolean::true as
-                    match (Eq::equals String h "compute") of-type Boolean as ignored returns Natural
-                      case Boolean::true as
-                        match has-function of-type Boolean as ignored returns Natural
-                          case Boolean::true as rest
-                          case Boolean::false as Ar::add 1 rest
-                        end
-                      case Boolean::false as Ar::add 1 rest
-                    end
-                  case Boolean::false as rest
-                end
-              end
-          end
+          P::choose Natural (Eq::equals String h "import") 0
+            (let value rest be recur has-function t in
+              P::choose Natural (is-opener h)
+                (P::choose Natural (P::and-bool (Eq::equals String h "compute") has-function)
+                  rest
+                  (Ar::add 1 rest))
+                rest
+            end)
       end
     end
 
@@ -115,12 +64,8 @@ module tools::formatter_indent contains
           match (L::nonempty String tokens) of-type (P::Option (L::NonEmptyList String)) as ignored returns Boolean
             case Option::none as false
             case Option::some with nonempty (L::NonEmptyList String) as
-              let value last be L::last-nonempty String nonempty in
-                match (Eq::equals String h "case") of-type Boolean as ignored returns Boolean
-                  case Boolean::true as Eq::equals String last "as"
-                  case Boolean::false as false
-                end
-              end
+              P::and-bool (Eq::equals String h "case")
+                (Eq::equals String (L::last-nonempty String nonempty) "as")
           end
       end
     end

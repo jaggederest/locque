@@ -13,16 +13,12 @@ module cli contains
 
   define transparent options-positionals as
     function result (Pair (List String) (List (Pair String String))) returns (List String) value
-      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List String)
-        case Pair::pair with positionals (List String) ignored (List (Pair String String)) as positionals
-      end
+      P::fst (List String) (List (Pair String String)) result
     end
 
   define transparent options-flags as
     function result (Pair (List String) (List (Pair String String))) returns (List (Pair String String)) value
-      match result of-type (Pair (List String) (List (Pair String String))) as ignored returns (List (Pair String String))
-        case Pair::pair with ignored (List String) flags (List (Pair String String)) as flags
-      end
+      P::snd (List String) (List (Pair String String)) result
     end
 
   define transparent add-option as
@@ -111,9 +107,7 @@ module cli contains
     end
 
   define transparent options as
-    compute
-      bind argv from perform args then
-        return (parse-options argv)
-      end
-    end
+    P::map-comp (List String) (Pair (List String) (List (Pair String String)))
+      parse-options
+      args
 end
