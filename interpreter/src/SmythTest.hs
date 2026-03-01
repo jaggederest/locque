@@ -8,7 +8,7 @@ import qualified Data.Text.IO as TIO
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath ((</>), isAbsolute, takeDirectory)
+import System.FilePath ((</>), takeDirectory)
 import System.Directory (setCurrentDirectory)
 import Control.Exception (catch, SomeException, evaluate)
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -22,6 +22,8 @@ import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
 import Recursor (recursorDefs, insertRecursors)
 import SmythConfig (SmythConfig(..))
+import SmythRun (prepareModule)
+import Utils (resolvePath)
 import qualified RunCache as RC
 
 data TestError = TestError
@@ -192,10 +194,6 @@ runExpectedFailure projectRoot (path, expectedSubstring) = do
         else pure $ Just (TestError path Nothing
               ("Expected error containing: " <> expectedSubstring <> "\nActual: " <> actual))
 
-resolvePath :: FilePath -> FilePath -> FilePath
-resolvePath root path =
-  if isAbsolute path then path else root </> path
-
 runTestOutcome :: FilePath -> FilePath -> IO (Either Failure Int)
 runTestOutcome projectRoot file = do
   contents <- TIO.readFile file
@@ -214,24 +212,12 @@ runTestOutcome projectRoot file = do
             case tcResult of
               Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
               Right (env, normalized) -> do
-                let arity = ctorArityMap normalized
-                    recDefs = recursorDefs normalized
-                case insertRecursors m recDefs of
+                prepResult <- prepareModule projectRoot file digest env m normalized
+                case prepResult of
                   Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
-                  Right prepared -> do
-                    case TC.annotateModule env prepared of
-                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
-                      Right annotatedPrepared -> do
-                        m' <- transformModuleWithEnvs projectRoot annotatedPrepared
-                        let cacheEntry = RC.RunCache
-                              { RC.cacheVersion = RC.cacheVersionCurrent
-                              , RC.cacheDigest = digest
-                              , RC.cacheAnnotated = m'
-                              , RC.cacheCtorArity = arity
-                              }
-                        RC.writeRunCache projectRoot file cacheEntry
-                        count <- runModuleMain projectRoot arity m'
-                        pure (Right count)
+                  Right (arity, m') -> do
+                    count <- runModuleMain projectRoot arity m'
+                    pure (Right count)
         ) `catch` handleTestException
       pure result
 

@@ -7,6 +7,7 @@ module SmythRun
   , runFileWithOptions
   , runFileNoExit
   , runFileNoExitWithOptions
+  , prepareModule
   ) where
 
 import qualified Data.Text.IO as TIO
@@ -17,6 +18,7 @@ import System.Posix.Process (getProcessID)
 
 import Parser (parseMExprFile)
 import AST (Module)
+import CtorArity (CtorArityMap)
 import qualified TypeChecker as TC
 import Eval (ctorArityMap, runModuleMain)
 import DictPass (transformModuleWithEnvs)
@@ -34,6 +36,36 @@ defaultRunOptions = RunOptions
   { runPidFile = Nothing
   , runTimeoutMs = Nothing
   }
+
+-- | Prepare a type-checked module for execution: insert recursors,
+-- annotate with types, and perform dictionary passing transformation.
+-- Writes the run cache on success.
+prepareModule
+  :: FilePath        -- ^ project root
+  -> FilePath        -- ^ source file path (for cache)
+  -> String          -- ^ content digest (for cache)
+  -> TC.TCEnv        -- ^ type checking environment
+  -> Module          -- ^ original module (for recursor insertion)
+  -> Module          -- ^ normalized module (for arity map)
+  -> IO (Either String (CtorArityMap, Module))
+prepareModule root file digest env original normalized = do
+  let arity = ctorArityMap normalized
+      recDefs = recursorDefs normalized
+  case insertRecursors original recDefs of
+    Left msg -> pure $ Left msg
+    Right prepared ->
+      case TC.annotateModule env prepared of
+        Left annotErr -> pure $ Left (show annotErr)
+        Right annotatedPrepared -> do
+          m' <- transformModuleWithEnvs root annotatedPrepared
+          let cacheEntry = RC.RunCache
+                { RC.cacheVersion = RC.cacheVersionCurrent
+                , RC.cacheDigest = digest
+                , RC.cacheAnnotated = m'
+                , RC.cacheCtorArity = arity
+                }
+          RC.writeRunCache root file cacheEntry
+          pure $ Right (arity, m')
 
 -- | Run a single file with type checking (no exit).
 runFileNoExit :: SmythConfig -> FilePath -> IO Bool
@@ -83,35 +115,17 @@ runFileNoExit config file = do
                   putStrLn $ "Type error: " ++ show tcErr
                   pure False
                 Right (Right (env, normalized)) -> do
-                  let arity = ctorArityMap normalized
-                      recDefs = recursorDefs normalized
-                  case insertRecursors m recDefs of
-                    Left msg -> do
+                  prepResult <- try @SomeException
+                    (prepareModule (projectRoot config) file digest env m normalized)
+                  case prepResult of
+                    Left e -> do
+                      putStrLn $ "Transform error: " ++ show e
+                      pure False
+                    Right (Left msg) -> do
                       putStrLn $ "Transform error: " ++ msg
                       pure False
-                    Right prepared -> do
-                      -- Annotate: wrap expressions with inferred types
-                      case TC.annotateModule env prepared of
-                        Left annotErr -> do
-                          putStrLn $ "Annotation error: " ++ show annotErr
-                          pure False
-                        Right annotatedPrepared -> do
-                          -- Transform: dictionary passing for evaluation
-                          transformAttempt <- try (transformModuleWithEnvs (projectRoot config) annotatedPrepared)
-                            :: IO (Either SomeException Module)
-                          case transformAttempt of
-                            Left e -> do
-                              putStrLn $ "Transform error: " ++ show e
-                              pure False
-                            Right m' -> do
-                              let cacheEntry = RC.RunCache
-                                    { RC.cacheVersion = RC.cacheVersionCurrent
-                                    , RC.cacheDigest = digest
-                                    , RC.cacheAnnotated = m'
-                                    , RC.cacheCtorArity = arity
-                                    }
-                              RC.writeRunCache (projectRoot config) file cacheEntry
-                              runAnnotated arity m'
+                    Right (Right (arity, m')) ->
+                      runAnnotated arity m'
 
 runFileNoExitWithOptions :: SmythConfig -> RunOptions -> FilePath -> IO Bool
 runFileNoExitWithOptions config opts file = do

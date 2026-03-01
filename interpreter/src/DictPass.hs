@@ -5,6 +5,7 @@ module DictPass
   ) where
 
 import AST
+import ASTUtils (stripExpr, isEffectAny, typeConstName, freshName, renameBound)
 import Parser (parseMExprFile, parseModuleFile)
 import ImportResolver (ImportScope(..), ResolvedModule(..), resolveModulePath)
 import Utils (qualifyName)
@@ -158,7 +159,7 @@ collectLocalClasses defs =
   Map.fromList
     [ (defName, ClassInfo param methods)
     | Definition _ defName body <- defs
-    , ETypeClass param _kind methods <- [stripType body]
+    , ETypeClass param _kind methods <- [stripExpr body]
     ]
 
 collectLocalFns :: Map.Map Text ClassInfo -> Map.Map Text Text -> [Definition] -> Map.Map Text FnSig
@@ -180,7 +181,7 @@ collectLocalInstances classEnv openAliases defs =
   where
     usedNames = Set.fromList (map defName defs)
 
-    collect (acc, used) (Definition tr name body) = case stripType body of
+    collect (acc, used) (Definition tr name body) = case stripExpr body of
       EInstance className instTy methods ->
         let className' = resolveClassName classEnv openAliases className
             methodMap = Map.fromList methods
@@ -304,7 +305,7 @@ qualifyInstance alias localClassNames inst =
 -- Transform
 
 transformDefinition :: TransformCtx -> LocalInfo -> Definition -> [Definition]
-transformDefinition ctx localInfo def@(Definition tr name body) = case stripType body of
+transformDefinition ctx localInfo def@(Definition tr name body) = case stripExpr body of
   ETypeClass _ _ _ -> []
   EInstance _ _ _ -> transformInstanceDefinition ctx localInfo name tr
   _ -> [def { defBody = transformExpr ctx body }]
@@ -558,7 +559,7 @@ constraintArgs ctx sub (Constraint className ty) =
   case Map.lookup className (ctxClasses ctx) of
     Nothing -> error $ "Unknown typeclass in constraint: " ++ T.unpack className
     Just classInfo ->
-      let ty' = stripType (substType sub ty)
+      let ty' = stripExpr (substType sub ty)
           methodNames = map fst (classMethods classInfo)
       in case ty' of
           EVar _ ->
@@ -630,33 +631,28 @@ renderType expr = case expr of
     renderType f <> " " <> T.intercalate " " (map renderType args)
   _ -> "<type>"
 
-stripType :: Expr -> Expr
-stripType expr = case expr of
-  EAnnot e _ -> stripType e
-  ETyped e _ -> stripType e
-  _ -> expr
 
 matchInstanceType :: Expr -> Expr -> Maybe (Map.Map Text Expr)
 matchInstanceType patternTy targetTy =
   let typeVars = collectTypeVars patternTy
-  in matchTypes typeVars Map.empty (stripType patternTy) (stripType targetTy)
+  in matchTypes typeVars Map.empty (stripExpr patternTy) (stripExpr targetTy)
 
 matchTypes :: Set.Set Text -> Map.Map Text Expr -> Expr -> Expr -> Maybe (Map.Map Text Expr)
-matchTypes typeVars sub patternTy targetTy = case stripType patternTy of
+matchTypes typeVars sub patternTy targetTy = case stripExpr patternTy of
   EVar v ->
     if Set.member v typeVars
       then case Map.lookup v sub of
-        Nothing -> Just (Map.insert v (stripType targetTy) sub)
+        Nothing -> Just (Map.insert v (stripExpr targetTy) sub)
         Just bound ->
-          if stripType bound == stripType targetTy
+          if stripExpr bound == stripExpr targetTy
             then Just sub
             else Nothing
-      else case stripType targetTy of
+      else case stripExpr targetTy of
         EVar v' | v == v' -> Just sub
         _ -> Nothing
-  ETypeConst _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
-  ETypeUniverse _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
-  ECompType eff t -> case stripType targetTy of
+  ETypeConst _ -> if stripExpr patternTy == stripExpr targetTy then Just sub else Nothing
+  ETypeUniverse _ -> if stripExpr patternTy == stripExpr targetTy then Just sub else Nothing
+  ECompType eff t -> case stripExpr targetTy of
     ECompType eff' t' ->
       let sub' =
             if isEffectAny eff || isEffectAny eff'
@@ -666,21 +662,21 @@ matchTypes typeVars sub patternTy targetTy = case stripType patternTy of
           Nothing -> Nothing
           Just sub'' -> matchTypes typeVars sub'' t t'
     _ -> Nothing
-  EForAll v dom cod -> case stripType targetTy of
+  EForAll v dom cod -> case stripExpr targetTy of
     EForAll v' dom' cod' ->
       case matchTypes typeVars sub dom dom' of
         Nothing -> Nothing
         Just sub' ->
           matchTypes typeVars sub' (renameBound v v' cod) cod'
     _ -> Nothing
-  EThereExists v dom cod -> case stripType targetTy of
+  EThereExists v dom cod -> case stripExpr targetTy of
     EThereExists v' dom' cod' ->
       case matchTypes typeVars sub dom dom' of
         Nothing -> Nothing
         Just sub' ->
           matchTypes typeVars sub' (renameBound v v' cod) cod'
     _ -> Nothing
-  EApp f args -> case stripType targetTy of
+  EApp f args -> case stripExpr targetTy of
     EApp f' args' ->
       if length args == length args'
         then do
@@ -688,12 +684,12 @@ matchTypes typeVars sub patternTy targetTy = case stripType patternTy of
           foldl (\acc (p, t) -> acc >>= \s -> matchTypes typeVars s p t) (Just sub') (zip args args')
         else Nothing
     _ -> Nothing
-  _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
+  _ -> if stripExpr patternTy == stripExpr targetTy then Just sub else Nothing
 
 collectTypeVars :: Expr -> Set.Set Text
 collectTypeVars expr = go Set.empty expr
   where
-    go acc e = case stripType e of
+    go acc e = case stripExpr e of
       EVar v ->
         if isTypeVarName v then Set.insert v acc else acc
       ETypeConst _ -> acc
@@ -716,100 +712,10 @@ collectTypeVars expr = go Set.empty expr
 isTypeVarName :: Text -> Bool
 isTypeVarName name = T.length name == 1
 
-renameBound :: Text -> Text -> Expr -> Expr
-renameBound from to expr =
-  if from == to then expr else rename expr
-  where
-    rename e = case e of
-      EVar v | v == from -> EVar to
-      EVar _ -> e
-      ELit _ -> e
-      EListLiteral elems -> EListLiteral (map rename elems)
-      ETypeConst _ -> e
-      ETypeUniverse _ -> e
-      EForAll v dom cod ->
-        let dom' = rename dom
-            cod' = if v == from then cod else rename cod
-        in EForAll v dom' cod'
-      EThereExists v dom cod ->
-        let dom' = rename dom
-            cod' = if v == from then cod else rename cod
-        in EThereExists v dom' cod'
-      ECompType eff t -> ECompType (rename eff) (rename t)
-      EEqual ty lhs rhs -> EEqual (rename ty) (rename lhs) (rename rhs)
-      EReflexive ty term -> EReflexive (rename ty) (rename term)
-      ERewrite family proof body -> ERewrite (rename family) (rename proof) (rename body)
-      EPack v dom cod witness body ->
-        let dom' = rename dom
-            cod' = if v == from then cod else rename cod
-        in EPack v dom' cod' (rename witness) (rename body)
-      EUnpack packed x y body ->
-        let packed' = rename packed
-            body' = if x == from || y == from then body else rename body
-        in EUnpack packed' x y body'
-      ELift ty fromLevel toLevel -> ELift (rename ty) fromLevel toLevel
-      EUp ty fromLevel toLevel body -> EUp (rename ty) fromLevel toLevel (rename body)
-      EDown ty fromLevel toLevel body -> EDown (rename ty) fromLevel toLevel (rename body)
-      EApp fn args -> EApp (rename fn) (map rename args)
-      EFunction params constraints ret body ->
-        let boundNames = map paramName params
-            params' = [Param name (rename ty) | Param name ty <- params]
-            constraints' = [Constraint cls (rename ty) | Constraint cls ty <- constraints]
-            ret' = rename ret
-            body' =
-              if from `elem` boundNames then body else renameBody body
-        in EFunction params' constraints' ret' body'
-      ELet name val body ->
-        let val' = rename val
-            body' = if name == from then body else rename body
-        in ELet name val' body'
-      ECompute comp -> ECompute (renameComp comp)
-      EMatch scrut scrutTy scrutName retTy cases ->
-        let scrut' = rename scrut
-            scrutTy' = rename scrutTy
-            retTy' = if scrutName == from then retTy else rename retTy
-            cases' = map renameCase cases
-        in EMatch scrut' scrutTy' scrutName retTy' cases'
-      EData params universe cases ->
-        let boundNames = map paramName params
-            params' = [Param name (rename ty) | Param name ty <- params]
-            universe' = rename universe
-            cases' = if from `elem` boundNames then cases else map renameDataCase cases
-        in EData params' universe' cases'
-      EAnnot expr' ty -> EAnnot (rename expr') (rename ty)
-      ETyped expr' ty -> ETyped (rename expr') (rename ty)
-      EDict className impls -> EDict className [ (n, rename expr') | (n, expr') <- impls ]
-      EDictAccess expr' method -> EDictAccess (rename expr') method
-      ETypeClass param kind methods ->
-        let kind' = rename kind
-            methods' =
-              if param == from
-                then methods
-                else [ (n, rename ty) | (n, ty) <- methods ]
-        in ETypeClass param kind' methods'
-      EInstance cls instTy methods ->
-        EInstance cls (rename instTy) [ (n, rename expr') | (n, expr') <- methods ]
-    renameBody b = case b of
-      FunctionValue e -> FunctionValue (rename e)
-      FunctionCompute c -> FunctionCompute (renameComp c)
-    renameComp c = case c of
-      CReturn e -> CReturn (rename e)
-      CPerform e -> CPerform (rename e)
-      CBind name c1 c2 ->
-        let c1' = renameComp c1
-            c2' = if name == from then c2 else renameComp c2
-        in CBind name c1' c2'
-    renameCase (MatchCase ctor binders body) =
-      let boundNames = map paramName binders
-          binders' = [Param name (rename ty) | Param name ty <- binders]
-          body' = if from `elem` boundNames then body else rename body
-      in MatchCase ctor binders' body'
-    renameDataCase (DataCase name ty) = DataCase name (rename ty)
-
 collectTypeVarOrder :: Expr -> [Text]
 collectTypeVarOrder expr = fst (go [] Set.empty expr)
   where
-    go acc seen e = case stripType e of
+    go acc seen e = case stripExpr e of
       EVar v ->
         if isTypeVarName v && Set.notMember v seen
           then (acc ++ [v], Set.insert v seen)
@@ -836,23 +742,6 @@ collectTypeVarOrder expr = fst (go [] Set.empty expr)
       EAnnot e' ty -> let (acc', seen') = go acc seen e' in go acc' seen' ty
       ETyped e' ty -> let (acc', seen') = go acc seen e' in go acc' seen' ty
       _ -> (acc, seen)
-
-typeConstName :: TypeConst -> Text
-typeConstName tc = case tc of
-  TCNatural -> "Natural"
-  TCString -> "String"
-  TCBoolean -> "Boolean"
-  TCUnit -> "Unit"
-  TCList -> "List"
-  TCPair -> "Pair"
-  TCDictionary -> "Dictionary"
-  TCListener -> "Listener"
-  TCSocket -> "Socket"
-
-isEffectAny :: Expr -> Bool
-isEffectAny expr = case expr of
-  EVar name -> name == effectAnyName
-  _ -> False
 
 --------------------------------------------------------------------------------
 -- Method param construction
@@ -898,18 +787,6 @@ mkInstanceMethodName defName methodName =
 sanitizeName :: Text -> Text
 sanitizeName = T.replace "::" "_"
 
-freshName :: Set.Set Text -> Text -> (Text, Set.Set Text)
-freshName used base
-  | Set.notMember base used = (base, Set.insert base used)
-  | otherwise = findFresh 1
-  where
-    findFresh :: Int -> (Text, Set.Set Text)
-    findFresh n =
-      let candidate = base <> "_" <> T.pack (show n)
-      in if Set.member candidate used
-          then findFresh (n + 1)
-          else (candidate, Set.insert candidate used)
-
 --------------------------------------------------------------------------------
 -- Utilities
 
@@ -919,16 +796,16 @@ splitTypeParams params =
   in (typeParams, rest)
 
 isTypeParam :: Expr -> Bool
-isTypeParam expr = isKindExpr (stripType expr)
+isTypeParam expr = isKindExpr (stripExpr expr)
 
 isKindExpr :: Expr -> Bool
-isKindExpr expr = case stripType expr of
+isKindExpr expr = case stripExpr expr of
   ETypeUniverse _ -> True
   EForAll _ dom cod -> isUniverseExpr dom && isKindExpr cod
   EThereExists _ dom cod -> isUniverseExpr dom && isKindExpr cod
   ELift ty _ _ -> isKindExpr ty
   EApp f args ->
-    case stripType f of
+    case stripExpr f of
       EVar name | isKindAliasName name -> all isUniverseExpr args
       _ -> False
   EVar name -> isBaseTypeAlias name
@@ -937,7 +814,7 @@ isKindExpr expr = case stripType expr of
   _ -> False
 
 isUniverseExpr :: Expr -> Bool
-isUniverseExpr expr = case stripType expr of
+isUniverseExpr expr = case stripExpr expr of
   ETypeUniverse _ -> True
   EVar name -> isBaseTypeAlias name
   _ -> False

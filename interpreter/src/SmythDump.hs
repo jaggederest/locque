@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module SmythDump
   ( runDump
+  , dumpMode
+  , parseAny
+  , selectModule
+  , dumpTypes
+  , failWith
   ) where
 
 import qualified Data.Map.Strict as Map
@@ -20,8 +25,8 @@ import SmythConfig (SmythConfig(..))
 runDump :: SmythConfig -> [String] -> IO ()
 runDump config args = case args of
   ("--multi" : rest) -> runDumpMulti config rest
-  [mode, file] -> dumpFile config mode file Nothing
-  [mode, file, name] -> dumpFile config mode file (Just (T.pack name))
+  [mode, file] -> dumpFileEntry config mode file Nothing
+  [mode, file, name] -> dumpFileEntry config mode file (Just (T.pack name))
   _ -> do
     putStrLn "Usage: smyth dump (core|normalized|elaborated|typed|typed-normalized|types|types-normalized) <file> [name]"
     putStrLn "   or: smyth dump --multi <file> <mode[:name]>... [-- <file> <mode[:name]>...]"
@@ -131,69 +136,15 @@ dumpMode config file contents m (mode, selected) =
       putStrLn "Usage: smyth dump (core|normalized|elaborated|typed|typed-normalized|types|types-normalized) <file> [name]"
       exitFailure
 
-dumpFile :: SmythConfig -> String -> FilePath -> Maybe T.Text -> IO ()
-dumpFile config mode file selected = do
+-- | Parse a .lq or .lqs file, choosing the appropriate parser
+dumpFileEntry :: SmythConfig -> String -> FilePath -> Maybe T.Text -> IO ()
+dumpFileEntry config mode file selected = do
   contents <- TIO.readFile file
   case parseAny file contents of
     Left err -> failWith err
-    Right m ->
-      case mode of
-        "core" -> do
-          m' <- selectModule m selected
-          TIO.putStrLn (moduleToSExprText m')
-        "normalized" -> do
-          result <- TC.normalizeModuleWithImports (projectRoot config) file contents m
-          case result of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right normalized -> do
-              m' <- selectModule normalized selected
-              TIO.putStrLn (moduleToSExprText m')
-        "elaborated" -> do
-          typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
-          case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right _env -> do
-              elaborated <- transformModuleWithEnvs (projectRoot config) m
-              m' <- selectModule elaborated selected
-              TIO.putStrLn (moduleToSExprText m')
-        "typed" -> do
-          typeResult <- TC.typeCheckAndNormalizeWithImports (projectRoot config) file contents m
-          case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right (env, _normalized) -> do
-              case TC.annotateModule env m of
-                Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
-                Right annotated -> do
-                  m' <- selectModule annotated selected
-                  TIO.putStrLn (moduleToSExprTextTyped m')
-        "typed-normalized" -> do
-          typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur (projectRoot config) file contents m
-          case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right (env, normalized) -> do
-              case TC.annotateModule env normalized of
-                Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
-                Right annotated -> do
-                  m' <- selectModule annotated selected
-                  TIO.putStrLn (moduleToSExprTextTyped m')
-        "types" -> do
-          typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
-          case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right env -> do
-              m' <- selectModule m selected
-              dumpTypes m' env
-        "types-normalized" -> do
-          typeResult <- TC.normalizeTypeEnvWithImports (projectRoot config) file contents m
-          case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
-            Right env -> do
-              m' <- selectModule m selected
-              dumpTypes m' env
-        _ -> do
-          putStrLn "Usage: smyth dump (core|normalized|elaborated|typed|typed-normalized|types|types-normalized) <file> [name]"
-          exitFailure
+    Right m -> dumpMode config file contents m (mode, selected)
 
+-- | Parse a file based on extension (.lq or .lqs)
 parseAny :: FilePath -> T.Text -> Either String Module
 parseAny file contents =
   case takeExtension file of
@@ -203,6 +154,7 @@ parseAny file contents =
       parseModuleFile file contents
     _      -> Left ("Unsupported file extension (expected .lq or .lqs): " ++ file)
 
+-- | Filter a module to only include a specific definition
 selectModule :: Module -> Maybe T.Text -> IO Module
 selectModule m Nothing = pure m
 selectModule m (Just name) =
@@ -210,6 +162,7 @@ selectModule m (Just name) =
     [] -> failWith ("Definition not found: " ++ T.unpack name)
     defs -> pure m { modDefs = defs }
 
+-- | Print type information for all definitions in a module
 dumpTypes :: Module -> TC.TypeEnv -> IO ()
 dumpTypes m env = do
   let names = map defName (modDefs m)

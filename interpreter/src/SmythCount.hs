@@ -3,13 +3,13 @@ module SmythCount
   ( runCount
   ) where
 
-import Control.Monad (forM)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Directory (doesDirectoryExist, listDirectory)
-import System.FilePath ((</>), takeExtension)
+import System.Directory (doesDirectoryExist)
+import System.FilePath ((</>))
 
 import SmythConfig (SmythConfig(..))
+import Utils (listLqFiles)
 
 data Count = Count
   { countFiles :: Int
@@ -49,19 +49,6 @@ countDir dir = do
       files <- listLqFiles dir
       counts <- mapM countFile files
       pure (mconcat counts)
-
-listLqFiles :: FilePath -> IO [FilePath]
-listLqFiles dir = do
-  entries <- listDirectory dir
-  paths <- forM entries $ \entry -> do
-    let path = dir </> entry
-    isDir <- doesDirectoryExist path
-    if isDir
-      then listLqFiles path
-      else if takeExtension path == ".lq"
-        then pure [path]
-        else pure []
-  pure (concat paths)
 
 countFile :: FilePath -> IO Count
 countFile path = do

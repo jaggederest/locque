@@ -7,6 +7,7 @@ module SmythConfig
   ) where
 
 import AST
+import ASTUtils (stripExpr)
 import Parser (parseMExprFile)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -152,12 +153,6 @@ asString :: Expr -> Maybe T.Text
 asString expr = case stripExpr expr of
   ELit (LString s) -> Just s
   _ -> Nothing
-
-stripExpr :: Expr -> Expr
-stripExpr expr = case expr of
-  EAnnot e _ -> stripExpr e
-  ETyped e _ -> stripExpr e
-  _ -> expr
 
 isConsName :: T.Text -> Bool
 isConsName name = name == "cons" || T.isSuffixOf "::cons" name

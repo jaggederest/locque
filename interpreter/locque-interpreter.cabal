@@ -12,7 +12,7 @@ synopsis:            Toy interpreter for locque
 executable locque-interpreter
   main-is:             Main.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, RunCache, Utils, ImportResolver, SmythConfig
+  other-modules:       SourceLoc, ErrorMsg, AST, ASTUtils, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, SmythDump, RunCache, Utils, ImportResolver, SmythConfig
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -34,7 +34,7 @@ executable locque-interpreter
 executable smyth
   main-is:             Smyth.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, RunCache, AST, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
+  other-modules:       SourceLoc, ErrorMsg, SmythBench, SmythTest, SmythRun, SmythConfig, SmythCount, SmythDependencies, SmythDump, SmythFormat, RunCache, AST, ASTUtils, CtorArity, Eval, Parser, Recursor, Validator, Type, TypeChecker, DictPass, Utils, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:
@@ -56,7 +56,7 @@ executable smyth
 executable locque-lsp
   main-is:             LocqueLsp.hs
   hs-source-dirs:      src
-  other-modules:       SourceLoc, ErrorMsg, AST, Parser, Recursor, Type, TypeChecker, Utils, SmythConfig, ImportResolver
+  other-modules:       SourceLoc, ErrorMsg, AST, ASTUtils, Parser, Recursor, Type, TypeChecker, Utils, SmythConfig, ImportResolver
   default-language:    GHC2021
   ghc-options:         -Wall -Wcompat -Wincomplete-patterns -threaded
   build-depends:

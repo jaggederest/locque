@@ -3,19 +3,20 @@ module SmythDependencies
   ( runDependencies
   ) where
 
-import Control.Monad (foldM, forM, when)
+import Control.Monad (foldM, when)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Directory (doesDirectoryExist, listDirectory)
+import System.Directory (doesDirectoryExist)
 import System.Exit (exitFailure)
-import System.FilePath ((</>), takeExtension)
+import System.FilePath ((</>))
 
 import AST (Import(..), Module(..))
 import Parser (parseMExprFile)
 import SmythConfig (SmythConfig(..))
+import Utils (listLqFiles)
 
 runDependencies :: SmythConfig -> [String] -> IO ()
 runDependencies config args = do
@@ -42,19 +43,6 @@ loadModules libDir = do
     else do
       files <- listLqFiles libDir
       mapM parseModule files
-
-listLqFiles :: FilePath -> IO [FilePath]
-listLqFiles dir = do
-  entries <- listDirectory dir
-  paths <- forM entries $ \entry -> do
-    let path = dir </> entry
-    isDir <- doesDirectoryExist path
-    if isDir
-      then listLqFiles path
-      else if takeExtension path == ".lq"
-        then pure [path]
-        else pure []
-  pure (concat paths)
 
 parseModule :: FilePath -> IO Module
 parseModule path = do

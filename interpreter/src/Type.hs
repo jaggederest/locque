@@ -8,23 +8,12 @@ module Type
   ) where
 
 import AST
+import ASTUtils (typeConstName, isEffectAny)
 import Data.Text (Text)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
 type TypeEnv = Map.Map Text Expr
-
-typeConstName :: TypeConst -> Text
-typeConstName tc = case tc of
-  TCNatural -> "Natural"
-  TCString -> "String"
-  TCBoolean -> "Boolean"
-  TCUnit -> "Unit"
-  TCList -> "List"
-  TCPair -> "Pair"
-  TCDictionary -> "Dictionary"
-  TCListener -> "Listener"
-  TCSocket -> "Socket"
 
 prettyType :: Expr -> Text
 prettyType expr = case expr of
@@ -91,11 +80,6 @@ typeToSExpr expr = case expr of
 
 prettyUniverse :: Int -> Text
 prettyUniverse n = "Type" <> T.pack (show n)
-
-isEffectAny :: Expr -> Bool
-isEffectAny expr = case expr of
-  EVar name -> name == effectAnyName
-  _ -> False
 
 renderLiteral :: Literal -> Text
 renderLiteral lit = case lit of

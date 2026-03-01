@@ -11,6 +11,7 @@ module Parser
   ) where
 
 import AST
+import ASTUtils (mkApp, isEffectAny)
 import qualified Type as T
 import Data.Char (isAlphaNum, isLetter, isSpace, isAscii)
 import Data.List (intercalate)
@@ -380,11 +381,6 @@ fromOfType path (SList [SAtom "of-type", e, ty]) = do
   pure (e', ty')
 fromOfType path other =
   Left (path ++ ": match scrutinee must be (of-type <expr> <Type>), found " ++ renderHead other)
-
-mkApp :: Expr -> [Expr] -> Expr
-mkApp f [] = f
-mkApp (EApp f existing) more = EApp f (existing ++ more)
-mkApp f more                 = EApp f more
 
 fromMatchCase :: FilePath -> SExpr -> Either String MatchCase
 fromMatchCase path (SList (SAtom "case" : rest)) =
@@ -945,11 +941,6 @@ isUniverseKeyword :: Text -> Bool
 isUniverseKeyword t = case parseUniverseAtom t of
   Just _ -> True
   Nothing -> False
-
-isEffectAny :: Expr -> Bool
-isEffectAny expr = case expr of
-  EVar name -> name == effectAnyName
-  _ -> False
 
 reservedWords :: [Text]
 reservedWords =

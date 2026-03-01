@@ -5,10 +5,11 @@ module SmythBench
 
 import System.Directory (setCurrentDirectory)
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath ((</>), isAbsolute)
+import System.FilePath ((</>))
 
 import SmythConfig (SmythConfig(..))
 import SmythRun (runFileNoExit)
+import Utils (resolvePath)
 
 runBench :: SmythConfig -> [String] -> IO ()
 runBench config args = do
@@ -19,7 +20,3 @@ runBench config args = do
           _  -> map (resolvePath (projectRoot config)) args
   results <- mapM (runFileNoExit config) files
   if and results then exitSuccess else exitFailure
-
-resolvePath :: FilePath -> FilePath -> FilePath
-resolvePath root path =
-  if isAbsolute path then path else root </> path
