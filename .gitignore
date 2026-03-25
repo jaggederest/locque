@@ -14,4 +14,5 @@ interpreter/.stack-work/
 .DS_Store
 # Temp files
 /tmp/
+test/tmp/
 .locque-cache/
