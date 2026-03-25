@@ -1,0 +1,85 @@
+import prelude as P
+import assert as A
+import string as S
+import typeclass::equality as Eq
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+open P exposing Option Option::none Option::some end
+
+module test::string::lines contains
+  # Helpers to unwrap split-once results for testing
+  define transparent split-once-found as
+    function sep String s String returns Boolean value
+      match (S::split-once sep s) of-type (P::Option (Pair String String)) as ignored returns Boolean
+        case Option::none as false
+        case Option::some with ignored (Pair String String) as true
+      end
+    end
+
+  define transparent split-once-before as
+    function sep String s String returns String value
+      match (S::split-once sep s) of-type (P::Option (Pair String String)) as ignored returns String
+        case Option::none as "NOT-FOUND"
+        case Option::some with p (Pair String String) as
+          match p of-type (Pair String String) as ignored returns String
+            case Pair::pair with a String b String as a
+          end
+      end
+    end
+
+  define transparent split-once-after as
+    function sep String s String returns String value
+      match (S::split-once sep s) of-type (P::Option (Pair String String)) as ignored returns String
+        case Option::none as "NOT-FOUND"
+        case Option::some with p (Pair String String) as
+          match p of-type (Pair String String) as ignored returns String
+            case Pair::pair with a String b String as b
+          end
+      end
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        # lines: chomp — trailing newline does not produce a trailing empty string
+        (assert-eq Natural (P::length-list String (S::lines "a\n")) 1)
+      , (assert-eq String (P::head String (S::lines "a\n")) "a")
+      , (assert-eq Natural (P::length-list String (S::lines "a\nb\n")) 2)
+      , (assert-eq String (P::head String (S::lines "a\nb\n")) "a")
+
+        # lines: no trailing newline works normally
+      , (assert-eq Natural (P::length-list String (S::lines "a\nb")) 2)
+      , (assert-eq Natural (P::length-list String (S::lines "a\nb\nc")) 3)
+
+        # unlines: join with newlines
+      , (assert-eq String (S::unlines ["a", "b"]) "a\nb")
+      , (assert-eq String (S::unlines ["a"]) "a")
+      , (assert-eq String (S::unlines (of-type [] (List String))) "")
+
+        # lines is left-inverse of unlines: lines (unlines xs) = xs
+      , (assert-eq Natural (P::length-list String (S::lines (S::unlines ["a", "b"]))) 2)
+      , (assert-eq String (P::head String (S::lines (S::unlines ["a", "b"]))) "a")
+
+        # split-once: separator found
+      , (assert-eq Boolean (split-once-found "=" "key=val") true)
+      , (assert-eq String (split-once-before "=" "key=val") "key")
+      , (assert-eq String (split-once-after "=" "key=val") "val")
+
+        # split-once: only splits at first occurrence
+      , (assert-eq String (split-once-before "=" "k=v=w") "k")
+      , (assert-eq String (split-once-after "=" "k=v=w") "v=w")
+
+        # split-once: separator absent
+      , (assert-eq Boolean (split-once-found "=" "noequal") false)
+
+        # split-once: separator at start
+      , (assert-eq String (split-once-before "=" "=val") "")
+      , (assert-eq String (split-once-after "=" "=val") "val")
+
+        # split-once: separator at end
+      , (assert-eq String (split-once-before "=" "key=") "key")
+      , (assert-eq String (split-once-after "=" "key=") "")
+      ])
+  end
+end

@@ -812,14 +812,53 @@ module string contains
       from-list (L::reverse Character (to-list s))
     end
 
+  # lines: split a string on newlines.
+  # Chomp convention: a trailing newline does NOT produce a trailing empty string.
+  #   lines "a\n"    = ["a"]
+  #   lines "a\nb"   = ["a", "b"]
+  #   lines "a\nb\n" = ["a", "b"]
   define transparent lines as
     function s String returns List String value
-      split-on "\n" s
+      let value chomped be
+        match (ends-with "\n" s) of-type Boolean as ignored returns String
+          case Boolean::true as substring 0 (Ar::subtract (length s) 1) s
+          case Boolean::false as s
+        end
+      in
+        split-on "\n" chomped
+      end
     end
 
+  # unlines: join a list of strings with newlines.
+  # This is the inverse of lines in the sense that lines (unlines xs) = xs.
   define transparent unlines as
     function xs (List String) returns String value
       join-with "\n" xs
+    end
+
+  # split-once sep s: split s at the first occurrence of sep.
+  # Returns some (before, after) when sep is found, none when sep is absent.
+  #   split-once "=" "key=val" = some ("key", "val")
+  #   split-once "=" "k=v=w"  = some ("k", "v=w")
+  #   split-once "=" "nokey"  = none
+  define transparent split-once as
+    function sep String s String returns (P::Option (Pair String String)) value
+      match (has-substring sep s) of-type Boolean as ignored returns (P::Option (Pair String String))
+        case Boolean::false as Option::none (Pair String String)
+        case Boolean::true as
+          let value pos be index-of sep s in
+            let value sep-len be length sep in
+              let value before be substring 0 pos s in
+                let value after-start be Ar::add pos sep-len in
+                  let value after-len be Ar::subtract (Ar::subtract (length s) pos) sep-len in
+                    Option::some (Pair String String)
+                      (P::pair String String before (substring after-start after-len s))
+                  end
+                end
+              end
+            end
+          end
+      end
     end
 
   define transparent split-spaces as
