@@ -1,0 +1,10 @@
+# HLint configuration for locque interpreter
+# Keep substantive checks; silence common style preferences that are
+# intentional in this codebase.
+- ignore:
+    name: "Eta reduce"
+    # Many lambdas here serve pattern-matching or readability purposes.
+
+- ignore:
+    name: "Use section"
+    # Explicit lambdas are often clearer in complex expressions.

@@ -9,8 +9,36 @@ env:
   CABAL_VERSION: "3.16.1.0"
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ env.GHC_VERSION }}
+          cabal-version: ${{ env.CABAL_VERSION }}
+          cabal-update: true
+
+      - name: Cache cabal
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+          key: ${{ runner.os }}-hlint-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-hlint
+
+      - name: Install HLint
+        run: cabal install hlint --overwrite-policy=always
+
+      - name: Run HLint
+        run: hlint interpreter/
+
   test:
     runs-on: ubuntu-latest
+    needs: lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4
