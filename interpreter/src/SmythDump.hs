@@ -81,14 +81,14 @@ dumpMode config file contents m (mode, selected) =
     "normalized" -> do
       result <- TC.normalizeModuleWithImports (projectRoot config) file contents m
       case result of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right normalized -> do
           m' <- selectModule normalized selected
           TIO.putStrLn (moduleToSExprText m')
     "elaborated" -> do
       typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
       case typeResult of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right _env -> do
           elaborated <- transformModuleWithEnvs (projectRoot config) m
           m' <- selectModule elaborated selected
@@ -96,34 +96,34 @@ dumpMode config file contents m (mode, selected) =
     "typed" -> do
       typeResult <- TC.typeCheckAndNormalizeWithImports (projectRoot config) file contents m
       case typeResult of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right (env, _normalized) -> do
           case TC.annotateModule env m of
-            Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
+            Left annotErr -> failWith ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
             Right annotated -> do
               m' <- selectModule annotated selected
               TIO.putStrLn (moduleToSExprTextTyped m')
     "typed-normalized" -> do
       typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur (projectRoot config) file contents m
       case typeResult of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right (env, normalized) -> do
           case TC.annotateModule env normalized of
-            Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
+            Left annotErr -> failWith ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
             Right annotated -> do
               m' <- selectModule annotated selected
               TIO.putStrLn (moduleToSExprTextTyped m')
     "types" -> do
       typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
       case typeResult of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right env -> do
           m' <- selectModule m selected
           dumpTypes m' env
     "types-normalized" -> do
       typeResult <- TC.normalizeTypeEnvWithImports (projectRoot config) file contents m
       case typeResult of
-        Left tcErr -> failWith ("Type error: " ++ show tcErr)
+        Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right env -> do
           m' <- selectModule m selected
           dumpTypes m' env
@@ -144,14 +144,14 @@ dumpFile config mode file selected = do
         "normalized" -> do
           result <- TC.normalizeModuleWithImports (projectRoot config) file contents m
           case result of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right normalized -> do
               m' <- selectModule normalized selected
               TIO.putStrLn (moduleToSExprText m')
         "elaborated" -> do
           typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
           case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right _env -> do
               elaborated <- transformModuleWithEnvs (projectRoot config) m
               m' <- selectModule elaborated selected
@@ -159,34 +159,34 @@ dumpFile config mode file selected = do
         "typed" -> do
           typeResult <- TC.typeCheckAndNormalizeWithImports (projectRoot config) file contents m
           case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right (env, _normalized) -> do
               case TC.annotateModule env m of
-                Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
+                Left annotErr -> failWith ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
                 Right annotated -> do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "typed-normalized" -> do
           typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur (projectRoot config) file contents m
           case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right (env, normalized) -> do
               case TC.annotateModule env normalized of
-                Left annotErr -> failWith ("Annotation error: " ++ show annotErr)
+                Left annotErr -> failWith ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
                 Right annotated -> do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "types" -> do
           typeResult <- TC.typeCheckModuleWithImports (projectRoot config) file contents m
           case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right env -> do
               m' <- selectModule m selected
               dumpTypes m' env
         "types-normalized" -> do
           typeResult <- TC.normalizeTypeEnvWithImports (projectRoot config) file contents m
           case typeResult of
-            Left tcErr -> failWith ("Type error: " ++ show tcErr)
+            Left tcErr -> failWith ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right env -> do
               m' <- selectModule m selected
               dumpTypes m' env

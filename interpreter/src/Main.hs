@@ -42,7 +42,7 @@ runFile file = do
     Right m  -> do
       typeResult <- TC.typeCheckAndNormalizeWithImports projectRoot file contents m
       case typeResult of
-        Left tcErr -> die ("Type error: " ++ show tcErr)
+        Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right (_env, normalized) -> do
           let ctorArity = ctorArityMap normalized
               recDefs = recursorDefs normalized
@@ -85,7 +85,7 @@ typecheckFile file = do
     Right m  -> do
       result <- TC.typeCheckModuleWithImports projectRoot file contents m
       case result of
-        Left tcErr -> die ("Type error: " ++ show tcErr)
+        Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
         Right env  -> do
           putStrLn "✓ Type check passed"
           putStrLn ("  Definitions checked: " ++ show (Map.size env))
@@ -129,14 +129,14 @@ dumpFile mode file selected = do
         "normalized" -> do
           result <- TC.normalizeModuleWithImports projectRoot file contents m
           case result of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right normalized -> do
               m' <- selectModule normalized selected
               TIO.putStrLn (moduleToSExprText m')
         "elaborated" -> do
           typeResult <- TC.typeCheckModuleWithImports projectRoot file contents m
           case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right _env -> do
               elaborated <- transformModuleWithEnvs projectRoot m
               m' <- selectModule elaborated selected
@@ -144,34 +144,34 @@ dumpFile mode file selected = do
         "typed" -> do
           typeResult <- TC.typeCheckAndNormalizeWithImports projectRoot file contents m
           case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right (env, _normalized) -> do
               case TC.annotateModule env m of
-                Left annotErr -> die ("Annotation error: " ++ show annotErr)
+                Left annotErr -> die ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
                 Right annotated -> do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "typed-normalized" -> do
           typeResult <- TC.typeCheckAndNormalizeWithImportsOpaqueRecur projectRoot file contents m
           case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right (env, normalized) -> do
               case TC.annotateModule env normalized of
-                Left annotErr -> die ("Annotation error: " ++ show annotErr)
+                Left annotErr -> die ("Annotation error: " ++ TC.typeErrorWithSource annotErr contents)
                 Right annotated -> do
                   m' <- selectModule annotated selected
                   TIO.putStrLn (moduleToSExprTextTyped m')
         "types" -> do
           typeResult <- TC.typeCheckModuleWithImports projectRoot file contents m
           case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right env -> do
               m' <- selectModule m selected
               dumpTypes m' env
         "types-normalized" -> do
           typeResult <- TC.normalizeTypeEnvWithImports projectRoot file contents m
           case typeResult of
-            Left tcErr -> die ("Type error: " ++ show tcErr)
+            Left tcErr -> die ("Type error: " ++ TC.typeErrorWithSource tcErr contents)
             Right env -> do
               m' <- selectModule m selected
               dumpTypes m' env

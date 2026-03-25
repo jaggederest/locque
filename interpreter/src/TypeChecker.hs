@@ -20,6 +20,7 @@ module TypeChecker
   , definitionLineMap
   , freeVars
   , processOpens
+  , typeErrorWithSource
   ) where
 
 import Control.Monad (foldM, when)
@@ -172,6 +173,24 @@ baseErrorMsg err = case err of
   RecursionError loc msgText ->
     ErrorMsg loc ("Recursion error: " <> msgText) Nothing [] Nothing
   ContextError _ inner -> baseErrorMsg inner
+
+-- | Format a TypeError with source context populated from file contents.
+-- Use this at error-display sites (Main, SmythDump, etc.) where the source
+-- text is already in scope, to show the offending source line with a pointer.
+typeErrorWithSource :: TypeError -> T.Text -> String
+typeErrorWithSource err contents =
+  let (contexts, baseErr) = collectContexts err
+      ErrorMsg loc mainMsg _mbCtx suggestions note = baseErrorMsg baseErr
+      ctxNote = formatContextNote contexts
+      note' = appendNote note ctxNote
+      mbCtx = mkSourceCtx loc contents
+  in T.unpack (formatError (ErrorMsg loc mainMsg mbCtx suggestions note'))
+
+mkSourceCtx :: SrcLoc -> T.Text -> Maybe ErrorContext
+mkSourceCtx NoLoc _ = Nothing
+mkSourceCtx (SrcLoc _ lineNum col) contents =
+  fmap (\line -> ErrorContext line (col, col))
+       (extractSourceLine "" contents lineNum)
 
 -- | Eq instance compares by error type (ignoring location for equality)
 instance Eq TypeError where

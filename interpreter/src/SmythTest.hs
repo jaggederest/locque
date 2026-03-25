@@ -212,7 +212,7 @@ runTestOutcome projectRoot file = do
           Nothing -> do
             let tcResult = TC.typeCheckAndNormalizeWithEnv importedEnv m
             case tcResult of
-              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
+              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ TC.typeErrorWithSource tcErr contents))
               Right (env, normalized) -> do
                 let arity = ctorArityMap normalized
                     recDefs = recursorDefs normalized
@@ -220,7 +220,7 @@ runTestOutcome projectRoot file = do
                   Left msg -> pure $ Left (Failure TransformFailure (T.pack msg))
                   Right prepared -> do
                     case TC.annotateModule env prepared of
-                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ TC.typeErrorWithSource annotErr contents))
                       Right annotatedPrepared -> do
                         m' <- transformModuleWithEnvs projectRoot annotatedPrepared
                         let cacheEntry = RC.RunCache
@@ -270,7 +270,7 @@ runTestOutcomeTimed projectRoot file = do
             tcResult <- record "typecheck" (evaluate (TC.typeCheckAndNormalizeWithEnv importedEnv m))
             recordZero "normalize"
             case tcResult of
-              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ show tcErr))
+              Left tcErr -> pure $ Left (Failure TypeFailure (T.pack $ TC.typeErrorWithSource tcErr contents))
               Right (env, normalized) -> do
                 let arity = ctorArityMap normalized
                     recDefs = recursorDefs normalized
@@ -279,7 +279,7 @@ runTestOutcomeTimed projectRoot file = do
                   Right prepared -> do
                     annotRes <- record "annotate" (evaluate (TC.annotateModule env prepared))
                     case annotRes of
-                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ show annotErr))
+                      Left annotErr -> pure $ Left (Failure AnnotFailure (T.pack $ TC.typeErrorWithSource annotErr contents))
                       Right annotatedPrepared -> do
                         m' <- record "transform" (transformModuleWithEnvs projectRoot annotatedPrepared)
                         record "cache-write" $ do

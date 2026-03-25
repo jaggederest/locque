@@ -80,7 +80,7 @@ runFileNoExit config file = do
                   putStrLn $ "  (This may be a module import/loading issue)"
                   pure False
                 Right (Left tcErr) -> do
-                  putStrLn $ "Type error: " ++ show tcErr
+                  putStrLn $ "Type error: " ++ TC.typeErrorWithSource tcErr contents
                   pure False
                 Right (Right (env, normalized)) -> do
                   let arity = ctorArityMap normalized
@@ -93,7 +93,7 @@ runFileNoExit config file = do
                       -- Annotate: wrap expressions with inferred types
                       case TC.annotateModule env prepared of
                         Left annotErr -> do
-                          putStrLn $ "Annotation error: " ++ show annotErr
+                          putStrLn $ "Annotation error: " ++ TC.typeErrorWithSource annotErr contents
                           pure False
                         Right annotatedPrepared -> do
                           -- Transform: dictionary passing for evaluation
