@@ -3,6 +3,8 @@ import arithmetic as Ar
 import string as S
 import typeclass::equality as Eq
 
+open P exposing Option::none Option::some end
+
 module cli contains
   define transparent args as cli-args-prim
 
@@ -69,6 +71,193 @@ module cli contains
                 (S::substring after-start after-len s)
             end
           end
+        end
+      end
+    end
+
+  # --- Typed structured parsing ---
+  #
+  # Declare schema items upfront to get a properly typed ParsedArgs result:
+  #   CliSchemaItem::flag "verbose"   -- --verbose is a boolean flag
+  #   CliSchemaItem::option "output"  -- --output takes a string value
+
+  define transparent CliSchemaItem as
+    data in Type0
+      case CliSchemaItem::flag of-type for-all name as String to CliSchemaItem
+      case CliSchemaItem::option of-type for-all name as String to CliSchemaItem
+    end
+
+  # ParsedArgs groups flags (boolean), options (key-value), and positionals.
+  define transparent ParsedArgs as
+    data in Type0
+      case ParsedArgs::make of-type for-all flags as (List String) to for-all options as (List (Pair String String)) to for-all positionals as (List String) to ParsedArgs
+    end
+
+  define transparent empty-parsed as
+    ParsedArgs::make (P::nil String) (P::nil (Pair String String)) (P::nil String)
+
+  # Accessor: flag names that were present (boolean true).
+  define transparent parsed-flags as
+    function result ParsedArgs returns (List String) value
+      match result of-type ParsedArgs as ignored returns (List String)
+        case ParsedArgs::make with flags (List String) the-options (List (Pair String String)) the-positionals (List String) as flags
+      end
+    end
+
+  # Accessor: key-value option pairs.
+  define transparent parsed-options as
+    function result ParsedArgs returns (List (Pair String String)) value
+      match result of-type ParsedArgs as ignored returns (List (Pair String String))
+        case ParsedArgs::make with the-flags (List String) options (List (Pair String String)) the-positionals (List String) as options
+      end
+    end
+
+  # Accessor: positional arguments.
+  define transparent parsed-positionals as
+    function result ParsedArgs returns (List String) value
+      match result of-type ParsedArgs as ignored returns (List String)
+        case ParsedArgs::make with the-flags (List String) the-options (List (Pair String String)) positionals (List String) as positionals
+      end
+    end
+
+  define transparent add-flag-to as
+    function name String result ParsedArgs returns ParsedArgs value
+      match result of-type ParsedArgs as ignored returns ParsedArgs
+        case ParsedArgs::make with flags (List String) options (List (Pair String String)) positionals (List String) as
+          ParsedArgs::make (P::cons String name flags) options positionals
+      end
+    end
+
+  define transparent add-option-to as
+    function opt (Pair String String) result ParsedArgs returns ParsedArgs value
+      match result of-type ParsedArgs as ignored returns ParsedArgs
+        case ParsedArgs::make with flags (List String) options (List (Pair String String)) positionals (List String) as
+          ParsedArgs::make flags (P::cons (Pair String String) opt options) positionals
+      end
+    end
+
+  define transparent add-positional-to as
+    function arg String result ParsedArgs returns ParsedArgs value
+      match result of-type ParsedArgs as ignored returns ParsedArgs
+        case ParsedArgs::make with flags (List String) options (List (Pair String String)) positionals (List String) as
+          ParsedArgs::make flags options (P::cons String arg positionals)
+      end
+    end
+
+  # Returns true if name is declared as a flag in the schema.
+  define transparent is-schema-flag as
+    function name String schema (List CliSchemaItem) returns Boolean value
+      P::fold CliSchemaItem Boolean
+        (function acc Boolean item CliSchemaItem returns Boolean value
+          match item of-type CliSchemaItem as ignored returns Boolean
+            case CliSchemaItem::flag with n String as
+              match (Eq::equals String n name) of-type Boolean as ignored returns Boolean
+                case Boolean::true as true
+                case Boolean::false as acc
+              end
+            case CliSchemaItem::option with the-name String as acc
+          end
+        end)
+        false
+        schema
+    end
+
+  # Check whether a named flag was present in the parsed result.
+  define transparent has-flag as
+    function name String result ParsedArgs returns Boolean value
+      P::fold String Boolean
+        (function acc Boolean flag String returns Boolean value
+          match (Eq::equals String flag name) of-type Boolean as ignored returns Boolean
+            case Boolean::true as true
+            case Boolean::false as acc
+          end
+        end)
+        false
+        (parsed-flags result)
+    end
+
+  # Look up the value of a named option; returns the first occurrence.
+  define transparent lookup-option as
+    function name String result ParsedArgs returns (P::Option String) value
+      P::fold (Pair String String) (P::Option String)
+        (function acc (P::Option String) opt (Pair String String) returns (P::Option String) value
+          match opt of-type (Pair String String) as ignored returns (P::Option String)
+            case Pair::pair with k String v String as
+              match acc of-type (P::Option String) as ignored returns (P::Option String)
+                case Option::some with existing String as acc
+                case Option::none as
+                  match (Eq::equals String k name) of-type Boolean as ignored returns (P::Option String)
+                    case Boolean::true as Option::some String v
+                    case Boolean::false as Option::none String
+                  end
+              end
+          end
+        end)
+        (Option::none String)
+        (parsed-options result)
+    end
+
+  # Parse args using a schema that declares which names are flags vs options.
+  # Flags (declared via CliSchemaItem::flag, or standalone --name) go to flags list.
+  # Options (--name value or --name=value) go to options list.
+  # Non-dash args go to positionals. Everything after -- is positional.
+  define transparent parse-with-schema as
+    function schema (List CliSchemaItem) args (List String) returns ParsedArgs value
+      match args of-type (List String) as ignored returns ParsedArgs
+        case List::empty as empty-parsed
+        case List::cons with h String t (List String) as
+          match (Eq::equals String h "--") of-type Boolean as ignored returns ParsedArgs
+            case Boolean::true as ParsedArgs::make (P::nil String) (P::nil (Pair String String)) t
+            case Boolean::false as
+              match (S::starts-with "--" h) of-type Boolean as ignored returns ParsedArgs
+                case Boolean::true as
+                  let value without-prefix be drop-prefix "--" h in
+                    match (S::has-substring "=" without-prefix) of-type Boolean as ignored returns ParsedArgs
+                      case Boolean::true as
+                        add-option-to (split-on-equals without-prefix) (recur schema t)
+                      case Boolean::false as
+                        match (is-schema-flag without-prefix schema) of-type Boolean as ignored returns ParsedArgs
+                          case Boolean::true as
+                            add-flag-to without-prefix (recur schema t)
+                          case Boolean::false as
+                            match t of-type (List String) as ignored returns ParsedArgs
+                              case List::empty as add-flag-to without-prefix empty-parsed
+                              case List::cons with v String rest (List String) as
+                                match (S::starts-with "-" v) of-type Boolean as ignored returns ParsedArgs
+                                  case Boolean::true as add-flag-to without-prefix (recur schema t)
+                                  case Boolean::false as add-option-to (P::pair String String without-prefix v) (recur schema rest)
+                                end
+                            end
+                        end
+                    end
+                  end
+                case Boolean::false as
+                  match (S::starts-with "-" h) of-type Boolean as ignored returns ParsedArgs
+                    case Boolean::true as
+                      let value name be drop-prefix "-" h in
+                        add-flag-to name (recur schema t)
+                      end
+                    case Boolean::false as
+                      add-positional-to h (recur schema t)
+                  end
+              end
+          end
+      end
+    end
+
+  # Parse args without a schema (heuristic: standalone --name is a flag,
+  # --name value is an option). Returns ParsedArgs.
+  define transparent parse-structured as
+    function args (List String) returns ParsedArgs value
+      parse-with-schema (P::nil CliSchemaItem) args
+    end
+
+  # Computation: read argv and parse with the given schema.
+  define transparent parse-args as
+    function schema (List CliSchemaItem) returns (computation ParsedArgs) value
+      compute
+        bind argv from perform args then
+          return (parse-with-schema schema argv)
         end
       end
     end

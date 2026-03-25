@@ -1,0 +1,185 @@
+# Tests for structured CLI argument parsing
+
+import assert as A
+import cli as Cli
+import prelude as P
+import string as S
+import typeclass::equality as Eq
+
+open P exposing Option::none Option::some end
+
+module test::cli::structured contains
+  # Sample args: --verbose --output report.txt input.txt --dry-run -- --not-a-flag
+  define transparent sample-args as
+    [
+      "--verbose"
+    , "--output"
+    , "report.txt"
+    , "input.txt"
+    , "--dry-run"
+    , "--"
+    , "--not-a-flag"
+    ]
+
+  define transparent sample-schema as
+    [
+      (Cli::CliSchemaItem::flag "verbose")
+    , (Cli::CliSchemaItem::flag "dry-run")
+    , (Cli::CliSchemaItem::option "output")
+    ]
+
+  define transparent sample-parsed-schema as
+    Cli::parse-with-schema sample-schema sample-args
+
+  define transparent sample-parsed-heuristic as
+    Cli::parse-structured sample-args
+
+  # --- schema-based tests ---
+
+  define transparent check-schema-flags as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean (Cli::has-flag "verbose" sample-parsed-schema) true)
+      , (A::assert-eq Boolean (Cli::has-flag "dry-run" sample-parsed-schema) true)
+      , (A::assert-eq Boolean (Cli::has-flag "missing" sample-parsed-schema) false)
+      ])
+  end
+
+  define transparent check-schema-option as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+          (let value opt be Cli::lookup-option "output" sample-parsed-schema in
+            match opt of-type (P::Option String) as ignored returns String
+              case Option::some with v String as v
+              case Option::none as "MISSING"
+            end
+          end)
+          "report.txt")
+      , (A::assert-eq Boolean
+          (match (Cli::lookup-option "nonexistent" sample-parsed-schema) of-type (P::Option String) as ignored returns Boolean
+            case Option::none as true
+            case Option::some with ignored String as false
+          end)
+          true)
+      ])
+  end
+
+  define transparent check-schema-positionals as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq String
+          (S::join-with "," (Cli::parsed-positionals sample-parsed-schema))
+          "input.txt,--not-a-flag")
+      ])
+  end
+
+  # --- heuristic (schemaless) tests ---
+
+  define transparent check-heuristic-flags as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean (Cli::has-flag "verbose" sample-parsed-heuristic) true)
+      , (A::assert-eq Boolean (Cli::has-flag "dry-run" sample-parsed-heuristic) true)
+      ])
+  end
+
+  define transparent check-heuristic-option as compute
+    perform (A::assert-eq String
+      (let value opt be Cli::lookup-option "output" sample-parsed-heuristic in
+        match opt of-type (P::Option String) as ignored returns String
+          case Option::some with v String as v
+          case Option::none as "MISSING"
+        end
+      end)
+      "report.txt")
+  end
+
+  define transparent check-heuristic-positionals as compute
+    perform (A::assert-eq String
+      (S::join-with "," (Cli::parsed-positionals sample-parsed-heuristic))
+      "input.txt,--not-a-flag")
+  end
+
+  # --- key=value syntax ---
+
+  define transparent kv-args as
+    [
+      "--output=result.txt"
+    , "pos"
+    ]
+
+  define transparent kv-parsed as
+    Cli::parse-structured kv-args
+
+  define transparent check-kv-option as compute
+    perform (A::assert-eq String
+      (let value opt be Cli::lookup-option "output" kv-parsed in
+        match opt of-type (P::Option String) as ignored returns String
+          case Option::some with v String as v
+          case Option::none as "MISSING"
+        end
+      end)
+      "result.txt")
+  end
+
+  define transparent check-kv-positionals as compute
+    perform (A::assert-eq String
+      (S::join-with "," (Cli::parsed-positionals kv-parsed))
+      "pos")
+  end
+
+  # --- short flags (-x) ---
+
+  define transparent short-args as
+    ["-v", "-n", "file.txt"]
+
+  define transparent short-parsed as
+    Cli::parse-structured short-args
+
+  define transparent check-short-flags as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean (Cli::has-flag "v" short-parsed) true)
+      , (A::assert-eq Boolean (Cli::has-flag "n" short-parsed) true)
+      , (A::assert-eq String
+          (S::join-with "," (Cli::parsed-positionals short-parsed))
+          "file.txt")
+      ])
+  end
+
+  # --- first-option-wins for duplicates ---
+
+  define transparent dup-args as
+    ["--output", "first.txt", "--output", "second.txt"]
+
+  define transparent dup-parsed as
+    Cli::parse-structured dup-args
+
+  define transparent check-first-wins as compute
+    perform (A::assert-eq String
+      (let value opt be Cli::lookup-option "output" dup-parsed in
+        match opt of-type (P::Option String) as ignored returns String
+          case Option::some with v String as v
+          case Option::none as "MISSING"
+        end
+      end)
+      "first.txt")
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        check-schema-flags
+      , check-schema-option
+      , check-schema-positionals
+      , check-heuristic-flags
+      , check-heuristic-option
+      , check-heuristic-positionals
+      , check-kv-option
+      , check-kv-positionals
+      , check-short-flags
+      , check-first-wins
+      ])
+  end
+end

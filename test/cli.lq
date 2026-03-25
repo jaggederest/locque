@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/cli/
 
 import test::cli::basics as basics
+import test::cli::structured as structured
 
 module test::cli contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , structured::main
       ])
   end
 end
