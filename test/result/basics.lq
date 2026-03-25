@@ -49,6 +49,12 @@ module test::result::basics contains
       end)
       err1
 
+  define transparent with-context-ok as
+    Res::with-context Natural "context: " ok1
+
+  define transparent with-context-err as
+    Res::with-context Natural "context: " err1
+
   define transparent to-option-ok as
     Res::to-option Natural String ok1
 
@@ -80,6 +86,16 @@ module test::result::basics contains
       , (assert-eq Natural (Res::unwrap-or Natural String 0 map-err) 0)
       , (assert-eq Natural (Res::unwrap-or Natural String 0 bind-ok) 4)
       , (assert-eq Natural (Res::unwrap-or Natural String 0 bind-err) 0)
+      , (assert-eq Boolean (Res::is-ok Natural String with-context-ok) true)
+      , (assert-eq Boolean (Res::is-err Natural String with-context-err) true)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 with-context-ok) 1)
+      , (assert-eq Natural
+          (Res::unwrap-or-else Natural String
+            (function msg String returns Natural value
+              S::length msg
+            end)
+            with-context-err)
+          12)
       , (assert-eq Boolean (Opt::is-some Natural to-option-ok) true)
       , (assert-eq Boolean (Opt::is-none Natural to-option-err) true)
       , (assert-eq Natural

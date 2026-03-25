@@ -92,6 +92,15 @@ module result contains
       end
     end
 
+  define transparent with-context as
+    function A Type0 ctx String res (P::Result A String) returns (P::Result A String) value
+      map-error A String String
+        (function msg String returns String value
+          concat-string-prim ctx msg
+        end)
+        res
+    end
+
   define transparent to-option as
     function A Type0 E Type0 res (P::Result A E) returns (P::Option A) value
       match res of-type (P::Result A E) as ignored returns (P::Option A)
