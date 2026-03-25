@@ -3,6 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Add ghcup to PATH if available and cabal is not already found
+if ! command -v cabal &>/dev/null && [ -f "$HOME/.ghcup/env" ]; then
+  # shellcheck source=/dev/null
+  source "$HOME/.ghcup/env"
+fi
+
 run_build() {
   echo "==> cabal build (interpreter)"
   (cd "$ROOT/interpreter" && cabal build all)
