@@ -2,9 +2,13 @@
 interpreter/dist-newstyle/
 interpreter/.ghc.environment.*
 interpreter/.stack-work/
+*.hi
+*.o
 
-# Cabal config
-/Users/justin/.config/cabal/config
+# Gas Town / polecat runtime state
+.beads/
+.claude/
+.runtime/
 
 # Editor/OS junk
 .DS_Store
