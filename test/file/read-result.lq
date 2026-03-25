@@ -1,0 +1,41 @@
+import assert as A
+import file as File
+import prelude as P
+import string as S
+
+open A exposing assert-eq end
+open P exposing Result::ok Result::err end
+
+module test::file::read-result contains
+  define transparent test-existing-file as compute
+    bind result from perform (File::read-result "lib/prelude.lq") then
+      perform
+        (match result of-type (P::Result String String) as ignored returns (computation Unit)
+          case Result::ok with contents String as
+            assert-eq Boolean (S::starts-with "import" contents) true
+          case Result::err with err String as
+            compute return (P::error Unit (S::concat "unexpected error: " err)) end
+        end)
+    end
+  end
+
+  define transparent test-missing-file as compute
+    bind result from perform (File::read-result "test/tmp/does_not_exist_read_result.txt") then
+      perform
+        (match result of-type (P::Result String String) as ignored returns (computation Unit)
+          case Result::ok with ignored String as
+            compute return (P::error Unit "expected err for missing file") end
+          case Result::err with ignored String as
+            compute return Unit::tt end
+        end)
+    end
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-existing-file
+      , test-missing-file
+      ])
+  end
+end

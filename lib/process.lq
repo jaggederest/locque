@@ -1,3 +1,44 @@
+import prelude as P
+import string as S
+
+open P exposing Result::ok Result::err Option Option::none end
+
 module process contains
   define transparent run as process-run-prim
+
+  define transparent run-result as
+    function cmd String args (List String) returns computation (P::Result String String) value
+      compute
+        bind result from perform (run (List::cons String cmd args) (Option::none String)) then
+          perform
+            (match result of-type (Pair Natural (Pair String String)) as ignored returns (computation (P::Result String String))
+              case Pair::pair with code Natural rest (Pair String String) as
+                match rest of-type (Pair String String) as ignored returns (computation (P::Result String String))
+                  case Pair::pair with stdout String stderr String as
+                    match (eq-nat-prim code 0) of-type Boolean as ignored returns (computation (P::Result String String))
+                      case Boolean::true as
+                        compute return (Result::ok String String stdout) end
+                      case Boolean::false as
+                        compute return (Result::err String String stderr) end
+                    end
+                end
+            end)
+        end
+      end
+    end
+
+  define transparent run-ok as
+    function cmd String args (List String) returns computation String value
+      compute
+        bind result from perform (run-result cmd args) then
+          perform
+            (match result of-type (P::Result String String) as ignored returns (computation String)
+              case Result::ok with stdout String as
+                compute return stdout end
+              case Result::err with stderr String as
+                compute return (P::error String (S::concat "process failed: " stderr)) end
+            end)
+        end
+      end
+    end
 end

@@ -7,6 +7,7 @@ import test::file::file_io as file_io
 import test::file::io as io_tests
 import test::file::helpers as helpers
 import test::file::stat as stat_tests
+import test::file::read-result as read_result_tests
 
 module test::file contains
   define transparent main as compute
@@ -17,6 +18,7 @@ module test::file contains
       , io_tests::main
       , helpers::main
       , stat_tests::main
+      , read_result_tests::main
       ])
   end
 end

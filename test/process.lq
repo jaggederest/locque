@@ -1,9 +1,10 @@
 import prelude as P
 import assert as A
 import process as Process
+import string as S
 import typeclass::equality as Eq
 
-open P exposing Option Option::none end
+open P exposing Option Option::none Result::ok Result::err end
 open A exposing assert-eq end
 
 module test::process contains
@@ -17,7 +18,43 @@ module test::process contains
     end
   end
 
+  define transparent check-run-result-ok as compute
+    bind result from perform (Process::run-result "true" (of-type [] (List String))) then
+      perform
+        (match result of-type (P::Result String String) as ignored returns (computation Unit)
+          case Result::ok with ignored String as
+            compute return Unit::tt end
+          case Result::err with err String as
+            compute return (P::error Unit (S::concat "expected ok, got err: " err)) end
+        end)
+    end
+  end
+
+  define transparent check-run-result-err as compute
+    bind result from perform (Process::run-result "false" (of-type [] (List String))) then
+      perform
+        (match result of-type (P::Result String String) as ignored returns (computation Unit)
+          case Result::ok with ignored String as
+            compute return (P::error Unit "expected err, got ok") end
+          case Result::err with ignored String as
+            compute return Unit::tt end
+        end)
+    end
+  end
+
+  define transparent check-run-ok as compute
+    bind out from perform (Process::run-ok "true" (of-type [] (List String))) then
+      perform (assert-eq String out "")
+    end
+  end
+
   define transparent main as compute
-    perform check-run
+    perform (P::sequence-unit
+      [
+        check-run
+      , check-run-result-ok
+      , check-run-result-err
+      , check-run-ok
+      ])
   end
 end

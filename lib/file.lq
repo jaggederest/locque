@@ -1,4 +1,7 @@
+import prelude as P
 import string as S
+
+open P exposing Result::ok Result::err end
 
 module file contains
   define transparent read-file as read-file-prim
@@ -76,6 +79,25 @@ module file contains
     function path String lines (List String) returns computation Unit value
       compute
         perform (write-file path (S::join-with "\n" lines))
+      end
+    end
+
+  define transparent read-result as
+    function path String returns computation (P::Result String String) value
+      compute
+        bind exists from perform (path-exists path) then
+          perform
+            (match exists of-type Boolean as ignored returns (computation (P::Result String String))
+              case Boolean::false as
+                compute return (Result::err String String (S::concat "file not found: " path)) end
+              case Boolean::true as
+                compute
+                  bind contents from perform (read-file path) then
+                    return (Result::ok String String contents)
+                  end
+                end
+            end)
+        end
       end
     end
 
