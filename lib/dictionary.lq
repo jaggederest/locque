@@ -77,4 +77,20 @@ module dictionary contains
         case Option::some with ignored V as true
       end
     end
+
+  define transparent map-values as
+    function K Type0 V Type0 W Type0
+             f (for-all x as V to W)
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns (Dictionary K W) value
+      from-list K W
+        (P::map (Pair K V) (Pair K W)
+          (function entry (Pair K V) returns (Pair K W) value
+            match entry of-type (Pair K V) as ignored returns (Pair K W)
+              case Pair::pair with k K v V as P::pair K W k (f v)
+            end
+          end)
+          (to-list K V dict))
+    end
 end

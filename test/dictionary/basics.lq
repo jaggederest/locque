@@ -62,11 +62,47 @@ module test::dictionary::basics contains
       ])
   end
 
+  define transparent lookup-or-zero-string as
+    function key String dict (Dictionary String String) returns String value
+      match (D::lookup String String key dict) of-type (Option String) as ignored returns String
+        case Option::none as ""
+        case Option::some with v String as v
+      end
+    end
+
+  define transparent dict-ab-doubled as
+    D::map-values String Natural Natural
+      (function n Natural returns Natural value add-nat-prim n n end)
+      dict-ab
+
+  define transparent dict-ab-stringified as
+    D::map-values String Natural String
+      (function n Natural returns String value S::concat "val:" (nat-to-string-prim n) end)
+      dict-ab
+
+  define transparent empty-dict-mapped as
+    D::map-values String Natural Natural
+      (function n Natural returns Natural value n end)
+      empty-dict
+
+  define transparent test-map-values as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Natural (D::size String Natural dict-ab-doubled) 2)
+      , (A::assert-eq Natural (lookup-or-zero "a" dict-ab-doubled) 2)
+      , (A::assert-eq Natural (lookup-or-zero "b" dict-ab-doubled) 4)
+      , (A::assert-eq String (lookup-or-zero-string "a" dict-ab-stringified) "val:1")
+      , (A::assert-eq String (lookup-or-zero-string "b" dict-ab-stringified) "val:2")
+      , (A::assert-eq Natural (D::size String Natural empty-dict-mapped) 0)
+      ])
+  end
+
   define transparent main as compute
     perform (P::sequence-unit
       [
         test-basic
       , test-from-list
+      , test-map-values
       ])
   end
 end
