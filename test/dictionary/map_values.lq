@@ -1,0 +1,45 @@
+import arithmetic as Ar
+import assert as A
+import dictionary as D
+import prelude as P
+
+open P exposing Option Option::none Option::some end
+
+module test::dictionary::map_values contains
+  define transparent dict-ab as
+    D::insert String Natural "b" 2
+      (D::insert String Natural "a" 1 (D::empty String Natural))
+
+  define transparent lookup-or-zero as
+    function key String dict (Dictionary String Natural) returns Natural value
+      match (D::lookup String Natural key dict) of-type (Option Natural) as ignored returns Natural
+        case Option::none as 0
+        case Option::some with v Natural as v
+      end
+    end
+
+  define transparent doubled as
+    D::map-values String Natural Natural
+      (function v Natural returns Natural value Ar::add v v end)
+      dict-ab
+
+  define transparent incremented as
+    D::map-values String Natural Natural
+      (function v Natural returns Natural value Ar::add v 1 end)
+      (D::empty String Natural)
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        # preserves size
+        (A::assert-eq Natural (D::size String Natural doubled) 2)
+        # applies f to each value
+      , (A::assert-eq Natural (lookup-or-zero "a" doubled) 2)
+      , (A::assert-eq Natural (lookup-or-zero "b" doubled) 4)
+        # keys not in original remain absent
+      , (A::assert-eq Natural (lookup-or-zero "c" doubled) 0)
+        # map-values over empty dict yields empty dict
+      , (A::assert-eq Natural (D::size String Natural incremented) 0)
+      ])
+  end
+end
