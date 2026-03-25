@@ -1,6 +1,7 @@
 import prelude as P
 import string as S
 import type_aliases as Types
+import list as L
 
 module typeclass::semigroup contains
   define transparent Semigroup as typeclass A of-kind Types::BaseType where
@@ -23,6 +24,23 @@ module typeclass::semigroup contains
     append as
       function A Type0 xs (List A) ys (List A) returns (List A) value
         P::append A xs ys
+      end
+  end
+
+  define transparent Semigroup-NonEmptyList as instance Semigroup (L::NonEmptyList A) where
+    append as
+      function A Type0 xs (L::NonEmptyList A) ys (L::NonEmptyList A) returns (L::NonEmptyList A) value
+        let value xs-list be L::nonempty-value A xs in
+          let value ys-list be L::nonempty-value A ys in
+            match xs-list of-type (List A) as ignored returns (L::NonEmptyList A)
+              case List::empty as P::error (L::NonEmptyList A) "unreachable: xs is a NonEmptyList"
+              case List::cons with h A t (List A) as
+                pack zs as (List A) in L::nonempty-predicate A zs
+                  with (P::cons A h (P::append A t ys-list)) Unit::tt
+                end
+            end
+          end
+        end
       end
   end
 end

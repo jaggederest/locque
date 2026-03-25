@@ -4,11 +4,19 @@ import prelude as P
 import assert as A
 import typeclass::semigroup as Semi
 import typeclass::equality as Eq
+import list as L
 
 open A exposing assert-eq end
 open Eq exposing Equality end
+open P exposing Option::some Option::none end
 
 module test::typeclass::semigroup contains
+  define transparent nonempty-sample-a as
+    L::nonempty Natural [1, 2]
+
+  define transparent nonempty-sample-b as
+    L::nonempty Natural [3, 4]
+
   define transparent main as compute
     perform (P::sequence-unit
       [
@@ -17,6 +25,32 @@ module test::typeclass::semigroup contains
       , (assert-eq (List Natural)
           (Semi::combine (List Natural) [1, 2] [3])
           [1, 2, 3])
+      , (match nonempty-sample-a of-type (P::Option (L::NonEmptyList Natural)) as ignored returns (computation Unit)
+          case Option::none as P::error (computation Unit) "expected nonempty list a"
+          case Option::some with xs (L::NonEmptyList Natural) as
+            match nonempty-sample-b of-type (P::Option (L::NonEmptyList Natural)) as ignored returns (computation Unit)
+              case Option::none as P::error (computation Unit) "expected nonempty list b"
+              case Option::some with ys (L::NonEmptyList Natural) as
+                let value combined be Semi::combine (L::NonEmptyList Natural) xs ys in
+                  assert-eq (List Natural)
+                    (L::nonempty-value Natural combined)
+                    [1, 2, 3, 4]
+                end
+            end
+        end)
+      , (match L::nonempty Natural [42] of-type (P::Option (L::NonEmptyList Natural)) as ignored returns (computation Unit)
+          case Option::none as P::error (computation Unit) "expected singleton nonempty list"
+          case Option::some with xs (L::NonEmptyList Natural) as
+            match L::nonempty Natural [99] of-type (P::Option (L::NonEmptyList Natural)) as ignored returns (computation Unit)
+              case Option::none as P::error (computation Unit) "expected singleton nonempty list b"
+              case Option::some with ys (L::NonEmptyList Natural) as
+                let value combined be Semi::combine (L::NonEmptyList Natural) xs ys in
+                  assert-eq (List Natural)
+                    (L::nonempty-value Natural combined)
+                    [42, 99]
+                end
+            end
+        end)
       ])
   end
 end
