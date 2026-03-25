@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/arithmetic/
 
 import test::arithmetic::basics as basics
+import test::arithmetic::safe-div-mod as safe-div-mod
 
 module test::arithmetic contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , safe-div-mod::main
       ])
   end
 end

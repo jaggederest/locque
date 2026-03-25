@@ -2,6 +2,8 @@ import prelude as P
 import typeclass::order as Order
 import typeclass::equality as Eq
 
+open P exposing Result::ok Result::err end
+
 module arithmetic contains
   define transparent add as add-nat-prim
   define transparent subtract as sub-nat-prim
@@ -56,5 +58,21 @@ module arithmetic contains
   define transparent is-positive as
     function n Natural returns Boolean value
       Order::greater-than Natural n 0
+    end
+
+  define transparent safe-div as
+    function a Natural b Natural returns (P::Result Natural String) value
+      match (Eq::equals Natural b 0) of-type Boolean as ignored returns (P::Result Natural String)
+        case Boolean::false as Result::ok Natural String (div-nat a b)
+        case Boolean::true as Result::err Natural String "division by zero"
+      end
+    end
+
+  define transparent safe-mod as
+    function a Natural b Natural returns (P::Result Natural String) value
+      match (Eq::equals Natural b 0) of-type Boolean as ignored returns (P::Result Natural String)
+        case Boolean::false as Result::ok Natural String (mod-nat a b)
+        case Boolean::true as Result::err Natural String "modulo by zero"
+      end
     end
 end
