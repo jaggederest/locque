@@ -1,0 +1,107 @@
+# List traversal helper tests
+
+import prelude as P
+import arithmetic as Ar
+import assert as A
+import list::traverse as T
+import typeclass::equality as Eq
+import typeclass::order as Order
+
+open A exposing assert-eq end
+open Eq exposing Equality end
+
+module test::list::traverse contains
+  define transparent nums as [1, 2, 3]
+
+  define transparent test-traverse as compute
+    bind results from perform
+      (T::traverse Natural Natural
+        (function x Natural returns (computation Natural) value
+          compute return (Ar::add x 1) end
+        end)
+        nums) then
+      perform (assert-eq (List Natural) results [2, 3, 4])
+    end
+  end
+
+  define transparent test-traverse-empty as compute
+    bind results from perform
+      (T::traverse Natural Natural
+        (function x Natural returns (computation Natural) value
+          compute return x end
+        end)
+        (of-type [] (List Natural))) then
+      perform (assert-eq (List Natural) results (of-type [] (List Natural)))
+    end
+  end
+
+  define transparent test-map-compute as compute
+    bind results from perform
+      (T::map-compute Natural Natural
+        (function x Natural returns (computation Natural) value
+          compute return (Ar::add x 10) end
+        end)
+        nums) then
+      perform (assert-eq (List Natural) results [11, 12, 13])
+    end
+  end
+
+  define transparent test-filter-compute as compute
+    bind results from perform
+      (T::filter-compute Natural
+        (function x Natural returns (computation Boolean) value
+          compute return (Order::greater-than Natural x 1) end
+        end)
+        nums) then
+      perform (assert-eq (List Natural) results [2, 3])
+    end
+  end
+
+  define transparent test-filter-compute-empty-result as compute
+    bind results from perform
+      (T::filter-compute Natural
+        (function x Natural returns (computation Boolean) value
+          compute return false end
+        end)
+        nums) then
+      perform (assert-eq (List Natural) results (of-type [] (List Natural)))
+    end
+  end
+
+  define transparent test-fold-compute as compute
+    bind result from perform
+      (T::fold-compute Natural Natural
+        (function acc Natural x Natural returns (computation Natural) value
+          compute return (Ar::add acc x) end
+        end)
+        0
+        nums) then
+      perform (assert-eq Natural result 6)
+    end
+  end
+
+  define transparent test-fold-compute-empty as compute
+    bind result from perform
+      (T::fold-compute Natural Natural
+        (function acc Natural x Natural returns (computation Natural) value
+          compute return (Ar::add acc x) end
+        end)
+        42
+        (of-type [] (List Natural))) then
+      perform (assert-eq Natural result 42)
+    end
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-traverse
+      , test-traverse-empty
+      , test-map-compute
+      , test-filter-compute
+      , test-filter-compute-empty-result
+      , test-fold-compute
+      , test-fold-compute-empty
+      ])
+  end
+end

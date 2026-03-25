@@ -1,0 +1,78 @@
+import prelude as P
+import type_aliases as Types
+
+module list::traverse contains
+  define transparent traverse as
+    function A Type0 B Type0
+             f (Types::Function A (computation B))
+             xs (List A)
+    returns computation (List B) value
+      match xs of-type (List A) as ignored returns computation (List B)
+        case List::empty as compute return (P::nil B) end
+        case List::cons with h A t (List A) as
+          let value rest be recur A B f t in
+            compute
+              bind result from perform (f h) then
+                bind rest-result from perform rest then
+                  return (P::cons B result rest-result)
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent map-compute as
+    function A Type0 B Type0
+             f (Types::Function A (computation B))
+             xs (List A)
+    returns computation (List B) value
+      traverse A B f xs
+    end
+
+  define transparent filter-compute as
+    function A Type0
+             predicate (Types::Function A (computation Boolean))
+             xs (List A)
+    returns computation (List A) value
+      match xs of-type (List A) as ignored returns computation (List A)
+        case List::empty as compute return (P::nil A) end
+        case List::cons with h A t (List A) as
+          let value rest be recur A predicate t in
+            compute
+              bind keep from perform (predicate h) then
+                bind rest-result from perform rest then
+                  return (
+                    match keep of-type Boolean as ignored returns (List A)
+                      case Boolean::true as P::cons A h rest-result
+                      case Boolean::false as rest-result
+                    end
+                  )
+                end
+              end
+            end
+          end
+      end
+    end
+
+  # fold-compute f acc xs sequences effectful steps left-to-right.
+  # Step f receives the current pure accumulator and an element,
+  # returning a computation that produces the next accumulator.
+  define transparent fold-compute as
+    function A Type0 B Type0
+             f (Types::BinaryFunction B A (computation B))
+             acc B
+             xs (List A)
+    returns computation B value
+      P::fold-compute A B
+        (function prev (computation B) x A returns (computation B) value
+          compute
+            bind z from perform prev then
+              perform (f z x)
+            end
+          end
+        end)
+        (compute return acc end)
+        xs
+    end
+end
