@@ -1,0 +1,49 @@
+# Tests for lines, unlines, and split-once
+
+import prelude as P
+import assert as A
+import string as S
+
+open A exposing assert-eq end
+
+module test::string::lines contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        # lines: basic splitting
+        (assert-eq Natural (P::length-list String (S::lines "a\nb")) 2)
+      , (assert-eq String (P::head String (S::lines "a\nb")) "a")
+        # lines: chomp — trailing newline does NOT produce a trailing empty string
+      , (assert-eq Natural (P::length-list String (S::lines "a\n")) 1)
+      , (assert-eq String (P::head String (S::lines "a\n")) "a")
+        # lines: empty string returns empty list
+      , (assert-eq Natural (P::length-list String (S::lines "")) 0)
+        # lines: interior blank lines are preserved; only trailing \n is chomped
+      , (assert-eq Natural (P::length-list String (S::lines "a\n\n")) 2)
+      , (assert-eq String (P::head String (S::lines "a\n\n")) "a")
+        # lines: no trailing newline, last line kept as-is
+      , (assert-eq Natural (P::length-list String (S::lines "a")) 1)
+      , (assert-eq String (P::head String (S::lines "a")) "a")
+        # split-once: separator found — returns some (pair before after)
+      , (assert-eq (P::Option (Pair String String))
+                   (S::split-once ":" "a:b:c")
+                   (P::Option::some (Pair String String) (P::pair String String "a" "b:c")))
+        # split-once: separator not present — returns none
+      , (assert-eq (P::Option (Pair String String))
+                   (S::split-once ":" "abc")
+                   (P::Option::none (Pair String String)))
+        # split-once: separator at start — before is empty string
+      , (assert-eq (P::Option (Pair String String))
+                   (S::split-once ":" ":abc")
+                   (P::Option::some (Pair String String) (P::pair String String "" "abc")))
+        # split-once: separator at end — after is empty string
+      , (assert-eq (P::Option (Pair String String))
+                   (S::split-once ":" "abc:")
+                   (P::Option::some (Pair String String) (P::pair String String "abc" "")))
+        # split-once: multi-char separator
+      , (assert-eq (P::Option (Pair String String))
+                   (S::split-once "::" "a::b::c")
+                   (P::Option::some (Pair String String) (P::pair String String "a" "b::c")))
+      ])
+  end
+end

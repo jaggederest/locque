@@ -6,6 +6,7 @@ import test::string::basic as basic
 import test::string::character as character
 import test::string::nonempty as nonempty
 import test::string::url_decode as url_decode
+import test::string::lines as lines
 
 module test::string contains
   define transparent main as compute
@@ -15,6 +16,7 @@ module test::string contains
       , character::main
       , nonempty::main
       , url_decode::main
+      , lines::main
       ])
   end
 end

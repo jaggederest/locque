@@ -812,14 +812,59 @@ module string contains
       from-list (L::reverse Character (to-list s))
     end
 
+  # lines s — split s on newlines, returning a list of lines.
+  # Chomp: a trailing newline does NOT produce a trailing empty string.
+  #   lines "a\n"   = ["a"]        (trailing \n consumed, not an extra empty line)
+  #   lines "a\nb"  = ["a", "b"]
+  #   lines "a\n\n" = ["a", ""]    (only the final \n is chomped)
+  #   lines ""      = []
   define transparent lines as
     function s String returns List String value
-      split-on "\n" s
+      match (is-empty s) of-type Boolean as ignored returns (List String)
+        case Boolean::true as P::nil String
+        case Boolean::false as
+          match (ends-with "\n" s) of-type Boolean as ignored returns (List String)
+            case Boolean::true as
+              split-on "\n" (substring 0 (Ar::subtract (length s) 1) s)
+            case Boolean::false as
+              split-on "\n" s
+          end
+      end
     end
 
   define transparent unlines as
     function xs (List String) returns String value
       join-with "\n" xs
+    end
+
+  # split-once sep s — split at the first occurrence of sep in s.
+  # Returns some (pair before after) when sep is found;
+  # returns none when sep does not appear in s.
+  #   split-once ":" "a:b:c" = some (pair "a" "b:c")
+  #   split-once ":" "abc"   = none
+  define transparent split-once as
+    function sep String s String returns (P::Option (Pair String String)) value
+      match (Eq::equals Natural (length sep) 0) of-type Boolean as ignored returns (P::Option (Pair String String))
+        case Boolean::true as P::error (P::Option (Pair String String)) "split-once expects a non-empty separator"
+        case Boolean::false as
+          let value sep-len be length sep in
+            let value s-len be length s in
+              let value idx be index-of sep s in
+                match (Order::less-than Natural idx s-len) of-type Boolean as ignored returns (P::Option (Pair String String))
+                  case Boolean::false as Option::none (Pair String String)
+                  case Boolean::true as
+                    let value before be substring 0 idx s in
+                      let value after-start be Ar::add idx sep-len in
+                        let value after be substring after-start (Ar::subtract s-len after-start) s in
+                          Option::some (Pair String String) (P::pair String String before after)
+                        end
+                      end
+                    end
+                end
+              end
+            end
+          end
+      end
     end
 
   define transparent split-spaces as
