@@ -1,0 +1,64 @@
+import prelude as P
+import assert as A
+import arithmetic as Ar
+import control as Control
+
+module test::control::basics contains
+  define transparent assert-count-delta as
+    function expected Natural action (computation Unit) returns computation Unit value
+      compute
+        bind before from perform A::assertion-count then
+          bind ignored from perform action then
+            bind after from perform A::assertion-count then
+              perform (A::assert-eq Natural (Ar::subtract after before) expected)
+            end
+          end
+        end
+      end
+    end
+
+  define transparent check-when-true as
+    assert-count-delta 1 (Control::when true A::assert-hit)
+
+  define transparent check-when-false as
+    assert-count-delta 0 (Control::when false A::assert-hit)
+
+  define transparent check-unless-true as
+    assert-count-delta 0 (Control::unless true A::assert-hit)
+
+  define transparent check-unless-false as
+    assert-count-delta 1 (Control::unless false A::assert-hit)
+
+  define transparent check-guard-true as compute
+    perform (Control::guard true)
+  end
+
+  define transparent check-tap as compute
+    bind before from perform A::assertion-count then
+      bind result from perform
+        (Control::tap Natural 42
+          (function ignored Natural returns (computation Unit) value
+            A::assert-hit
+          end))
+      then
+        bind after from perform A::assertion-count then
+          bind ignored from perform (A::assert-eq Natural (Ar::subtract after before) 1) then
+            perform (A::assert-eq Natural result 42)
+          end
+        end
+      end
+    end
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        check-when-true
+      , check-when-false
+      , check-unless-true
+      , check-unless-false
+      , check-guard-true
+      , check-tap
+      ])
+  end
+end

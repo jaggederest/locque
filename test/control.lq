@@ -1,0 +1,14 @@
+import prelude as P
+# Test rollup for Control module
+# Runs all tests in test/control/
+
+import test::control::basics as basics
+
+module test::control contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        basics::main
+      ])
+  end
+end

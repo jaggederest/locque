@@ -1,0 +1,37 @@
+import prelude as P
+import type_aliases as Types
+
+module control contains
+  define transparent when as
+    function cond Boolean action (computation Unit) returns computation Unit value
+      match cond of-type Boolean as ignored returns computation Unit
+        case Boolean::false as compute return Unit::tt end
+        case Boolean::true as action
+      end
+    end
+
+  define transparent unless as
+    function cond Boolean action (computation Unit) returns computation Unit value
+      when (P::not cond) action
+    end
+
+  define transparent guard as
+    function cond Boolean returns computation Unit value
+      compute
+        perform
+          match cond of-type Boolean as ignored returns (computation Unit)
+            case Boolean::true as compute return Unit::tt end
+            case Boolean::false as P::error (computation Unit) "guard failed"
+          end
+      end
+    end
+
+  define transparent tap as
+    function A Type0 val A action (Types::Function A (computation Unit)) returns computation A value
+      compute
+        bind ignored from perform (action val) then
+          return val
+        end
+      end
+    end
+end
