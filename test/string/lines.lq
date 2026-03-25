@@ -1,0 +1,81 @@
+# Tests for lines, unlines, and split-once (including chomp behavior)
+
+import assert as A
+import option as Opt
+import prelude as P
+import string as S
+
+open A exposing assert-eq end
+open P exposing Option::none Option::some end
+
+module test::string::lines contains
+
+  # Helper: extract fst from a (Pair String String) option, error on none
+  define transparent split-once-fst as
+    function sep String s String returns String value
+      match (S::split-once sep s)
+      of-type (P::Option (Pair String String)) as ignored returns String
+        case Option::none as P::error String "split-once: expected Some"
+        case Option::some with p (Pair String String) as P::fst String String p
+      end
+    end
+
+  # Helper: extract snd from a (Pair String String) option, error on none
+  define transparent split-once-snd as
+    function sep String s String returns String value
+      match (S::split-once sep s)
+      of-type (P::Option (Pair String String)) as ignored returns String
+        case Option::none as P::error String "split-once: expected Some"
+        case Option::some with p (Pair String String) as P::snd String String p
+      end
+    end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        # lines: basic split
+        (assert-eq Natural (P::length-list String (S::lines "hello\nworld")) 2)
+      , (assert-eq String (P::head String (S::lines "hello\nworld")) "hello")
+
+        # lines: chomp — trailing newline does not produce trailing empty string
+      , (assert-eq Natural (P::length-list String (S::lines "a\n")) 1)
+      , (assert-eq String (P::head String (S::lines "a\n")) "a")
+
+        # lines: no trailing newline
+      , (assert-eq Natural (P::length-list String (S::lines "a\nb")) 2)
+
+        # lines: empty string returns empty list
+      , (assert-eq Natural (P::length-list String (S::lines "")) 0)
+
+        # lines: multiple lines with trailing newline
+      , (assert-eq Natural (P::length-list String (S::lines "a\nb\n")) 2)
+
+        # unlines: round-trip
+      , (assert-eq String (S::unlines (S::lines "hello\nworld")) "hello\nworld")
+      , (assert-eq String (S::unlines ["a", "b"]) "a\nb")
+
+        # split-once: separator found — before
+      , (assert-eq String (split-once-fst "," "a,b,c") "a")
+
+        # split-once: separator found — after (includes remaining separators)
+      , (assert-eq String (split-once-snd "," "a,b,c") "b,c")
+
+        # split-once: key:value pattern
+      , (assert-eq String (split-once-fst ":" "key:value") "key")
+      , (assert-eq String (split-once-snd ":" "key:value") "value")
+
+        # split-once: separator not found returns none
+      , (assert-eq Boolean
+            (Opt::is-none (Pair String String) (S::split-once "," "abc"))
+            true)
+
+        # split-once: separator at start
+      , (assert-eq String (split-once-fst "," ",rest") "")
+      , (assert-eq String (split-once-snd "," ",rest") "rest")
+
+        # split-once: separator at end
+      , (assert-eq String (split-once-fst "," "first,") "first")
+      , (assert-eq String (split-once-snd "," "first,") "")
+      ])
+  end
+end

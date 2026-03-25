@@ -812,14 +812,57 @@ module string contains
       from-list (L::reverse Character (to-list s))
     end
 
+  # Split string on newlines. Chomp behavior: a trailing newline does NOT
+  # produce a trailing empty string. So (lines "a\n") = ["a"] and
+  # (lines "a\nb") = ["a", "b"]. An empty string returns an empty list.
   define transparent lines as
     function s String returns List String value
-      split-on "\n" s
+      let value parts be split-on "\n" s in
+        match (L::reverse String parts) of-type (List String) as ignored returns (List String)
+          case List::empty as P::nil String
+          case List::cons with last String rest (List String) as
+            match (is-empty last) of-type Boolean as ignored returns (List String)
+              case Boolean::true as L::reverse String rest
+              case Boolean::false as parts
+            end
+        end
+      end
     end
 
   define transparent unlines as
     function xs (List String) returns String value
       join-with "\n" xs
+    end
+
+  # Split at the first occurrence of sep. Returns Option::some (Pair before after)
+  # if sep is found, or Option::none if sep does not appear in s.
+  # Errors if sep is empty.
+  define transparent split-once as
+    function sep String s String returns (P::Option (Pair String String)) value
+      match (Eq::equals Natural (length sep) 0) of-type Boolean as ignored returns (P::Option (Pair String String))
+        case Boolean::true as P::error (P::Option (Pair String String)) "split-once expects a non-empty separator"
+        case Boolean::false as
+          let value sep-len be length sep in
+            let value s-len be length s in
+              let value pos be index-of sep s in
+                match (Order::less-than Natural pos s-len) of-type Boolean as ignored returns (P::Option (Pair String String))
+                  case Boolean::false as Option::none (Pair String String)
+                  case Boolean::true as
+                    let value before be substring 0 pos s in
+                      let value after-start be Ar::add pos sep-len in
+                        let value after-len be Ar::subtract s-len after-start in
+                          let value after be substring after-start after-len s in
+                            Option::some (Pair String String)
+                              (Pair::pair String String before after)
+                          end
+                        end
+                      end
+                    end
+                end
+              end
+            end
+          end
+      end
     end
 
   define transparent split-spaces as
