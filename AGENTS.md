@@ -51,5 +51,5 @@ Examples/tests
 - All tests run with type checking enabled by default (legacy `--skip-typecheck` still available).
 
 Outstanding alignment work
-- Native typeclass support in the type checker (beyond DictPass).
+- Remove remaining DictPass usage in evaluation (type checker now handles classes/instances/constraints natively; DictPass still used for dictionary insertion during evaluation).
 - Refresh remaining docs/examples/tests to the new surface as needed.

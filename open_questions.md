@@ -17,7 +17,7 @@ Future design decisions for dependent types and advanced features.
 
 ## Parked backlog
 
-- Standard library expansion: more string/list ops; JSON; HTTP (future).
+- Standard library expansion: JSON; HTTP (future).
 
 ---
 
