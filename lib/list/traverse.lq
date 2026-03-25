@@ -1,0 +1,77 @@
+# List traversal helpers: effectful map, filter, and fold
+
+import prelude as P
+import type_aliases as Types
+
+module list::traverse contains
+  define transparent traverse as
+    function A Type0 B Type0
+             f (Types::Function A (computation B))
+             xs (List A)
+    returns computation (List B) value
+      match xs of-type (List A) as ignored returns computation (List B)
+        case List::empty as compute return (P::nil B) end
+        case List::cons with h A t (List A) as
+          let value tail-comp be recur A B f t in
+            compute
+              bind result from perform (f h) then
+                bind tail from perform tail-comp then
+                  return (P::cons B result tail)
+                end
+              end
+            end
+          end
+      end
+    end
+
+  define transparent map-compute as
+    function A Type0 B Type0
+             f (Types::Function A (computation B))
+             xs (List A)
+    returns computation (List B) value
+      traverse A B f xs
+    end
+
+  define transparent filter-compute as
+    function A Type0
+             pred (Types::Function A (computation Boolean))
+             xs (List A)
+    returns computation (List A) value
+      match xs of-type (List A) as ignored returns computation (List A)
+        case List::empty as compute return (P::nil A) end
+        case List::cons with h A t (List A) as
+          let value tail-comp be recur A pred t in
+            compute
+              bind keep from perform (pred h) then
+                bind tail from perform tail-comp then
+                  perform
+                    match keep of-type Boolean as ignored returns (computation (List A))
+                      case Boolean::true as compute return (P::cons A h tail) end
+                      case Boolean::false as compute return tail end
+                    end
+                end
+              end
+            end
+          end
+      end
+    end
+
+  # fold-compute: fold with an effectful step function of type B -> A -> computation B.
+  # Effects are sequenced left-to-right (head-first) over the list.
+  define transparent fold-compute as
+    function A Type0 B Type0
+             f (Types::BinaryFunction B A (computation B))
+             init B
+             xs (List A)
+    returns computation B value
+      P::fold A (computation B)
+        (function acc (computation B) x A returns (computation B) value
+          P::bind-comp B B acc
+            (function cur B returns (computation B) value
+              f cur x
+            end)
+        end)
+        (compute return init end)
+        xs
+    end
+end

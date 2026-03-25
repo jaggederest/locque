@@ -1,0 +1,115 @@
+# Tests for list traversal helpers
+
+import arithmetic as Ar
+import assert as A
+import list as L
+import list::traverse as LT
+import prelude as P
+import typeclass::order as Order
+
+open A exposing assert-eq end
+
+module test::list::traverse contains
+  define transparent double-compute as
+    function n Natural returns computation Natural value
+      compute return (Ar::add n n) end
+    end
+
+  define transparent gt-one-compute as
+    function n Natural returns computation Boolean value
+      compute return (Order::greater-than Natural n 1) end
+    end
+
+  define transparent add-compute as
+    function acc Natural n Natural returns computation Natural value
+      compute return (Ar::add acc n) end
+    end
+
+  define transparent test-traverse as compute
+    bind result from perform (LT::traverse Natural Natural double-compute [1, 2, 3]) then
+      perform (P::sequence-unit
+        [
+          (assert-eq Natural (P::length-list Natural result) 3)
+        , (assert-eq Natural (P::head Natural result) 2)
+        , (assert-eq Natural (L::nth Natural 1 result) 4)
+        , (assert-eq Natural (L::last Natural result) 6)
+        ])
+    end
+  end
+
+  define transparent test-traverse-empty as compute
+    bind result from perform
+      (LT::traverse Natural Natural double-compute (of-type [] (List Natural))) then
+      perform (assert-eq Natural (P::length-list Natural result) 0)
+    end
+  end
+
+  define transparent test-map-compute as compute
+    bind result from perform (LT::map-compute Natural Natural double-compute [1, 2, 3]) then
+      perform (P::sequence-unit
+        [
+          (assert-eq Natural (P::length-list Natural result) 3)
+        , (assert-eq Natural (P::head Natural result) 2)
+        , (assert-eq Natural (L::last Natural result) 6)
+        ])
+    end
+  end
+
+  define transparent test-filter-compute as compute
+    bind result from perform (LT::filter-compute Natural gt-one-compute [1, 2, 3]) then
+      perform (P::sequence-unit
+        [
+          (assert-eq Natural (P::length-list Natural result) 2)
+        , (assert-eq Natural (P::head Natural result) 2)
+        , (assert-eq Natural (L::last Natural result) 3)
+        ])
+    end
+  end
+
+  define transparent test-filter-compute-empty-input as compute
+    bind result from perform
+      (LT::filter-compute Natural gt-one-compute (of-type [] (List Natural))) then
+      perform (assert-eq Natural (P::length-list Natural result) 0)
+    end
+  end
+
+  define transparent test-filter-compute-all-kept as compute
+    bind result from perform (LT::filter-compute Natural gt-one-compute [2, 3, 4]) then
+      perform (assert-eq Natural (P::length-list Natural result) 3)
+    end
+  end
+
+  define transparent test-filter-compute-none-kept as compute
+    bind result from perform (LT::filter-compute Natural gt-one-compute [1]) then
+      perform (assert-eq Natural (P::length-list Natural result) 0)
+    end
+  end
+
+  define transparent test-fold-compute as compute
+    bind result from perform (LT::fold-compute Natural Natural add-compute 0 [1, 2, 3]) then
+      perform (assert-eq Natural result 6)
+    end
+  end
+
+  define transparent test-fold-compute-empty as compute
+    bind result from perform
+      (LT::fold-compute Natural Natural add-compute 0 (of-type [] (List Natural))) then
+      perform (assert-eq Natural result 0)
+    end
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-traverse
+      , test-traverse-empty
+      , test-map-compute
+      , test-filter-compute
+      , test-filter-compute-empty-input
+      , test-filter-compute-all-kept
+      , test-filter-compute-none-kept
+      , test-fold-compute
+      , test-fold-compute-empty
+      ])
+  end
+end
