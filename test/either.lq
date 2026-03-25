@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/either/
 
 import test::either::basics as basics
+import test::either::with-context as with_context
 
 module test::either contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , with_context::main
       ])
   end
 end

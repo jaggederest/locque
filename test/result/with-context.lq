@@ -1,0 +1,40 @@
+# Result with-context tests
+
+import arithmetic as Ar
+import assert as A
+import prelude as P
+import result as Res
+import string as S
+
+open A exposing assert-eq end
+open P exposing Result::ok Result::err end
+
+module test::result::with-context contains
+  define transparent ok1 as Result::ok Natural String 42
+  define transparent err1 as Result::err Natural String "not found"
+
+  define transparent ctx-ok as
+    Res::with-context Natural "open" ok1
+
+  define transparent ctx-err as
+    Res::with-context Natural "open" err1
+
+  # Extract the error message length via map-error then unwrap-or-else
+  define transparent ctx-err-msg-len as
+    Res::unwrap-or-else Natural Natural
+      (function n Natural returns Natural value n end)
+      (Res::map-error Natural String Natural S::length ctx-err)
+
+  # "open: not found" = 4 + 2 + 9 = 15
+  define transparent expected-len as 15
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (Res::is-ok Natural String ctx-ok) true)
+      , (assert-eq Natural (Res::unwrap-or Natural String 0 ctx-ok) 42)
+      , (assert-eq Boolean (Res::is-err Natural String ctx-err) true)
+      , (assert-eq Natural ctx-err-msg-len expected-len)
+      ])
+  end
+end

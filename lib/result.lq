@@ -1,5 +1,6 @@
 import logic as Lg
 import prelude as P
+import string as S
 import type_aliases as Types
 
 open P exposing Result::ok Result::err Option::none Option::some end
@@ -90,6 +91,15 @@ module result contains
         case Result::ok with ok A as Result::ok A E ok
         case Result::err with err E as fallback err
       end
+    end
+
+  define transparent with-context as
+    function A Type0 ctx String res (P::Result A String) returns (P::Result A String) value
+      map-error A String String
+        (function msg String returns String value
+          S::concat ctx (S::concat ": " msg)
+        end)
+        res
     end
 
   define transparent to-option as

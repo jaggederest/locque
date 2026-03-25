@@ -1,0 +1,45 @@
+# Either with-context tests
+
+import assert as A
+import either as E
+import prelude as P
+import string as S
+
+open A exposing assert-eq end
+open P exposing Either::left Either::right end
+
+module test::either::with-context contains
+  define transparent left-err as Either::left String Natural "not found"
+  define transparent right-ok as Either::right String Natural 42
+
+  define transparent ctx-left as
+    E::with-context Natural "open" left-err
+
+  define transparent ctx-right as
+    E::with-context Natural "open" right-ok
+
+  # Map error message to its length, then fold to extract it
+  define transparent ctx-left-msg-len as
+    E::fold Natural Natural Natural
+      (function n Natural returns Natural value n end)
+      (function n Natural returns Natural value n end)
+      (E::map-left String Natural Natural S::length ctx-left)
+
+  # "open: not found" = 4 + 2 + 9 = 15
+  define transparent expected-len as 15
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        (assert-eq Boolean (E::is-left String Natural ctx-left) true)
+      , (assert-eq Boolean (E::is-right String Natural ctx-right) true)
+      , (assert-eq Natural ctx-left-msg-len expected-len)
+      , (assert-eq Natural
+          (E::fold String Natural Natural
+            (function ignored String returns Natural value 0 end)
+            (function n Natural returns Natural value n end)
+            ctx-right)
+          42)
+      ])
+  end
+end

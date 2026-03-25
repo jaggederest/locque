@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/result/
 
 import test::result::basics as basics
+import test::result::with-context as with_context
 
 module test::result contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , with_context::main
       ])
   end
 end

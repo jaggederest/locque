@@ -1,5 +1,6 @@
 import logic as Lg
 import prelude as P
+import string as S
 import type_aliases as Types
 
 open P exposing Either::left Either::right end
@@ -71,6 +72,15 @@ module either contains
         case Either::right with y B as on-right y
       end
     end
+  define transparent with-context as
+    function B Type0 ctx String e (P::Either String B) returns (P::Either String B) value
+      map-left String B String
+        (function msg String returns String value
+          S::concat ctx (S::concat ": " msg)
+        end)
+        e
+    end
+
   define transparent to-decidable as
     function P Type0 e (P::Either (Lg::Not P) P) returns (Lg::Decidable P) value
       match e of-type (P::Either (Lg::Not P) P) as ignored returns (Lg::Decidable P)
