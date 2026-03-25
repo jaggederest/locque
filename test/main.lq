@@ -46,6 +46,7 @@ import test::tools as test_tools
 import test::new_syntax_test as test_new_syntax_test
 import test::control as test_control
 import test::process as test_process
+import test::diamond as test_diamond
 
 module test::main contains
   define transparent suites as
@@ -83,6 +84,7 @@ module test::main contains
     , (P::pair String (computation Unit) "test_new_syntax_test" test_new_syntax_test::main)
     , (P::pair String (computation Unit) "test_control" test_control::main)
     , (P::pair String (computation Unit) "test_process" test_process::main)
+    , (P::pair String (computation Unit) "test_diamond" test_diamond::main)
     ]
 
   define transparent suite-action as

@@ -1,0 +1,5 @@
+import diamond::shared as Shared
+
+module diamond::branch-b contains
+  define transparent answer-b as Shared::shared-answer
+end

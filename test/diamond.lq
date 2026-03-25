@@ -1,0 +1,17 @@
+import prelude as P
+# Test rollup for diamond import dedup (lo-3om)
+# Both branch-a and branch-b import diamond::shared — verifies O(n) dedup.
+
+import test::diamond::shared as test_shared
+import test::diamond::branch-a as test_branch_a
+import test::diamond::branch-b as test_branch_b
+
+module test::diamond contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [ test_shared::main
+      , test_branch_a::main
+      , test_branch_b::main
+      ])
+  end
+end

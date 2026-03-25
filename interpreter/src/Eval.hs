@@ -1271,69 +1271,79 @@ runComp env comp = case comp of
 
 -- Import loading
 
+-- In-memory dedup cache keyed by (modName, alias, scope) — prevents O(2^n)
+-- re-loading of shared transitive dependencies (diamond imports).
+type ImportCache = IORef (Map.Map (Text, Text, ImportScope) Env)
+
 loadImports :: FilePath -> Module -> IO Env
-loadImports projectRoot (Module _ imports _ _) =
-  loadImportsWith projectRoot ProjectScope Set.empty imports
+loadImports projectRoot (Module _ imports _ _) = do
+  cache <- newIORef Map.empty
+  loadImportsWith cache projectRoot ProjectScope Set.empty imports
 
-loadImport :: FilePath -> ImportScope -> Set.Set Text -> Import -> IO Env
-loadImport projectRoot scope visiting (Import modName alias) = do
-  when (modName `Set.member` visiting) $
-    error $ "Import cycle detected: " ++ T.unpack modName
-  ResolvedModule path nextScope <-
-    resolveModulePath projectRoot "lib" scope modName
-  contents <- TIO.readFile path
-  parsed <- case takeExtension path of
-    ".lq"  -> case parseMExprFile path contents of
-      Left err -> error err
-      Right m -> pure m
-    ".lqs" -> case parseModuleFile path contents of
-      Left err -> error err
-      Right m -> pure m
-    _      -> error $ "Unknown file extension: " ++ path
-
-  (digest, importedEnv) <- TC.moduleDigestWithImportsScope projectRoot nextScope contents parsed
-  cached <- RC.readRunCache projectRoot path digest
-  (annotated, ctorArity) <- case cached of
-    Just entry ->
-      pure (RC.cacheAnnotated entry, RC.cacheCtorArity entry)
+loadImport :: ImportCache -> FilePath -> ImportScope -> Set.Set Text -> Import -> IO Env
+loadImport cache projectRoot scope visiting (Import modName alias) = do
+  hit <- Map.lookup (modName, alias, scope) <$> readIORef cache
+  case hit of
+    Just env -> pure env
     Nothing -> do
-      let tcResult = TC.typeCheckAndNormalizeWithEnv importedEnv parsed
-      (annotated, normalized) <- case tcResult of
-        Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
-        Right (env, normalized) -> do
-          let recDefs = recursorDefs normalized
-          prepared <- case insertRecursors parsed recDefs of
-            Left msg -> error $ "Transform error in import " ++ T.unpack modName ++ ": " ++ msg
-            Right m -> pure m
-          case TC.annotateModule env prepared of
-            Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
-            Right annotatedPrepared -> do
-              transformed <- transformModuleWithEnvsScope projectRoot nextScope annotatedPrepared
-              pure (transformed, normalized)
-      let arity = ctorArityMap normalized
-          cacheEntry = RC.RunCache
-            { RC.cacheVersion = RC.cacheVersionCurrent
-            , RC.cacheDigest = digest
-            , RC.cacheAnnotated = annotated
-            , RC.cacheCtorArity = arity
-            }
-      RC.writeRunCache projectRoot path cacheEntry
-      pure (annotated, arity)
+      when (modName `Set.member` visiting) $
+        error $ "Import cycle detected: " ++ T.unpack modName
+      ResolvedModule path nextScope <-
+        resolveModulePath projectRoot "lib" scope modName
+      contents <- TIO.readFile path
+      parsed <- case takeExtension path of
+        ".lq"  -> case parseMExprFile path contents of
+          Left err -> error err
+          Right m -> pure m
+        ".lqs" -> case parseModuleFile path contents of
+          Left err -> error err
+          Right m -> pure m
+        _      -> error $ "Unknown file extension: " ++ path
 
-  let Module _modName _ opens defs = annotated
-      visiting' = Set.insert modName visiting
-  envImports <- loadImportsWith projectRoot nextScope visiting' (modImports annotated)
-  -- Process opens to bring in unqualified names from open statements
-  let envWithOpens = processOpens opens envImports
+      (digest, importedEnv) <- TC.moduleDigestWithImportsScope projectRoot nextScope contents parsed
+      rcCached <- RC.readRunCache projectRoot path digest
+      (annotated, ctorArity) <- case rcCached of
+        Just entry ->
+          pure (RC.cacheAnnotated entry, RC.cacheCtorArity entry)
+        Nothing -> do
+          let tcResult = TC.typeCheckAndNormalizeWithEnv importedEnv parsed
+          (annotated, normalized) <- case tcResult of
+            Left tcErr -> error $ "Type error in import " ++ T.unpack modName ++ ": " ++ show tcErr
+            Right (env, normalized) -> do
+              let recDefs = recursorDefs normalized
+              prepared <- case insertRecursors parsed recDefs of
+                Left msg -> error $ "Transform error in import " ++ T.unpack modName ++ ": " ++ msg
+                Right m -> pure m
+              case TC.annotateModule env prepared of
+                Left annErr -> error $ "Annotation error in import " ++ T.unpack modName ++ ": " ++ show annErr
+                Right annotatedPrepared -> do
+                  transformed <- transformModuleWithEnvsScope projectRoot nextScope annotatedPrepared
+                  pure (transformed, normalized)
+          let arity = ctorArityMap normalized
+              cacheEntry = RC.RunCache
+                { RC.cacheVersion = RC.cacheVersionCurrent
+                , RC.cacheDigest = digest
+                , RC.cacheAnnotated = annotated
+                , RC.cacheCtorArity = arity
+                }
+          RC.writeRunCache projectRoot path cacheEntry
+          pure (annotated, arity)
 
-  -- Bind the module to get all definitions
-  let envSelf = bindModule ctorArity annotated envWithOpens
-      -- Add qualified names for each definition using the alias
-      defNames = map defName defs
-      ctorNames = concatMap defCtorNames defs
-      envFinal = foldl (insertQualified alias envSelf) envWithOpens (defNames ++ ctorNames)
+      let Module _modName _ opens defs = annotated
+          visiting' = Set.insert modName visiting
+      envImports <- loadImportsWith cache projectRoot nextScope visiting' (modImports annotated)
+      -- Process opens to bring in unqualified names from open statements
+      let envWithOpens = processOpens opens envImports
 
-  pure envFinal
+      -- Bind the module to get all definitions
+      let envSelf = bindModule ctorArity annotated envWithOpens
+          -- Add qualified names for each definition using the alias
+          defNames = map defName defs
+          ctorNames = concatMap defCtorNames defs
+          envFinal = foldl (insertQualified alias envSelf) envWithOpens (defNames ++ ctorNames)
+
+      modifyIORef' cache (Map.insert (modName, alias, scope) envFinal)
+      pure envFinal
   where
     -- Insert qualified name for a definition (if it exists in envSelf)
     insertQualified :: Text -> Env -> Env -> Text -> Env
@@ -1349,9 +1359,9 @@ loadImport projectRoot scope visiting (Import modName alias) = do
       EData _ _ cases -> map dataCaseName cases
       _ -> []
 
-loadImportsWith :: FilePath -> ImportScope -> Set.Set Text -> [Import] -> IO Env
-loadImportsWith projectRoot scope visiting imports = do
-  envs <- mapM (loadImport projectRoot scope visiting) imports
+loadImportsWith :: ImportCache -> FilePath -> ImportScope -> Set.Set Text -> [Import] -> IO Env
+loadImportsWith cache projectRoot scope visiting imports = do
+  envs <- mapM (loadImport cache projectRoot scope visiting) imports
   pure $ Map.unions (primEnv : envs)
 
 ctorArityMap :: Module -> CtorArityMap

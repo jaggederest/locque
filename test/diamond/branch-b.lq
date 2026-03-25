@@ -1,0 +1,12 @@
+import prelude as P
+import assert as A
+import diamond::branch-b as BB
+
+open A exposing assert-eq end
+
+module test::diamond::branch-b contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [ (assert-eq Natural BB::answer-b 42) ])
+  end
+end

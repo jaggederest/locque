@@ -20,7 +20,7 @@ import Utils (modNameToPath)
 data ImportScope
   = ProjectScope
   | StdlibScope
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 data ResolvedModule = ResolvedModule
   { resolvedPath :: FilePath

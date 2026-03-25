@@ -1,0 +1,12 @@
+import prelude as P
+import assert as A
+import diamond::shared as Shared
+
+open A exposing assert-eq end
+
+module test::diamond::shared contains
+  define transparent main as compute
+    perform (P::sequence-unit
+      [ (assert-eq Natural Shared::shared-answer 42) ])
+  end
+end

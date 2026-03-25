@@ -1,0 +1,3 @@
+module diamond::shared contains
+  define transparent shared-answer as 42
+end
