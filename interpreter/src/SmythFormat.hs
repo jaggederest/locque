@@ -4,6 +4,7 @@ module SmythFormat
   , runFormatCheck
   ) where
 
+import Control.Monad (unless)
 import System.Directory (doesFileExist, setCurrentDirectory)
 import System.Environment (withArgs)
 import System.Exit (exitFailure)
@@ -15,7 +16,7 @@ import SmythRun (runFileNoExit)
 runFormat :: SmythConfig -> [String] -> IO ()
 runFormat config args = do
   ok <- runFormatCheck config args
-  if ok then pure () else exitFailure
+  unless ok exitFailure
 
 runFormatCheck :: SmythConfig -> [String] -> IO Bool
 runFormatCheck config args = do

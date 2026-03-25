@@ -2,7 +2,7 @@
 module Main (main) where
 
 import Control.Exception (SomeException, try)
-import Data.Char (isDigit, isHexDigit)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit, isHexDigit)
 import Data.Foldable (toList)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (isPrefixOf)
@@ -14,7 +14,7 @@ import qualified Data.Text.IO as TIO
 import qualified Data.Map.Strict as Map
 import System.Directory (doesFileExist, getCurrentDirectory)
 import System.Exit (exitSuccess)
-import System.IO (BufferMode(NoBuffering), hFlush, hIsEOF, hSetBinaryMode, hSetBuffering, stdin, stdout)
+import System.IO (BufferMode(NoBuffering), hFlush, hIsEOF, hSetBinaryMode, hSetBuffering, isEOF, stdin, stdout)
 import System.FilePath ((</>), (<.>))
 
 import qualified Data.Aeson as A
@@ -50,9 +50,7 @@ main = do
 findProjectRoot :: IO FilePath
 findProjectRoot = do
   maybeRoot <- findSmythfile
-  case maybeRoot of
-    Just root -> pure root
-    Nothing -> getCurrentDirectory
+  maybe getCurrentDirectory pure maybeRoot
 
 loop :: IORef ServerState -> IO ()
 loop ref = do
@@ -65,7 +63,7 @@ loop ref = do
 
 readMessage :: IO (Maybe Value)
 readMessage = do
-  eof <- hIsEOF stdin
+  eof <- isEOF
   if eof
     then pure Nothing
     else do
@@ -97,8 +95,7 @@ readHeaders = go []
             in go ((nameText, valueText) : acc)
 
 lookupHeader :: Text -> [(Text, Text)] -> Maybe Text
-lookupHeader name headers =
-  lookup name headers
+lookupHeader = lookup
 
 readMaybeInt :: Text -> Maybe Int
 readMaybeInt t =
@@ -304,7 +301,7 @@ symbolToValue (Symbol name kind range selection children) =
     , "kind" .= kind
     , "range" .= rangeToValue range
     , "selectionRange" .= rangeToValue selection
-    ] ++ if null children then [] else ["children" .= map symbolToValue children]
+    ] ++ ["children" .= map symbolToValue children | not (null children)]
 
 sendDiagnostics :: Text -> [Value] -> IO ()
 sendDiagnostics uri diags = do
@@ -397,9 +394,9 @@ encodeUriPath = T.concatMap encodeChar
       | isUnreserved c = T.singleton c
       | otherwise = T.pack (percentEncode c)
     isUnreserved c =
-      (c >= 'A' && c <= 'Z') ||
-      (c >= 'a' && c <= 'z') ||
-      (c >= '0' && c <= '9') ||
+      isAsciiUpper c ||
+      isAsciiLower c ||
+      isDigit c ||
       c == '-' || c == '.' || c == '_' || c == '~' || c == '/'
     percentEncode c =
       let n = fromEnum c
@@ -435,7 +432,7 @@ hexValue t = case map hexDigitValue (T.unpack t) of
 
 hexDigitValue :: Char -> Int
 hexDigitValue c
-  | c >= '0' && c <= '9' = fromEnum c - fromEnum '0'
+  | isDigit c = fromEnum c - fromEnum '0'
   | c >= 'a' && c <= 'f' = 10 + (fromEnum c - fromEnum 'a')
   | c >= 'A' && c <= 'F' = 10 + (fromEnum c - fromEnum 'A')
   | otherwise = 0
@@ -547,7 +544,7 @@ findDefinitionLocations state uri pos = do
         Nothing -> pure []
         Just name -> do
           moduleInfo <- parseModuleInfo (stateRoot state) filePath text
-          localLocs <- pure (findInText uri text name)
+          let localLocs = findInText uri text name
           qualifiedLocs <- findQualified moduleInfo name
           openLocs <- findOpen moduleInfo name
           pure (dedupeLocations (localLocs ++ qualifiedLocs ++ openLocs))
@@ -605,12 +602,10 @@ identifierAt contents (Position line col) = do
                 if col' == len
                   then len - 1
                   else col'
-              idx' =
-                if idx >= 0 && idx < len && isIdentChar (T.index lineText idx)
-                  then idx
-                  else if col' > 0 && isIdentChar (T.index lineText (col' - 1))
-                    then col' - 1
-                    else -1
+              idx'
+                | idx >= 0 && idx < len && isIdentChar (T.index lineText idx) = idx
+                | col' > 0 && isIdentChar (T.index lineText (col' - 1)) = col' - 1
+                | otherwise = -1
           if idx' < 0
             then Nothing
             else
@@ -619,9 +614,9 @@ identifierAt contents (Position line col) = do
               in Just (T.take (end - start) (T.drop start lineText))
   where
     isIdentChar c =
-      (c >= 'a' && c <= 'z') ||
-      (c >= 'A' && c <= 'Z') ||
-      (c >= '0' && c <= '9') ||
+      isAsciiLower c ||
+      isAsciiUpper c ||
+      isDigit c ||
       c == '_' || c == '-' || c == ':'
     moveLeft lineText i =
       if i > 0 && isIdentChar (T.index lineText (i - 1))
@@ -653,7 +648,7 @@ findDefinitionInText contents name =
       , "define " <> name <> " as"
       ]
     casePattern = "case " <> name <> " of-type"
-    findLineWith pats = go 0 linesList pats
+    findLineWith = go 0 linesList
     go _ [] _ = Nothing
     go idx (lineText:rest) pats =
       case firstMatch lineText pats of

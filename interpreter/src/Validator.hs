@@ -14,7 +14,7 @@ validateModule (Module name _ _ defs) = do
   if T.null name then Left "Empty module name" else Right ()
 
 checkDuplicates :: [Definition] -> Either String ()
-checkDuplicates defs = go Set.empty defs
+checkDuplicates = go Set.empty
   where
     go _ [] = Right ()
     go seen (Definition _ n _ : rest) =

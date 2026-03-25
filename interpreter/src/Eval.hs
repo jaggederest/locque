@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Eval
   ( CtorArityMap
@@ -14,6 +15,7 @@ import           GHC.Conc (getNumCapabilities, setNumCapabilities)
 import           Control.Concurrent.STM (atomically)
 import           Data.IORef
 import           Data.List (isPrefixOf, isSuffixOf)
+import           Data.Maybe (isJust)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -56,7 +58,7 @@ import           ImportResolver (ImportScope(..), ResolvedModule(..), resolveMod
 import           Utils (qualifyName)
 import           DictPass (transformModuleWithEnvsScope)
 import           Recursor (recursorDefs, insertRecursors)
-import qualified Type as Type
+import qualified Type
 import qualified TypeChecker as TC
 import qualified RunCache as RC
 import           CtorArity (CtorArityMap)
@@ -104,7 +106,7 @@ instance Show Value where
   show (VNatural n)    = show n
   show (VString s) = show s
   show (VList xs)  = "[" ++ inner xs ++ "]"
-    where inner = concat . map ((++ ",") . show)
+    where inner = concatMap ((++ ",") . show)
   show VUnit       = "tt"
   show (VBoolean b)   = if b then "true" else "false"
   show (VPair a b) = "(" ++ show a ++ ", " ++ show b ++ ")"
@@ -114,15 +116,15 @@ instance Show Value where
   show (VTypeConst tc) = T.unpack (Type.typeConstName tc)
   show (VTypeData name) = T.unpack name
   show (VTypeUniverse n) = "Type" ++ show n
-  show (VTypeForAll _ _ _) = "<for-all>"
-  show (VTypeThereExists _ _ _) = "<there-exists>"
+  show (VTypeForAll {}) = "<for-all>"
+  show (VTypeThereExists {}) = "<there-exists>"
   show (VTypeComp _ _) = "<computation-type>"
-  show (VTypeLift _ _ _) = "<lift-type>"
-  show (VTypeEqual _ _ _) = "<equal-type>"
+  show (VTypeLift {}) = "<lift-type>"
+  show (VTypeEqual {}) = "<equal-type>"
   show (VTypeApp _ _) = "<type-app>"
   show (VConstructor name _ _ _) = "<constructor:" ++ T.unpack name ++ ">"
   show (VData name _) = "<data:" ++ T.unpack name ++ ">"
-  show (VClosure _ _ _) = "<closure>"
+  show (VClosure {}) = "<closure>"
   show (VPrim _)   = "<prim>"
   show (VComp _)   = "<computation>"
   show (VDict className _) = "<dict:" ++ T.unpack className ++ ">"
@@ -248,7 +250,7 @@ primEqString _ = error "eq-string-prim expects 2 args"
 
 notProofValue :: Value
 notProofValue =
-  VPrim $ \args -> case args of
+  VPrim $ \case
     [_] -> pure VUnit
     _ -> error "not-proof expects 1 arg"
 
@@ -443,7 +445,7 @@ primDictionaryToList [tyK, tyV, dictVal] = do
   expectTypeArg tyV
   (buckets, _) <- expectDictionary dictVal
   let entries = concatMap snd (Map.toList buckets)
-      pairs = map (\(k, v) -> VPair k v) entries
+      pairs = map (uncurry VPair) entries
   pure (VList pairs)
 primDictionaryToList _ = error "dictionary-to-list-prim expects (Type, Type, dict)"
 
@@ -637,7 +639,7 @@ primTcpSelectListener [listenerVal, VNatural micros] = do
     let waitMicros = microsToInt micros
     waitStm <- NS.waitReadSocketSTM listener
     ready <- timeout waitMicros (atomically waitStm)
-    pure (VBoolean (maybe False (const True) ready))
+    pure (VBoolean (isJust ready))
 primTcpSelectListener _ = error "tcp-select-listener-prim expects (listener, micros)"
 
 primTcpSelectSocket :: [Value] -> IO Value
@@ -647,7 +649,7 @@ primTcpSelectSocket [socketVal, VNatural micros] = do
     let waitMicros = microsToInt micros
     waitStm <- NS.waitReadSocketSTM sock
     ready <- timeout waitMicros (atomically waitStm)
-    pure (VBoolean (maybe False (const True) ready))
+    pure (VBoolean (isJust ready))
 primTcpSelectSocket _ = error "tcp-select-socket-prim expects (socket, micros)"
 
 primSleep :: [Value] -> IO Value
@@ -684,14 +686,10 @@ writeOutput line = do
     (buf:rest) -> writeIORef outputCapture ((line : buf) : rest)
 
 primCliArgs :: IO Value
-primCliArgs = do
-  args <- getArgs
-  pure (VList (map (VString . T.pack) args))
+primCliArgs = VList . map (VString . T.pack) <$> getArgs
 
 primCurrentDirectory :: IO Value
-primCurrentDirectory = do
-  dir <- getCurrentDirectory
-  pure (VString (T.pack dir))
+primCurrentDirectory = VString . T.pack <$> getCurrentDirectory
 
 primTimeNow :: IO Value
 primTimeNow = do
@@ -753,7 +751,7 @@ primRemoveFile [VString path] =
       then error "remove-file-prim expects a file path"
       else do
         exists <- doesFileExist path'
-        if exists then removeFile path' else pure ()
+        when exists $ removeFile path'
         pure VUnit
 primRemoveFile _ = error "remove-file-prim expects 1 string arg"
 
@@ -879,7 +877,7 @@ walkPathFiltered skips suffix path = do
         else pure []
 
 shouldSkip :: [FilePath] -> FilePath -> Bool
-shouldSkip skips path = any (\pfx -> isSkipPrefix pfx path) skips
+shouldSkip skips path = any (`isSkipPrefix` path) skips
   where
     isSkipPrefix pfx target =
       target == pfx || (pfx ++ [pathSeparator]) `isPrefixOf` target
@@ -898,7 +896,7 @@ primWalkFilter [VString root, VString suffix, VList skips] =
         then pure []
         else walkFromFiltered rootPath skipPaths suffixStr
       else if isFile
-        then pure (if suffixStr `isSuffixOf` rootPath then [rootPath] else [])
+        then pure [rootPath | suffixStr `isSuffixOf` rootPath]
         else error "walk-filter-prim expects an existing path"
     pure (VList (map (VString . T.pack) entries))
 primWalkFilter _ = error "walk-filter-prim expects (path, suffix, skip-prefixes)"
@@ -1023,11 +1021,11 @@ isTypeValue v = case v of
   VTypeConst _ -> True
   VTypeData _ -> True
   VTypeUniverse _ -> True
-  VTypeForAll _ _ _ -> True
-  VTypeThereExists _ _ _ -> True
+  VTypeForAll {} -> True
+  VTypeThereExists {} -> True
   VTypeComp _ _ -> True
-  VTypeLift _ _ _ -> True
-  VTypeEqual _ _ _ -> True
+  VTypeLift {} -> True
+  VTypeEqual {} -> True
   VTypeApp _ _ -> True
   _ -> False
 
@@ -1114,7 +1112,7 @@ evalExpr env expr = case expr of
     LUnit     -> VUnit
   EListLiteral elems -> VList <$> mapM (evalExpr env) elems
   ETypeConst tc -> pure (VTypeConst tc)
-  EData _ _ _ -> pure (VTypeData "<data>")
+  EData {} -> pure (VTypeData "<data>")
   ETypeUniverse n -> pure (VTypeUniverse n)
   EForAll v dom cod -> pure (VTypeForAll v dom cod)
   EThereExists v dom cod -> pure (VTypeThereExists v dom cod)
@@ -1167,8 +1165,8 @@ evalExpr env expr = case expr of
           Just val -> pure val
           Nothing -> error $ "Method not found in dictionary: " ++ T.unpack methodName
       _ -> error "Expected dictionary value"
-  ETypeClass _ _ _ -> error "Typeclass nodes are not evaluable"
-  EInstance _ _ _ -> error "Instance nodes are not evaluable"
+  ETypeClass {} -> error "Typeclass nodes are not evaluable"
+  EInstance {} -> error "Instance nodes are not evaluable"
 
 resolveBinding :: Env -> Binding -> IO Value
 resolveBinding _outerEnv b = case b of

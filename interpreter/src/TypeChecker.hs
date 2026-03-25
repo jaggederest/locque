@@ -23,7 +23,7 @@ module TypeChecker
   , typeErrorWithSource
   ) where
 
-import Control.Monad (foldM, when)
+import Control.Monad (foldM, unless, when)
 import Control.Monad.Except (catchError, throwError)
 import Control.Monad.State
 import Data.Bits (xor)
@@ -293,7 +293,7 @@ isKindAliasName name =
   T.isSuffixOf "TypeFunction" name || T.isSuffixOf "BinaryTypeFunction" name
 
 isBaseTypeAlias :: Text -> Bool
-isBaseTypeAlias name = T.isSuffixOf "BaseType" name
+isBaseTypeAlias = T.isSuffixOf "BaseType"
 
 stripInstanceTypeParams :: Set.Set Text -> Expr -> Expr
 stripInstanceTypeParams allowed ty = case ty of
@@ -321,10 +321,10 @@ tDictionary :: Expr -> Expr -> Expr
 tDictionary k v = EApp (ETypeConst TCDictionary) [k, v]
 
 tComp :: Expr -> Expr
-tComp t = ECompType effectAnyExpr t
+tComp = ECompType effectAnyExpr
 
 tFun :: Expr -> Expr -> Expr
-tFun dom cod = EForAll "_" dom cod
+tFun = EForAll "_"
 
 tEqual :: Expr -> Expr -> Expr -> Expr
 tEqual = EEqual
@@ -357,7 +357,7 @@ closeCtorType params ctorType =
   foldr (\(Param name ty) acc -> EForAll name ty acc) ctorType params
 
 splitForAll :: Expr -> ([Param], Expr)
-splitForAll expr = go Set.empty expr
+splitForAll = go Set.empty
   where
     go used e = case e of
       EForAll v dom cod ->
@@ -475,8 +475,8 @@ renameBound oldName newName = go Set.empty
           body' = renameBody bound' body
       in (params', constraints', ret', body')
 
-    renameParamSeq bound params =
-      foldl step (bound, []) params
+    renameParamSeq bound =
+      foldl step (bound, [])
       where
         step (b, acc) (Param name ty) =
           let ty' = go b ty
@@ -640,7 +640,7 @@ lookupClass loc env name =
     Nothing -> lift (Left (TypeclassError loc ("Unknown typeclass: " <> name)))
 
 constraintMethods :: TCEnv -> [Constraint] -> TypeCheckM [(Text, Expr)]
-constraintMethods env constraints = foldM addConstraint [] constraints
+constraintMethods env = foldM addConstraint []
   where
     addConstraint acc (Constraint clsName ty) = do
       classInfo <- lookupClass noLoc env clsName
@@ -757,8 +757,8 @@ freeVarsComp bound comp = case comp of
     freeVarsComp bound c1 `Set.union` freeVarsComp (Set.insert v bound) c2
 
 freeVarsParamsSeq :: Set.Set Text -> [Param] -> (Set.Set Text, Set.Set Text)
-freeVarsParamsSeq bound params =
-  foldl step (bound, Set.empty) params
+freeVarsParamsSeq bound =
+  foldl step (bound, Set.empty)
   where
     step (b, acc) (Param name ty) =
       let acc' = acc `Set.union` freeVarsWithBound b ty
@@ -773,7 +773,7 @@ freeVarsCase bound (MatchCase _ binders body) =
 -- Substitution (capture-avoiding)
 
 subst :: Text -> Expr -> Expr -> TypeCheckM Expr
-subst name replacement expr = go Set.empty expr
+subst name replacement = go Set.empty
   where
     replacementFree = freeVars replacement
 
@@ -1381,7 +1381,7 @@ renameConstraintName oldName newName (Constraint cls ty) =
   Constraint cls <$> subst oldName (EVar newName) ty
 
 conv :: TCEnv -> Expr -> Expr -> TypeCheckM Bool
-conv env a b = convWith env Map.empty a b
+conv env = convWith env Map.empty
 
 convWith :: TCEnv -> Map.Map Text Text -> Expr -> Expr -> TypeCheckM Bool
 convWith env ren a b = do
@@ -1673,11 +1673,11 @@ applyUnifySubst sub expr =
   foldM (\acc (name, val) -> subst name val acc) expr (Map.toList sub)
 
 applyUnifySubstMap :: Text -> Expr -> UnifySubst -> TypeCheckM UnifySubst
-applyUnifySubstMap name replacement sub =
-  Map.traverseWithKey (\_ ty -> subst name replacement ty) sub
+applyUnifySubstMap name replacement =
+  Map.traverseWithKey (\_ ty -> subst name replacement ty)
 
 unifyIndices :: TCEnv -> Set.Set Text -> Expr -> Expr -> TypeCheckM (Maybe UnifySubst)
-unifyIndices env solvables left right = go Map.empty left right
+unifyIndices env solvables = go Map.empty
   where
     go sub a b = do
       a' <- applyUnifySubst sub a >>= whnf env
@@ -1850,9 +1850,7 @@ canonicalGlobal env name =
       case Map.lookup name (tcCtors env) of
         Just info -> ctorName info
         Nothing ->
-          case Map.lookup name (tcClasses env) of
-            Just info -> className info
-            Nothing -> name
+          maybe name className (Map.lookup name (tcClasses env))
 
 alphaEqDataCases :: TCEnv -> Map.Map Text Text -> [DataCase] -> [DataCase] -> Bool
 alphaEqDataCases tcEnv env xs ys =
@@ -2209,9 +2207,9 @@ infer env expr = case expr of
         instMethodNames = map fst methods
         missing = filter (`notElem` instMethodNames) classMethodNames
         extras = filter (`notElem` classMethodNames) instMethodNames
-    when (not (null missing)) $
+    unless (null missing) $
       lift (Left (TypeclassError noLoc ("Instance missing methods: " <> T.intercalate ", " missing)))
-    when (not (null extras)) $
+    unless (null extras) $
       lift (Left (TypeclassError noLoc ("Instance has extra methods: " <> T.intercalate ", " extras)))
     let methodMap = Map.fromList methods
         param = classParam classInfo
@@ -2246,8 +2244,7 @@ inferComp env comp = case comp of
     inferComp (extendLocal env name t1) c2
   CPerform e1 -> do
     t <- infer env e1
-    inner <- expectCompType env t
-    pure inner
+    expectCompType env t
 
 checkMatch :: TCEnv -> Text -> Expr -> Expr -> [MatchCase] -> TypeCheckM ()
 checkMatch env scrutName retTy scrutTy cases = do
@@ -2475,7 +2472,7 @@ annotateExpr env expr = case expr of
     fTy <- infer env f
     ty <- foldM (applyArg env) fTy args
     (f', _) <- annotateExpr env f
-    args' <- mapM (\arg -> fst <$> annotateExpr env arg) args
+    args' <- mapM (fmap fst . annotateExpr env) args
     pure (ETyped (EApp f' args') ty, ty)
   EFunction params constraints ret body -> do
     envParams <- foldM (\e (Param n ty) -> do
@@ -3112,7 +3109,7 @@ checkDataDef env name params universe cases = do
   where
     checkCtor env' (DataCase ctorName ctorTy) = do
       let prefix = name <> "::"
-      when (not (prefix `T.isPrefixOf` ctorName)) $
+      unless (prefix `T.isPrefixOf` ctorName) $
         lift (Left (MatchCaseError noLoc ("constructor must be type-qualified: " <> ctorName)))
       _ <- inferUniverse env' ctorTy
       ctorTy' <- normalize env' ctorTy
@@ -3323,13 +3320,13 @@ loadTypeImportWithDigest projectRoot scope visiting (Import modName alias) = do
   pure (envFinal, (modName, digest))
   where
     isClass expr = case expr of
-      ETypeClass _ _ _ -> True
+      ETypeClass {} -> True
       _ -> False
     isInstance expr = case expr of
-      EInstance _ _ _ -> True
+      EInstance {} -> True
       _ -> False
     isData expr = case expr of
-      EData _ _ _ -> True
+      EData {} -> True
       _ -> False
 
 loadTypeImportsWithDigest :: FilePath -> ImportScope -> Set.Set Text -> [Import] -> IO (TCEnv, [(Text, String)])

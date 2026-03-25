@@ -12,7 +12,8 @@ module Parser
 
 import AST
 import qualified Type as T
-import Data.Char (isAlphaNum, isLetter, isSpace, isAscii)
+import Data.Functor ((<&>))
+import Data.Char (isAlphaNum, isDigit, isLetter, isSpace, isAscii)
 import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -69,9 +70,7 @@ pSExpr = lexeme (pList <|> pString <|> pNumber <|> pAtom)
       _ <- C.char '"'
       content <- manyTill L.charLiteral (C.char '"')
       pure $ SStr (DT.pack content)
-    pNumber = do
-      n <- L.decimal
-      pure $ SNum n
+    pNumber = SNum <$> L.decimal
     pAtom = do
       first <- M.satisfy (\c -> isLetter c || c == '_')
       rest <- many (M.satisfy (\c -> isAlphaNum c || c == '_' || c == '-' || c == ':' || c == '/'))
@@ -460,7 +459,7 @@ parseUniverseAtom t =
       Just (read (DT.unpack rest))
     _ -> Nothing
   where
-    isDigitChar c = c >= '0' && c <= '9'
+    isDigitChar = isDigit
 
 fromUniverse :: FilePath -> String -> SExpr -> Either String Int
 fromUniverse path context se = case se of
@@ -481,7 +480,7 @@ renderHead sexpr = case sexpr of
     headText (SAtom t) = DT.unpack t
     headText (SNum n)  = show n
     headText (SStr s)  = show s
-    headText (SList xs) = "(" ++ intercalate " " (map headText xs) ++ ")"
+    headText (SList xs) = "(" ++ unwords (map headText xs) ++ ")"
 
 --------------------------------------------------------------------------------
 -- M-expression parser (surface syntax)
@@ -511,7 +510,7 @@ pMImport = do
   keyword "import"
   modName <- pModuleName
   alias <- optional (keyword "as" *> pModuleName)
-  let chosen = maybe modName id alias
+  let chosen = fromMaybe modName alias
   pure (Import modName chosen)
 
 pMOpen :: Parser Open
@@ -545,8 +544,7 @@ pDataCase = M.try $ do
   keyword "case"
   name <- pIdentifier
   keyword "of-type"
-  ty <- pType
-  pure (DataCase name ty)
+  DataCase name <$> pType
 
 pTypeclassDef :: Parser Expr
 pTypeclassDef = M.try $ do
@@ -644,8 +642,7 @@ pLet = M.try $ do
 pParam :: Parser Param
 pParam = do
   name <- pIdentifier
-  ty <- pTypeParam
-  pure (Param name ty)
+  Param name <$> pTypeParam
 
 pFunction :: Parser Expr
 pFunction = M.try $ do
@@ -669,8 +666,7 @@ pConstraints = M.try $ do
 pConstraint :: Parser Constraint
 pConstraint = M.try $ do
   className <- pIdentifier
-  arg <- pTypeParam
-  pure (Constraint className arg)
+  Constraint className <$> pTypeParam
 
 pCompute :: Parser Expr
 pCompute = M.try $ do
@@ -716,8 +712,7 @@ pUp = M.try $ do
   fromLevel <- pUniverseLevel
   keyword "to"
   toLevel <- pUniverseLevel
-  body <- pValue
-  pure (EUp ty fromLevel toLevel body)
+  EUp ty fromLevel toLevel <$> pValue
 
 pDown :: Parser Expr
 pDown = M.try $ do
@@ -727,23 +722,20 @@ pDown = M.try $ do
   fromLevel <- pUniverseLevel
   keyword "to"
   toLevel <- pUniverseLevel
-  body <- pValue
-  pure (EDown ty fromLevel toLevel body)
+  EDown ty fromLevel toLevel <$> pValue
 
 pEqual :: Parser Expr
 pEqual = M.try $ do
   keyword "equal"
   ty <- pTypeParam
   lhs <- pValueAtom
-  rhs <- pValueAtom
-  pure (EEqual ty lhs rhs)
+  EEqual ty lhs <$> pValueAtom
 
 pReflexive :: Parser Expr
 pReflexive = M.try $ do
   keyword "reflexive"
   ty <- pTypeParam
-  term <- pValueAtom
-  pure (EReflexive ty term)
+  EReflexive ty <$> pValueAtom
 
 pRewrite :: Parser Expr
 pRewrite = M.try $ do
@@ -751,15 +743,13 @@ pRewrite = M.try $ do
   family <- pValueAtom
   proof <- pValueAtom
   keyword "as"
-  body <- pValue
-  pure (ERewrite family proof body)
+  ERewrite family proof <$> pValue
 
 pAnnot :: Parser Expr
 pAnnot = M.try $ do
   keyword "of-type"
   e <- pValueAtom
-  ty <- pType
-  pure (EAnnot e ty)
+  EAnnot e <$> pType
 
 pMatch :: Parser Expr
 pMatch = M.try $ do
@@ -782,11 +772,9 @@ pMatchCase = M.try $ do
   case binders of
     Nothing -> do
       keyword "as"
-      body <- pValue
-      pure (MatchCase ctor [] body)
+      MatchCase ctor [] <$> pValue
     Just params -> do
-      body <- pValue
-      pure (MatchCase ctor params body)
+      MatchCase ctor params <$> pValue
 
 pApp :: Parser Expr
 pApp = do
@@ -843,8 +831,7 @@ pForAll = M.try $ do
   keyword "as"
   dom <- pType
   keyword "to"
-  cod <- pType
-  pure (EForAll v dom cod)
+  EForAll v dom <$> pType
 
 pThereExists :: Parser Expr
 pThereExists = M.try $ do
@@ -853,8 +840,7 @@ pThereExists = M.try $ do
   keyword "as"
   dom <- pType
   keyword "in"
-  cod <- pType
-  pure (EThereExists v dom cod)
+  EThereExists v dom <$> pType
 
 pLetType :: Parser Expr
 pLetType = M.try $ do
@@ -887,8 +873,7 @@ pLiftExpr = M.try $ do
   keyword "from"
   fromLevel <- pUniverseLevel
   keyword "to"
-  toLevel <- pUniverseLevel
-  pure (ELift ty fromLevel toLevel)
+  ELift ty fromLevel <$> pUniverseLevel
 
 pTypeApp :: Parser Expr
 pTypeApp = do
@@ -987,7 +972,7 @@ parens = between (mSymbol "(") (mSymbol ")")
 preprocessInput :: FilePath -> DT.Text -> Either String DT.Text
 preprocessInput path rawTxt = do
   let normalized = normalizeLineEndings rawTxt
-  ensureTrailingNewline path normalized >>= pure . collapseDuplicateBlankLines
+  ensureTrailingNewline path normalized <&> collapseDuplicateBlankLines
 
 normalizeLineEndings :: DT.Text -> DT.Text
 normalizeLineEndings = DT.replace "\r\n" "\n" . DT.replace "\r" "\n"

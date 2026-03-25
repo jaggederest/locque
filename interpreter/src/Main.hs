@@ -204,6 +204,4 @@ dumpTypes m env = do
 getProjectRoot :: IO FilePath
 getProjectRoot = do
   maybeRoot <- findSmythfile
-  case maybeRoot of
-    Just root -> pure root
-    Nothing -> getCurrentDirectory
+  maybe getCurrentDirectory pure maybeRoot

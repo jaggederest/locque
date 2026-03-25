@@ -49,7 +49,7 @@ formatError (ErrorMsg loc mainMsg mbCtx suggestions mbNote) =
     [ prettyLoc loc <> ": " <> mainMsg
     , formatContext mbCtx
     , formatSuggestions suggestions
-    , maybe "" (\n -> "Note: " <> n) mbNote
+    , maybe "" ("Note: " <>) mbNote
     ]
 
 -- | Format source code context with highlighting

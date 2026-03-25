@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 module ImportResolver
   ( ImportScope(..)
   , ResolvedModule(..)
@@ -50,16 +51,14 @@ resolveModulePath projectRoot libRoot scope modName = do
     else do
       let isTest = "test/" `List.isPrefixOf` modPath
       stdlibPaths <- stdlibRoots projectRoot
-      let roots =
-            if isStdlib
-              then map (\path -> (path, StdlibScope)) stdlibPaths
-              else if isTest
-                then [(projectRoot, ProjectScope)]
-                else case scope of
-                  StdlibScope -> map (\path -> (path, StdlibScope)) stdlibPaths
-                  ProjectScope ->
-                    (projectRoot </> libRoot, ProjectScope)
-                      : map (\path -> (path, StdlibScope)) stdlibPaths
+      let roots
+            | isStdlib = map (, StdlibScope) stdlibPaths
+            | isTest = [(projectRoot, ProjectScope)]
+            | otherwise = case scope of
+                StdlibScope -> map (, StdlibScope) stdlibPaths
+                ProjectScope ->
+                  (projectRoot </> libRoot, ProjectScope)
+                    : map (, StdlibScope) stdlibPaths
       resolved <- findModule modPath roots
       case resolved of
         Just (path, resolvedScope) -> pure (ResolvedModule path resolvedScope)
@@ -124,7 +123,7 @@ findStdlibRootFromExecutable = do
   findStdlibRoot (takeDirectory exePath)
 
 findStdlibRootFromRepo :: FilePath -> IO (Maybe FilePath)
-findStdlibRootFromRepo projectRoot = search projectRoot
+findStdlibRootFromRepo = search
   where
     search dir = do
       isRepo <- isLocqueRepoRoot dir

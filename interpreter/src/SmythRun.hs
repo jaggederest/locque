@@ -63,7 +63,7 @@ runFileNoExit config file = do
       case digestAttempt of
         Left e -> do
           putStrLn $ "Type check phase error: " ++ show e
-          putStrLn $ "  (This may be a module import/loading issue)"
+          putStrLn "  (This may be a module import/loading issue)"
           pure False
         Right (digest, importedEnv) -> do
           cached <- RC.readRunCache (projectRoot config) file digest
@@ -77,7 +77,7 @@ runFileNoExit config file = do
               case tcAttempt of
                 Left e -> do
                   putStrLn $ "Type check phase error: " ++ show e
-                  putStrLn $ "  (This may be a module import/loading issue)"
+                  putStrLn "  (This may be a module import/loading issue)"
                   pure False
                 Right (Left tcErr) -> do
                   putStrLn $ "Type error: " ++ TC.typeErrorWithSource tcErr contents

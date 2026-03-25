@@ -43,8 +43,8 @@ insertRecursors (Module name imports opens defs) recDefs = do
             Nothing -> (acc ++ [def], remaining)
         _ -> (acc ++ [def], remaining)
 
-    buildRecursorMap recDefs' =
-      foldl step (Right Map.empty) recDefs'
+    buildRecursorMap =
+      foldl step (Right Map.empty)
       where
         step (Left err) _ = Left err
         step (Right acc) def@(Definition _ recName _) =
@@ -119,8 +119,8 @@ data CaseInfo = CaseInfo
   }
 
 allocateCaseNames :: Set.Set T.Text -> [DataCase] -> ([CaseInfo], Set.Set T.Text)
-allocateCaseNames used0 cases =
-  foldl step ([], used0) cases
+allocateCaseNames used0 =
+  foldl step ([], used0)
   where
     step (acc, used) (DataCase ctorName ctorTy) =
       let (ctorParams, _) = splitForAll ctorTy
@@ -254,7 +254,7 @@ mkPi params ret =
   foldr (\(Param name ty) acc -> EForAll name ty acc) ret params
 
 splitForAll :: Expr -> ([Param], Expr)
-splitForAll expr = go Set.empty expr
+splitForAll = go Set.empty
   where
     go used e = case e of
       EForAll v dom cod ->
@@ -372,8 +372,8 @@ freeVarsComp bound comp = case comp of
     freeVarsComp bound c1 `Set.union` freeVarsComp (Set.insert v bound) c2
 
 freeVarsParamsSeq :: Set.Set T.Text -> [Param] -> (Set.Set T.Text, Set.Set T.Text)
-freeVarsParamsSeq bound params =
-  foldl step (bound, Set.empty) params
+freeVarsParamsSeq bound =
+  foldl step (bound, Set.empty)
   where
     step (b, acc) (Param name ty) =
       let acc' = acc `Set.union` freeVarsWithBound b ty
@@ -476,8 +476,8 @@ renameBound oldName newName = go Set.empty
           body' = renameBody bound' body
       in (params', constraints', ret', body')
 
-    renameParamSeq bound params =
-      foldl step (bound, []) params
+    renameParamSeq bound =
+      foldl step (bound, [])
       where
         step (b, acc) (Param name ty) =
           let ty' = go b ty

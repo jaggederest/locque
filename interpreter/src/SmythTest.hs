@@ -5,7 +5,9 @@ module SmythTest
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Data.Either (lefts, rights)
 import Data.Maybe (catMaybes)
+import Control.Monad (when)
 import qualified Data.Map.Strict as Map
 import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((</>), isAbsolute, takeDirectory)
@@ -150,8 +152,8 @@ runSelectedTests config verbose stageTiming files = do
 runPositiveTestsWithCounts :: SmythConfig -> Bool -> [FilePath] -> IO (Int, [TestError])
 runPositiveTestsWithCounts config stageTiming files = do
   results <- mapM (runPositiveTest (projectRoot config) stageTiming) files
-  let assertions = sum [n | Right n <- results]
-      errors = [e | Left e <- results]
+  let assertions = sum (rights results)
+      errors = lefts results
   pure (assertions, errors)
 
 runPositiveTest :: FilePath -> Bool -> FilePath -> IO (Either TestError Int)
@@ -162,9 +164,7 @@ runPositiveTest projectRoot stageTiming file = do
       else do
         result <- runTestOutcome projectRoot file
         pure (result, [])
-  if stageTiming
-    then printStageTimings file timings
-    else pure ()
+  when stageTiming $ printStageTimings file timings
   case outcome of
     Right count -> pure (Right count)
     Left failure ->
@@ -202,7 +202,6 @@ runTestOutcome projectRoot file = do
   case parseMExprFile file contents of
     Left parseErr -> pure $ Left (Failure ParseFailure (T.pack parseErr))
     Right m -> do
-      result <- (do
         (digest, importedEnv) <- TC.moduleDigestWithImports projectRoot contents m
         cached <- RC.readRunCache projectRoot file digest
         case cached of
@@ -232,8 +231,7 @@ runTestOutcome projectRoot file = do
                         RC.writeRunCache projectRoot file cacheEntry
                         count <- runModuleMain projectRoot arity m'
                         pure (Right count)
-        ) `catch` handleTestException
-      pure result
+      `catch` handleTestException
 
 data StageTiming = StageTiming
   { stageName :: String

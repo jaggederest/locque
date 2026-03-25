@@ -3,7 +3,7 @@ module SmythDependencies
   ( runDependencies
   ) where
 
-import Control.Monad (foldM, forM, when)
+import Control.Monad (foldM, forM, unless, when)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -19,7 +19,7 @@ import SmythConfig (SmythConfig(..))
 
 runDependencies :: SmythConfig -> [String] -> IO ()
 runDependencies config args = do
-  when (not (null args)) $ do
+  unless (null args) $ do
     putStrLn "Error: 'smyth dependencies' does not take arguments"
     putStrLn "Usage: smyth dependencies"
     exitFailure
@@ -86,8 +86,8 @@ printForest
   -> Set.Set T.Text
   -> [T.Text]
   -> IO (Set.Set T.Text)
-printForest graph libNames roots =
-  foldM (printRoot graph libNames) Set.empty roots
+printForest graph libNames =
+  foldM (printRoot graph libNames) Set.empty
 
 printRoot
   :: Map.Map T.Text [T.Text]
@@ -95,8 +95,8 @@ printRoot
   -> Set.Set T.Text
   -> T.Text
   -> IO (Set.Set T.Text)
-printRoot graph libNames seen name =
-  printTree graph libNames Set.empty seen "" True name
+printRoot graph libNames seen =
+  printTree graph libNames Set.empty seen "" True
 
 printTree
   :: Map.Map T.Text [T.Text]

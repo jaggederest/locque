@@ -85,8 +85,8 @@ dedupeInstances insts =
 -- Entry point
 
 transformModuleWithEnvs :: FilePath -> Module -> IO Module
-transformModuleWithEnvs projectRoot m =
-  transformModuleWithEnvsScope projectRoot ProjectScope m
+transformModuleWithEnvs projectRoot =
+  transformModuleWithEnvsScope projectRoot ProjectScope
 
 transformModuleWithEnvsScope :: FilePath -> ImportScope -> Module -> IO Module
 transformModuleWithEnvsScope projectRoot scope m@(Module name imports opens defs) = do
@@ -218,8 +218,8 @@ collectInstanceFns classEnv openAliases instances =
         Nothing -> Nothing
 
 buildOpenClassAliases :: Set.Set Text -> DictEnvs -> [Open] -> Map.Map Text Text
-buildOpenClassAliases localClassNames importEnvs opens =
-  foldl addOpen Map.empty opens
+buildOpenClassAliases localClassNames importEnvs =
+  foldl addOpen Map.empty
   where
     addOpen acc (Open modAlias names) =
       foldl (addAlias modAlias) acc names
@@ -305,8 +305,8 @@ qualifyInstance alias localClassNames inst =
 
 transformDefinition :: TransformCtx -> LocalInfo -> Definition -> [Definition]
 transformDefinition ctx localInfo def@(Definition tr name body) = case stripType body of
-  ETypeClass _ _ _ -> []
-  EInstance _ _ _ -> transformInstanceDefinition ctx localInfo name tr
+  ETypeClass {} -> []
+  EInstance {} -> transformInstanceDefinition ctx localInfo name tr
   _ -> [def { defBody = transformExpr ctx body }]
 
 transformInstanceDefinition :: TransformCtx -> LocalInfo -> Text -> Transparency -> [Definition]
@@ -460,8 +460,8 @@ transformExpr ctx expr = case expr of
   EDict className impls ->
     EDict className [ (n, transformExpr ctx e) | (n, e) <- impls ]
   EDictAccess d method -> EDictAccess (transformExpr ctx d) method
-  ETypeClass _ _ _ -> error "typeclass nodes should be removed before transformExpr"
-  EInstance _ _ _ -> error "instance nodes should be removed before transformExpr"
+  ETypeClass {} -> error "typeclass nodes should be removed before transformExpr"
+  EInstance {} -> error "instance nodes should be removed before transformExpr"
 
 transformFunctionBody :: TransformCtx -> FunctionBody -> FunctionBody
 transformFunctionBody ctx body = case body of
@@ -691,7 +691,7 @@ matchTypes typeVars sub patternTy targetTy = case stripType patternTy of
   _ -> if stripType patternTy == stripType targetTy then Just sub else Nothing
 
 collectTypeVars :: Expr -> Set.Set Text
-collectTypeVars expr = go Set.empty expr
+collectTypeVars = go Set.empty
   where
     go acc e = case stripType e of
       EVar v ->
@@ -947,7 +947,7 @@ isKindAliasName name =
   T.isSuffixOf "TypeFunction" name || T.isSuffixOf "BinaryTypeFunction" name
 
 isBaseTypeAlias :: Text -> Bool
-isBaseTypeAlias name = T.isSuffixOf "BaseType" name
+isBaseTypeAlias = T.isSuffixOf "BaseType"
 
 substType :: Map.Map Text Expr -> Expr -> Expr
 substType sub expr = case expr of
