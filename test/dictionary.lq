@@ -3,12 +3,14 @@ import prelude as P
 # Runs all tests in test/dictionary/
 
 import test::dictionary::basics as basics
+import test::dictionary::map-values as map_values
 
 module test::dictionary contains
   define transparent main as compute
     perform (P::sequence-unit
       [
         basics::main
+      , map_values::main
       ])
   end
 end

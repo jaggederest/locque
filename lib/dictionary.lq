@@ -1,4 +1,5 @@
 import prelude as P
+import type_aliases as Types
 import typeclass::equality as Eq
 import typeclass::hash as Hash
 open P exposing Option Option::none Option::some end
@@ -64,6 +65,22 @@ module dictionary contains
         end)
         (empty K V)
         entries
+    end
+
+  define transparent map-values as
+    function K Type0 V Type0 W Type0
+             f (Types::Function V W)
+             dict (Dictionary K V)
+    requires Hash::Hash K and Eq::Equality K
+    returns (Dictionary K W) value
+      P::fold (Pair K V) (Dictionary K W)
+        (function acc (Dictionary K W) entry (Pair K V) returns (Dictionary K W) value
+          match entry of-type (Pair K V) as ignored returns (Dictionary K W)
+            case Pair::pair with k K v V as insert K W k (f v) acc
+          end
+        end)
+        (empty K W)
+        (to-list K V dict)
     end
 
   define transparent member as

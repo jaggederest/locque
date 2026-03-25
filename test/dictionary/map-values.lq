@@ -1,0 +1,72 @@
+import arithmetic as Ar
+import assert as A
+import dictionary as D
+import prelude as P
+
+open P exposing Option Option::none Option::some end
+
+module test::dictionary::map-values contains
+  define transparent lookup-or-zero as
+    function key String dict (Dictionary String Natural) returns Natural value
+      match (D::lookup String Natural key dict) of-type (Option Natural) as ignored returns Natural
+        case Option::none as 0
+        case Option::some with v Natural as v
+      end
+    end
+
+  define transparent double as
+    function n Natural returns Natural value
+      Ar::add n n
+    end
+
+  define transparent dict-ab as
+    D::insert String Natural "b" 2
+      (D::insert String Natural "a" 1
+        (D::empty String Natural))
+
+  define transparent dict-ab-doubled as
+    D::map-values String Natural Natural double dict-ab
+
+  define transparent test-map-values-preserves-size as compute
+    perform
+      (A::assert-eq Natural (D::size String Natural dict-ab-doubled) 2)
+  end
+
+  define transparent test-map-values-a as compute
+    perform
+      (A::assert-eq Natural (lookup-or-zero "a" dict-ab-doubled) 2)
+  end
+
+  define transparent test-map-values-b as compute
+    perform
+      (A::assert-eq Natural (lookup-or-zero "b" dict-ab-doubled) 4)
+  end
+
+  define transparent test-map-values-empty as compute
+    perform
+      (A::assert-eq Natural
+        (D::size String Natural
+          (D::map-values String Natural Natural double (D::empty String Natural)))
+        0)
+  end
+
+  define transparent test-map-values-preserves-keys as compute
+    perform (P::sequence-unit
+      [
+        (A::assert-eq Boolean (D::member String Natural "a" dict-ab-doubled) true)
+      , (A::assert-eq Boolean (D::member String Natural "b" dict-ab-doubled) true)
+      , (A::assert-eq Boolean (D::member String Natural "missing" dict-ab-doubled) false)
+      ])
+  end
+
+  define transparent main as compute
+    perform (P::sequence-unit
+      [
+        test-map-values-preserves-size
+      , test-map-values-a
+      , test-map-values-b
+      , test-map-values-empty
+      , test-map-values-preserves-keys
+      ])
+  end
+end
