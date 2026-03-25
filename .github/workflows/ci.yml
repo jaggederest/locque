@@ -9,7 +9,20 @@ env:
   CABAL_VERSION: "3.16.1.0"
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: HLint
+        uses: haskell-actions/hlint-run@v2
+        with:
+          path: interpreter/src/
+          fail-on: warning
+
   test:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
