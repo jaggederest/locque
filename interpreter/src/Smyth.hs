@@ -10,6 +10,7 @@ import SmythCount (runCount)
 import SmythDependencies (runDependencies)
 import SmythDump (runDump)
 import SmythFormat (runFormat)
+import SmythNew (runNew)
 import SmythTest (runTests)
 import SmythRun (RunOptions(..), defaultRunOptions, runFileWithOptions)
 import Text.Read (readMaybe)
@@ -18,6 +19,7 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
+    ("new" : newArgs)   -> runNew newArgs
     ("test" : testArgs) -> runTestCommand testArgs
     ("run" : runArgs)   -> runRunCommand runArgs
     ("bench" : benchArgs) -> runBenchCommand benchArgs
@@ -154,6 +156,7 @@ printHelp = do
   putStrLn "smyth - Locque build tool"
   putStrLn ""
   putStrLn "Usage:"
+  putStrLn "  smyth new <name>        Scaffold a new project in ./<name>/"
   putStrLn "  smyth run [--pid-file <path>] [--timeout <ms>] <file> -- <args>    Type check and run a .lq/.lqs file"
   putStrLn "  smyth test [--slow] [--verbose] Run all tests (test/main.lq)"
   putStrLn "  smyth test <file>   Run specific test file"
